@@ -645,6 +645,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 - Acceptance: `cmake --preset macos-x86_64` then `cmake --build --preset macos-x86_64`, run from `Engine/muscriptor.cpp/cpp`, exit 0; `scripts/fetch-gguf.sh small` exits 0 and prints a path whose `shasum -a 256` is `925f55af65a20ebc4f8b45ceaf095a12b72493d436cb112623cd0041a1af23d4`; `cpp/build-macos-x86_64/bench/muscriptor_bench --transcribe --size small --device cpu`, run from `Engine/muscriptor.cpp`, prints a device line naming the CPU backend, a note count greater than 0 and a real-time factor
 - QA scenario: happy — the bench finishes the fifteen-second fixture on the CPU and the recorded real-time factor becomes the number the owner compares against on the M3 Pro; failure — a copy of the small file truncated to half its size, placed as the weights, makes the bench print the description of `InvalidCheckpoint` and exit non-zero
 - Commit: yes — `chore(engine): add verified model fetch script and record the Intel engine build`
+- Deviation (owner chose option 2, 2026-10-04): on the Intel i5-8400T the bench ran about 49 minutes on the 15-second fixture without finishing, and the sidecar produced no first chunk after about 4 minutes, with the build cache showing AVX2 and FMA off. Full-model transcription is therefore not verified on this Intel Mac; the bench note count and real-time factor are to be recorded on the owner's M3 Pro. Build, checksum and truncated-file checks stand.
 
 ### T3 — Build the sillymidi-engine sidecar
 
@@ -657,6 +658,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 - Acceptance: `scripts/build-engine.sh` exits 0; `Engine/build-$(uname -m)/sillymidi-engine devices` prints one line whose last device has backend `CPU`; `Engine/build-$(uname -m)/sillymidi-engine instruments` prints one line listing 35 instruments including `acoustic_piano` and `drums`; `scripts/smoke-engine.sh | tail -1` prints `smoke ok:` followed by a count above 0
 - QA scenario: happy — the transcribe stream shows at least one `update` line before `done` on the fixture, and on the owner's M3 Pro the `ready` line reports backend `Metal`; failure — writing a newline to the engine's stdin while the fixture is running makes it print an `error` line with code `Cancelled` and exit 2 within five seconds
 - Commit: yes — `feat(engine): add sillymidi-engine newline-delimited JSON sidecar around muscriptor.cpp`
+- Deviation (owner chose option 2, 2026-10-04): the sidecar builds, and `devices` and `instruments` pass here, but the `smoke ok:` run and the `update` and Cancelled checks are deferred to the owner's M3 Pro for the reason under T2. Session tests use `Tests/Fixtures/fake-engine.sh` instead of a real model.
 
 ### T4 — Generate the Xcode project with XcodeGen and embed the engine
 
