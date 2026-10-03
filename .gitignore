@@ -1,0 +1,10 @@
+*.xcodeproj
+DerivedData/
+build/
+Engine/build-*/
+*.gguf
+.venv/
+xcuserdata/
+*.xcresult
+reports/
+.DS_Store

@@ -1,0 +1,3 @@
+[submodule "Engine/muscriptor.cpp"]
+	path = Engine/muscriptor.cpp
+	url = https://github.com/DamRsn/muscriptor.cpp.git
