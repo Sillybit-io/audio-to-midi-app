@@ -1,0 +1,81 @@
+name: SillyMIDITools
+options:
+  bundleIdPrefix: io.sillybit
+  projectFormat: xcode16_3
+  defaultSourceDirectoryType: syncedFolder
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    ARCHS: "$(NATIVE_ARCH_ACTUAL)"
+    ONLY_ACTIVE_ARCH: NO
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+packages:
+  SwiftMIDIFile:
+    url: https://github.com/orchetect/swift-midi-file
+    exactVersion: 1.0.2
+targets:
+  Engine:
+    type: ""
+    platform: macOS
+    legacy:
+      toolPath: "$(SRCROOT)/scripts/build-engine.sh"
+      passSettings: false
+  SillyMIDITools:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    dependencies:
+      - target: Engine
+        embed: false
+        link: false
+      - package: SwiftMIDIFile
+        product: SwiftMIDIFile
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: Silly MIDI Tools
+        CFBundleName: Silly MIDI Tools
+        LSMinimumSystemVersion: "26.0"
+        LSApplicationCategoryType: public.app-category.music
+    entitlements:
+      path: Config/App.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.files.user-selected.read-write: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.sillybit.sillymiditools
+        PRODUCT_NAME: SillyMIDITools
+    postBuildScripts:
+      - name: Embed engine sidecar
+        script: '"$SRCROOT/scripts/embed-engine.sh"'
+        basedOnDependencyAnalysis: false
+  SillyMIDIToolsTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+    dependencies:
+      - target: SillyMIDITools
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: io.sillybit.sillymiditools.tests
+schemes:
+  SillyMIDITools:
+    build:
+      targets:
+        SillyMIDITools: all
+    test:
+      targets:
+        - SillyMIDIToolsTests

@@ -13,7 +13,7 @@ MuScriptor weights are gated on Hugging Face. You need a Hugging Face account, y
 
 ## Build
 
-Requirements: macOS 15 or later, Xcode 26, `xcodegen`, `cmake` and `ninja`.
+Requirements: macOS 26 or later, Xcode 26 or later, `xcodegen`, `cmake` and `ninja`.
 
 ```sh
 git clone --recurse-submodules https://github.com/Sillybit-io/audio-to-midi-app.git
