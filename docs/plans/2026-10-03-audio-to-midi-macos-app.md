@@ -776,7 +776,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 - Closes gap: G9
 - Depends on: T1, T6
 - References: C12, C15, C16, C24, C25, C26, C56, C64, C65, `THIRD_PARTY_NOTICES.md`
-- Acceptance: the xcodebuild test command from Verification strategy with `LicenseTests` prints `** TEST SUCCEEDED **`; `grep -c '^## ' THIRD_PARTY_NOTICES.md` prints 9
+- Acceptance: the xcodebuild test command from Verification strategy with `LicenseTests` prints `** TEST SUCCEEDED **`; `noticesHeadingsMatchComponents` counts the nine level-two headings outside code fences (a raw `grep -c '^## '` prints 12 because the verbatim MuScriptor NOTICE holds three `##` lines inside a fence)
 - QA scenario: happy — with a MuScriptor model selected the toolbar shows "Non-commercial use only" and the export sheet names Mirelo and Kyutai; with Basic Pitch selected it shows "Commercial use allowed" and the export sheet names Spotify; failure — removing one heading from the notices file makes `noticesHeadingsMatchComponents` fail
 - Commit: yes — `feat(licences): add third-party notices, the About window and licence badges`
 

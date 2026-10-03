@@ -33,6 +33,8 @@ targets:
     platform: macOS
     sources:
       - App
+      - path: THIRD_PARTY_NOTICES.md
+        buildPhase: resources
     dependencies:
       - target: Engine
         embed: false
