@@ -3,6 +3,10 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Bindable var model: DocumentModel
+    let store: ModelStore
+    @Bindable var access: AccessCoordinator
+    @State private var showModels = false
+    @State private var selectedModel: ModelEntry.ID?
     private let engineProblem: String? = {
         do {
             _ = try EngineLocator.locate()
@@ -28,6 +32,14 @@ struct ContentView: View {
                     }
                 Spacer()
             }
+        }
+        .toolbar { Button("Models") { showModels = true } }
+        .sheet(isPresented: $showModels) {
+            VStack { ModelPickerView(store: store, selection: $selectedModel); Button("Done") { showModels = false }.padding() }
+                .frame(width: 640, height: 360)
+        }
+        .sheet(item: $access.request) { request in
+            LicenseSheet(coordinator: access, request: request).interactiveDismissDisabled()
         }
         .fileImporter(isPresented: $model.isImporting, allowedContentTypes: [.audio]) { result in
             switch result {
