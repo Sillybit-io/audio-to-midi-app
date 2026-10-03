@@ -36,6 +36,13 @@ struct ModelEntry: Identifiable, Hashable, Sendable {
     let licenseTexts: [LicenseText]
 
     var fileName: String { remotePath.map { ($0 as NSString).lastPathComponent } ?? id }
+    /// The sentence embedded in exported MIDI files and shown in the export sheet.
+    var exportNotice: String {
+        switch engine {
+        case .muscriptor: "Transcribed with MuScriptor by Mirelo and Kyutai (CC BY-NC 4.0, non-commercial use only)."
+        case .basicPitch: "Transcribed with Basic Pitch by Spotify (Apache-2.0)."
+        }
+    }
     var needsDownload: Bool { engine == .muscriptor }
     /// Rough working set: the weights plus the float32 cache, estimated as twice the file size.
     var memoryEstimate: Int64 { byteSize * 2 }

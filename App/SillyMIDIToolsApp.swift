@@ -12,6 +12,7 @@ struct SillyMIDIToolsApp: App {
         Window("Silly MIDI Tools", id: "main") {
             ContentView(model: model, store: store, access: access, session: session)
                 .frame(minWidth: 640, minHeight: 420)
+                .onAppear { MIDIExportItem.clearTemporaryFiles() }
                 .onAppear { store.policy = HuggingFaceAccessPolicy(coordinator: access) }
         }
         .commands {

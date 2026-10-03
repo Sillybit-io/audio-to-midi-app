@@ -32,6 +32,8 @@ struct ContentView: View {
                                       deviceIndex: $deviceIndex, threads: $threads, canStart: canStart, onStart: start)
                         .padding(.horizontal)
                     InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
+                    ExportView(notes: session.notes, entry: ModelCatalog.entries.first { $0.id == selectedModel },
+                               slice: model.slice, name: model.document?.name ?? "transcription").padding(.horizontal)
                     InstrumentLegendView(instruments: presentInstruments, hidden: $hiddenInstruments).padding(.horizontal)
                     PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
                                   hidden: hiddenInstruments)

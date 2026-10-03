@@ -1,0 +1,89 @@
+import Foundation
+import SwiftMIDICore
+import SwiftMIDIFile
+import Testing
+@testable import SillyMIDITools
+
+private func note(_ onset: Double, _ offset: Double, _ pitch: Int, _ instrument: String = "acoustic_piano",
+                  program: Int = 0, drum: Bool = false, velocity: Int? = nil, bends: [Int]? = nil) -> NoteEvent {
+    NoteEvent(onset: onset, offset: offset, pitch: pitch, program: program, isDrum: drum, instrument: instrument, velocity: velocity, pitchBends: bends)
+}
+
+private func parse(_ data: Data) throws -> MusicalMIDI1File { try MusicalMIDI1File(data: data) }
+
+private func absoluteEvents(_ track: MusicalMIDI1File.Track, _ file: MusicalMIDI1File) -> [(tick: Int, event: MIDIFileEvent)] {
+    var tick = 0
+    return track.events.map { e in
+        tick += Int(e.delta.ticks(using: file.timebase))
+        return (tick, e.event)
+    }
+}
+
+struct MIDIExportTests {
+    @Test func headerIsStandardMIDI() throws {
+        let data = try MIDIBuilder.build(notes: [note(0, 1, 60)])
+        #expect(Array(data.prefix(4)) == Array("MThd".utf8))
+    }
+
+    @Test func roundTripTrackCount() throws {
+        let notes = [note(0, 1, 60), note(0, 1, 40, "acoustic_bass", program: 32), note(0, 0.5, 36, "drums", program: 128, drum: true)]
+        let file = try parse(try MIDIBuilder.build(notes: notes))
+        #expect(file.tracks.count == 4)
+    }
+
+    @Test func tickMath() throws {
+        let file = try parse(try MIDIBuilder.build(notes: [note(1.0, 1.5, 60)]))
+        let events = absoluteEvents(file.tracks[1], file)
+        let on = events.first { if case .noteOn = $0.event { true } else { false } }
+        let off = events.first { if case .noteOff = $0.event { true } else { false } }
+        #expect(on?.tick == 960)
+        #expect((off?.tick ?? 0) - (on?.tick ?? 0) == 480)
+    }
+
+    @Test func copyrightEventPresentOnlyWhenRequested() throws {
+        func copyrights(_ options: MIDIExportOptions) throws -> Int {
+            let file = try parse(try MIDIBuilder.build(notes: [note(0, 1, 60)], options: options))
+            return file.tracks[0].events.filter {
+                if case .text(let t) = $0.event { t.textType == .copyright } else { false }
+            }.count
+        }
+        var options = MIDIExportOptions()
+        #expect(try copyrights(options) == 0)
+        options.copyright = "Transcribed with Basic Pitch by Spotify (Apache-2.0)."
+        #expect(try copyrights(options) == 1)
+    }
+
+    @Test func sliceClipping() throws {
+        var options = MIDIExportOptions()
+        options.sliceLength = 2
+        let file = try parse(try MIDIBuilder.build(notes: [note(1.5, 3.0, 60)], options: options))
+        let off = absoluteEvents(file.tracks[1], file).first { if case .noteOff = $0.event { true } else { false } }
+        #expect(off?.tick == 1920)
+    }
+
+    @Test func originalTimelineAddsTheSliceStart() throws {
+        var options = MIDIExportOptions()
+        options.sliceStart = 4
+        options.relativeTimeline = false
+        let file = try parse(try MIDIBuilder.build(notes: [note(1, 2, 60)], options: options))
+        let on = absoluteEvents(file.tracks[1], file).first { if case .noteOn = $0.event { true } else { false } }
+        #expect(on?.tick == 5 * 960)
+    }
+
+    @Test func drumsUseChannelTenAndMelodicSkipIt() {
+        let map = MIDIBuilder.channels(for: (0..<12).map { "i\($0)" } + ["drums"], drums: ["drums"])
+        #expect(map["drums"] == 9)
+        #expect(!(0..<12).contains { map["i\($0)"] == 9 })
+    }
+
+    @Test func pitchBendsAreWrittenAndResetAfterTheNote() throws {
+        let file = try parse(try MIDIBuilder.build(notes: [note(0, 1, 60, velocity: 90, bends: [0, 3, 0])]))
+        let bends = absoluteEvents(file.tracks[1], file).filter { if case .pitchBend = $0.event { true } else { false } }
+        #expect(bends.count == 4)
+    }
+
+    @Test func zeroNotesStillWriteAValidFile() throws {
+        let file = try parse(try MIDIBuilder.build(notes: []))
+        #expect(file.tracks.count == 1)
+    }
+}
