@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var devices: [EngineDevice] = []
     @State private var instruments: [EngineInstrument] = []
     @State private var chosenInstruments: Set<String> = []
+    @State private var hiddenInstruments: Set<String> = []
     @State private var engine: EngineProcess?
     @State private var engineProblem: String?
 
@@ -31,8 +32,10 @@ struct ContentView: View {
                                       deviceIndex: $deviceIndex, threads: $threads, canStart: canStart, onStart: start)
                         .padding(.horizontal)
                     InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
-                    Text("\(session.notes.count) notes").foregroundStyle(.secondary).padding(.horizontal)
-                    Spacer()
+                    InstrumentLegendView(instruments: presentInstruments, hidden: $hiddenInstruments).padding(.horizontal)
+                    PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
+                                  hidden: hiddenInstruments)
+                        .frame(minHeight: 180)
                 }
                 .dropDestination(for: URL.self) { urls, _ in
                     guard let url = urls.first else { return false }
@@ -63,6 +66,10 @@ struct ContentView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+    }
+
+    private var presentInstruments: [String] {
+        Array(Set(session.notes.map(\.instrument))).sorted()
     }
 
     private var canStart: Bool {
