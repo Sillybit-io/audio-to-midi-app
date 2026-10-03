@@ -9,7 +9,7 @@ cd "${0:A:h:h}"
 secrets='hf_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|/Users/[a-zA-Z]'
 emails='[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.(com|net|org)'
 skip=(':!.agents' ':!.claude' ':!agent')
-skip_notices=(':!THIRD_PARTY_NOTICES.md' ':!App/Resources/Licenses' ':!LICENSE')
+skip_notices=(':!THIRD_PARTY_NOTICES.md' ':!App/Resources/Licenses' ':!App/Resources/BasicPitch/NOTICE' ':!LICENSE')
 
 found=0
 scan() {
