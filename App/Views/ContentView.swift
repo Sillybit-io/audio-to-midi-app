@@ -7,6 +7,7 @@ struct ContentView: View {
     @Bindable var access: AccessCoordinator
     let session: TranscriptionSession
 
+    @State private var playback = PlaybackEngine()
     @State private var showModels = false
     @State private var selectedModel: ModelEntry.ID?
     @State private var deviceIndex: Int?
@@ -35,8 +36,9 @@ struct ContentView: View {
                     ExportView(notes: session.notes, entry: ModelCatalog.entries.first { $0.id == selectedModel },
                                slice: model.slice, name: model.document?.name ?? "transcription").padding(.horizontal)
                     InstrumentLegendView(instruments: presentInstruments, hidden: $hiddenInstruments).padding(.horizontal)
+                    TransportView(playback: playback, instruments: presentInstruments, prepare: prepareOriginal).padding(.horizontal)
                     PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
-                                  hidden: hiddenInstruments)
+                                  playhead: playback.position, hidden: hiddenInstruments)
                         .frame(minHeight: 180)
                 }
                 .dropDestination(for: URL.self) { urls, _ in
@@ -47,6 +49,10 @@ struct ContentView: View {
             }
         }
         .task { await loadEngineInfo() }
+        .onChange(of: session.notes.count) { playback.sync(notes: session.notes) }
+        .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
+        .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
+        .onChange(of: model.slice) { playback.duration = model.slice.span }
         .toolbar { Button("Models") { showModels = true } }
         .sheet(isPresented: $showModels) {
             VStack { ModelPickerView(store: store, selection: $selectedModel); Button("Done") { showModels = false }.padding() }
@@ -68,6 +74,12 @@ struct ContentView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+    }
+
+    private func prepareOriginal() {
+        guard let document = model.document else { return }
+        playback.duration = model.slice.span
+        playback.setOriginal(samples: model.slice.cut(document.samples, sampleRate: document.sampleRate), sampleRate: document.sampleRate)
     }
 
     private var presentInstruments: [String] {
