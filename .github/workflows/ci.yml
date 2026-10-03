@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install tools
+        run: brew install xcodegen ninja
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Build the engine sidecar
+        run: scripts/build-engine.sh
+
+      - name: Test
+        run: >
+          xcodebuild test
+          -project SillyMIDITools.xcodeproj
+          -scheme SillyMIDITools
+          -destination 'platform=macOS'
+          -derivedDataPath build/DerivedData
+          CODE_SIGN_IDENTITY=-
+
+      - name: Build the release app
+        run: >
+          xcodebuild build
+          -project SillyMIDITools.xcodeproj
+          -scheme SillyMIDITools
+          -configuration Release
+          -destination 'platform=macOS'
+          -derivedDataPath build/DerivedData
+          CODE_SIGN_IDENTITY=-
+
+      - name: Zip the app
+        run: ditto -c -k --keepParent build/DerivedData/Build/Products/Release/SillyMIDITools.app SillyMIDITools.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SillyMIDITools-macOS
+          path: SillyMIDITools.zip
