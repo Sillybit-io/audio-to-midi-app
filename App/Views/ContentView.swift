@@ -73,7 +73,7 @@ struct ContentView: View {
     }
 
     private var canStart: Bool {
-        engine != nil && model.document != nil && selectedModel != nil && !session.isBusy
+        (engine != nil || selectedModel == "basic-pitch") && model.document != nil && selectedModel != nil && !session.isBusy
     }
 
     private func loadEngineInfo() async {
@@ -91,17 +91,23 @@ struct ContentView: View {
     }
 
     private func start() {
-        guard let engine, let document = model.document,
-              let entry = ModelCatalog.entries.first(where: { $0.id == selectedModel }),
-              let modelURL = store.installedURL(for: entry) else { return }
+        guard let document = model.document,
+              let entry = ModelCatalog.entries.first(where: { $0.id == selectedModel }) else { return }
         let samples = model.slice.cut(document.samples, sampleRate: document.sampleRate)
         let rate = document.sampleRate
         let device = deviceIndex.map(String.init) ?? "auto"
         let names = chosenInstruments.sorted()
         let count = threads
+        if entry.engine == .basicPitch {
+            session.start { BasicPitchEngine().stream(samples: samples, sourceRate: rate) }
+            return
+        }
+        guard let modelURL = store.installedURL(for: entry) else { return }
+        let process = engine
         session.start {
             let resampled = try await Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }.value
-            return engine.transcribe(model: modelURL, samples: resampled, device: device, threads: count, instruments: names)
+            guard let process else { throw EngineLocatorError.missing }
+            return process.transcribe(model: modelURL, samples: resampled, device: device, threads: count, instruments: names)
         }
     }
 }

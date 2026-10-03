@@ -17,6 +17,7 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+    COREML_CODEGEN_LANGUAGE: None
 packages:
   SwiftMIDIFile:
     url: https://github.com/orchetect/swift-midi-file

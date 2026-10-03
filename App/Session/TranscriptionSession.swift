@@ -98,7 +98,7 @@ final class TranscriptionSession {
             finalizedThrough = through
             notes += new.map {
                 NoteEvent(onset: $0.onset, offset: $0.offset, pitch: $0.pitch, program: $0.program,
-                          isDrum: $0.isDrum, instrument: $0.instrument, velocity: nil, pitchBends: nil)
+                          isDrum: $0.isDrum, instrument: $0.instrument, velocity: $0.velocity, pitchBends: $0.pitchBends)
             }
         case .done(let count):
             progress = 1

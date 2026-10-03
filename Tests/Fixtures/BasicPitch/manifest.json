@@ -1,0 +1,21 @@
+{
+  "reference": "basic-pitch fa5997a, vendored nmp.mlpackage, CPU_ONLY",
+  "sample_rate": 22050,
+  "shapes": {
+    "note": [
+      259,
+      88
+    ],
+    "onset": [
+      259,
+      88
+    ],
+    "contour": [
+      259,
+      264
+    ]
+  },
+  "onset_threshold": 0.5,
+  "frame_threshold": 0.3,
+  "min_note_len_frames": 11
+}

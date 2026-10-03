@@ -25,10 +25,13 @@ struct EngineNote: Codable, Equatable, Sendable {
     var program: Int
     var isDrum: Bool
     var instrument: String
+    var velocity: Int? = nil
+    var pitchBends: [Int]? = nil
 
     enum CodingKeys: String, CodingKey {
-        case onset, offset, pitch, program, instrument
+        case onset, offset, pitch, program, instrument, velocity
         case isDrum = "is_drum"
+        case pitchBends = "pitch_bends"
     }
 }
 

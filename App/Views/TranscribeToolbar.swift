@@ -11,7 +11,7 @@ struct TranscribeToolbar: View {
     let onStart: () -> Void
 
     private var usable: [ModelEntry] {
-        ModelCatalog.entries.filter { $0.engine == .muscriptor && store.state(for: $0) == .installed }
+        ModelCatalog.entries.filter { store.state(for: $0) == .installed }
     }
 
     var body: some View {
