@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-struct MIDINote: Identifiable, Equatable, Sendable {
+struct EditorNote: Identifiable, Equatable, Sendable {
     let id: Int
     var track: String
     var pitch: Int
@@ -33,7 +33,7 @@ final class MIDIDocument {
     let skippedNotes: Int
 
     private(set) var tracks: [MIDITrack]
-    private(set) var notes: [MIDINote]
+    private(set) var notes: [EditorNote]
     private(set) var selection: Set<Int> = []
     private(set) var mutedTracks: Set<String> = []
     private(set) var soloTracks: Set<String> = []
@@ -42,14 +42,14 @@ final class MIDIDocument {
     private(set) var isEdited: Bool
     /// Counts applied edits, undos and redos, so a view can refresh what the undo manager can do.
     private(set) var revision = 0
-    private(set) var savedNotes: [MIDINote]
+    private(set) var savedNotes: [EditorNote]
 
     var snap: SnapGrid = .sixteenth
     var drawTrackID: String
     @ObservationIgnored var undoManager: UndoManager?
     @ObservationIgnored private var nextID: Int
 
-    init(sourceName: String, tracks: [MIDITrack], notes: [MIDINote], timebase: MIDITimebase = MIDITimebase(),
+    init(sourceName: String, tracks: [MIDITrack], notes: [EditorNote], timebase: MIDITimebase = MIDITimebase(),
          isEdited: Bool = false, skippedNotes: Int = 0) {
         self.sourceName = sourceName
         self.tracks = tracks
@@ -65,7 +65,7 @@ final class MIDIDocument {
     /// Builds a document from engine output, one track per instrument. Notes outside C1–B6 are counted, not kept.
     convenience init(sourceName: String, events: [NoteEvent]) {
         var tracks: [MIDITrack] = []
-        var notes: [MIDINote] = []
+        var notes: [EditorNote] = []
         var skipped = 0
         for event in events {
             guard MIDIEditing.pitchRange.contains(event.pitch) else { skipped += 1; continue }
@@ -73,7 +73,7 @@ final class MIDIDocument {
                 tracks.append(MIDITrack(id: event.instrument, name: event.instrument.replacingOccurrences(of: "_", with: " "),
                                         program: event.program, isDrums: event.isDrum))
             }
-            notes.append(MIDINote(id: notes.count + 1, track: event.instrument, pitch: event.pitch, start: event.onset,
+            notes.append(EditorNote(id: notes.count + 1, track: event.instrument, pitch: event.pitch, start: event.onset,
                                   duration: max(MIDIEditing.minimumDuration, event.offset - event.onset),
                                   velocity: MIDIEditing.clampedVelocity(event.velocity ?? MIDIEditing.defaultVelocity)))
         }
@@ -83,7 +83,7 @@ final class MIDIDocument {
     var isDirty: Bool { notes != savedNotes }
     var canUndo: Bool { undoManager?.canUndo ?? false }
     var canRedo: Bool { undoManager?.canRedo ?? false }
-    var selectedNotes: [MIDINote] { notes.filter { selection.contains($0.id) } }
+    var selectedNotes: [EditorNote] { notes.filter { selection.contains($0.id) } }
 
     /// The notes as engine events, for playback, key detection and the MIDI builder.
     var noteEvents: [NoteEvent] {
@@ -126,11 +126,11 @@ final class MIDIDocument {
 
     // MARK: Tracks
 
-    func isVisible(_ note: MIDINote) -> Bool {
+    func isVisible(_ note: EditorNote) -> Bool {
         !hiddenTracks.contains(note.track)
     }
 
-    func isAudible(_ note: MIDINote) -> Bool {
+    func isAudible(_ note: EditorNote) -> Bool {
         isVisible(note) && !mutedTracks.contains(note.track) && (soloTracks.isEmpty || soloTracks.contains(note.track))
     }
 
@@ -227,14 +227,14 @@ final class MIDIDocument {
     // MARK: Undo
 
     @discardableResult
-    private func commit(_ edited: [MIDINote]?, named name: String) -> Bool {
+    private func commit(_ edited: [EditorNote]?, named name: String) -> Bool {
         guard let edited, edited != notes else { return false }
         replace(notes, with: edited, named: name)
         return true
     }
 
     /// Swaps in `new` and registers the swap back, so undo and redo are the same operation run in opposite directions.
-    private func replace(_ old: [MIDINote], with new: [MIDINote], named name: String) {
+    private func replace(_ old: [EditorNote], with new: [EditorNote], named name: String) {
         notes = new
         selection.formIntersection(Set(new.map(\.id)))
         isEdited = true

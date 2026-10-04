@@ -64,7 +64,7 @@ enum MIDIEditing {
     }
 
     /// A new note at `time` floored to the grid. Rejected outside C1–B6 or before time zero.
-    static func draw(at time: Double, pitch: Int, track: String, id: Int, grid: SnapGrid, length: Double? = nil) -> MIDINote? {
+    static func draw(at time: Double, pitch: Int, track: String, id: Int, grid: SnapGrid, length: Double? = nil) -> EditorNote? {
         guard time.isFinite, time >= 0, pitchRange.contains(pitch) else { return nil }
         let duration: Double
         if let length, length.isFinite {
@@ -72,16 +72,16 @@ enum MIDIEditing {
         } else {
             duration = grid == .off ? 0.25 : grid.step
         }
-        return MIDINote(id: id, track: track, pitch: pitch, start: snapFloor(time, to: grid), duration: duration, velocity: defaultVelocity)
+        return EditorNote(id: id, track: track, pitch: pitch, start: snapFloor(time, to: grid), duration: duration, velocity: defaultVelocity)
     }
 
-    static func erase(_ notes: [MIDINote], ids: Set<Int>) -> [MIDINote]? {
+    static func erase(_ notes: [EditorNote], ids: Set<Int>) -> [EditorNote]? {
         guard notes.contains(where: { ids.contains($0.id) }) else { return nil }
         return notes.filter { !ids.contains($0.id) }
     }
 
     /// Moves the group by whole grid steps. The group stops at time zero and at C1/B6 instead of bending its shape.
-    static func move(_ notes: [MIDINote], ids: Set<Int>, deltaTime: Double, deltaPitch: Int, grid: SnapGrid) -> [MIDINote]? {
+    static func move(_ notes: [EditorNote], ids: Set<Int>, deltaTime: Double, deltaPitch: Int, grid: SnapGrid) -> [EditorNote]? {
         let moving = notes.filter { ids.contains($0.id) }
         guard let earliest = moving.map(\.start).min(), let lowest = moving.map(\.pitch).min(),
               let highest = moving.map(\.pitch).max(), deltaTime.isFinite else { return nil }
@@ -97,18 +97,18 @@ enum MIDIEditing {
         }
     }
 
-    static func transpose(_ notes: [MIDINote], ids: Set<Int>, by semitones: Int) -> [MIDINote]? {
+    static func transpose(_ notes: [EditorNote], ids: Set<Int>, by semitones: Int) -> [EditorNote]? {
         move(notes, ids: ids, deltaTime: 0, deltaPitch: semitones, grid: .off)
     }
 
     /// Shifts by `steps` grid steps (an eighth of a second when the grid is off).
-    static func nudge(_ notes: [MIDINote], ids: Set<Int>, steps: Int, grid: SnapGrid) -> [MIDINote]? {
+    static func nudge(_ notes: [EditorNote], ids: Set<Int>, steps: Int, grid: SnapGrid) -> [EditorNote]? {
         let step = grid == .off ? 0.125 : grid.step
         return move(notes, ids: ids, deltaTime: Double(steps) * step, deltaPitch: 0, grid: .off)
     }
 
     /// Changes each note's length by `delta`, snapped, never below the shortest note the grid allows.
-    static func resize(_ notes: [MIDINote], ids: Set<Int>, delta: Double, grid: SnapGrid) -> [MIDINote]? {
+    static func resize(_ notes: [EditorNote], ids: Set<Int>, delta: Double, grid: SnapGrid) -> [EditorNote]? {
         guard delta.isFinite else { return nil }
         let floor = minimumLength(on: grid)
         var changed = false
@@ -123,7 +123,7 @@ enum MIDIEditing {
     }
 
     /// Snaps starts and ends to the grid. `ids` nil means every note.
-    static func quantize(_ notes: [MIDINote], ids: Set<Int>?, grid: SnapGrid) -> [MIDINote]? {
+    static func quantize(_ notes: [EditorNote], ids: Set<Int>?, grid: SnapGrid) -> [EditorNote]? {
         guard grid != .off else { return nil }
         var changed = false
         let result = notes.map { note in
@@ -138,7 +138,7 @@ enum MIDIEditing {
         return changed ? result : nil
     }
 
-    static func setVelocity(_ notes: [MIDINote], ids: Set<Int>, to value: Int) -> [MIDINote]? {
+    static func setVelocity(_ notes: [EditorNote], ids: Set<Int>, to value: Int) -> [EditorNote]? {
         let velocity = clampedVelocity(value)
         var changed = false
         let result = notes.map { note in
@@ -152,14 +152,14 @@ enum MIDIEditing {
     }
 
     /// Sets the velocity of every visible note that starts inside the painted time span.
-    static func paintVelocity(_ notes: [MIDINote], from: Double, to: Double, value: Int, hiddenTracks: Set<String>) -> [MIDINote]? {
+    static func paintVelocity(_ notes: [EditorNote], from: Double, to: Double, value: Int, hiddenTracks: Set<String>) -> [EditorNote]? {
         let span = min(from, to)...max(from, to)
         let ids = Set(notes.filter { span.contains($0.start) && !hiddenTracks.contains($0.track) }.map(\.id))
         return setVelocity(notes, ids: ids, to: value)
     }
 
     /// Visible notes that overlap the rectangle in time and pitch.
-    static func notes(inTime time: ClosedRange<Double>, pitches: ClosedRange<Int>, among notes: [MIDINote], hiddenTracks: Set<String>) -> Set<Int> {
+    static func notes(inTime time: ClosedRange<Double>, pitches: ClosedRange<Int>, among notes: [EditorNote], hiddenTracks: Set<String>) -> Set<Int> {
         Set(notes.filter { note in
             !hiddenTracks.contains(note.track) && pitches.contains(note.pitch)
                 && note.start < time.upperBound && note.end > time.lowerBound
@@ -167,7 +167,7 @@ enum MIDIEditing {
     }
 
     /// The topmost visible note under `point`, and whether the point is on its right-edge resize handle.
-    static func hit(at point: CGPoint, notes: [MIDINote], layout: PianoRollLayout, hiddenTracks: Set<String>) -> MIDIHit? {
+    static func hit(at point: CGPoint, notes: [EditorNote], layout: PianoRollLayout, hiddenTracks: Set<String>) -> MIDIHit? {
         for note in notes.reversed() where !hiddenTracks.contains(note.track) {
             let rect = layout.rect(for: NoteEvent(onset: note.start, offset: note.end, pitch: note.pitch, program: 0, isDrum: false,
                                                   instrument: note.track, velocity: note.velocity, pitchBends: nil))

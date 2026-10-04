@@ -10,10 +10,10 @@ private func makeDocument(undo: UndoManager? = nil) -> MIDIDocument {
         MIDITrack(id: "bass", name: "Bass", program: 33, isDrums: false),
     ]
     let notes = [
-        MIDINote(id: 1, track: "piano", pitch: 60, start: 0, duration: 0.5, velocity: 80),
-        MIDINote(id: 2, track: "piano", pitch: 64, start: 0.5, duration: 0.5, velocity: 90),
-        MIDINote(id: 3, track: "piano", pitch: 67, start: 1.0, duration: 0.25, velocity: 100),
-        MIDINote(id: 4, track: "bass", pitch: 36, start: 0.1, duration: 0.8, velocity: 70),
+        EditorNote(id: 1, track: "piano", pitch: 60, start: 0, duration: 0.5, velocity: 80),
+        EditorNote(id: 2, track: "piano", pitch: 64, start: 0.5, duration: 0.5, velocity: 90),
+        EditorNote(id: 3, track: "piano", pitch: 67, start: 1.0, duration: 0.25, velocity: 100),
+        EditorNote(id: 4, track: "bass", pitch: 36, start: 0.1, duration: 0.8, velocity: 70),
     ]
     let document = MIDIDocument(sourceName: "Take.mid", tracks: tracks, notes: notes)
     document.undoManager = undo
