@@ -39,6 +39,7 @@ struct AllowAllPolicy: AccessPolicy {
 @MainActor @Observable
 final class ModelStore {
     private(set) var states: [String: InstallState] = [:]
+    private(set) var deleteError: String?
     var policy: any AccessPolicy = AllowAllPolicy()
     let directory: URL
 
@@ -98,9 +99,16 @@ final class ModelStore {
         }
     }
 
+    /// Removes the model file. When the file can't be removed the model stays installed and `deleteError` says why.
     func delete(_ entry: ModelEntry) {
-        try? FileManager.default.removeItem(at: directory.appendingPathComponent(entry.fileName))
-        states[entry.id] = .notInstalled
+        let url = directory.appendingPathComponent(entry.fileName)
+        do {
+            if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+            states[entry.id] = .notInstalled
+            deleteError = nil
+        } catch {
+            deleteError = "Couldn\u{2019}t delete \u{201C}\(entry.displayName)\u{201D}: \(error.localizedDescription)"
+        }
     }
 
     func reveal(_ entry: ModelEntry) {

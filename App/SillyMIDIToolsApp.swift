@@ -38,8 +38,8 @@ struct SillyMIDIToolsApp: App {
                     .keyboardShortcut("o")
             }
         }
-        Window("About Silly MIDI Tools", id: "about") { AboutView() }
+        Window("About Silly MIDI Tools", id: "about") { AboutView().preferredColorScheme(preferences.appearance.colorScheme) }
             .windowResizability(.contentSize)
-        Settings { SettingsView(coordinator: access) }
+        Settings { SettingsView(coordinator: access, store: store, workingFolder: workingFolder, preferences: preferences) }
     }
 }

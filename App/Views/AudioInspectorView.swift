@@ -11,6 +11,10 @@ extension ModelEntry {
 
 struct AudioInspectorView: View {
     @Bindable var screen: AudioScreenModel
+    @Environment(\.openSettings) private var openSettings
+    @AppStorage("settingsTab") private var settingsTab = "general"
+
+    private static let manageTag = "manage"
 
     private var session: TranscriptionSession { screen.session }
     private var entry: ModelEntry? { screen.selectedEntry }
@@ -60,10 +64,21 @@ struct AudioInspectorView: View {
 
     private var modelSection: some View {
         Section("Model") {
-            Picker("Model", selection: $screen.selectedModel) {
+            Picker("Model", selection: Binding(
+                get: { screen.selectedModel },
+                set: { choice in
+                    if choice == Self.manageTag {
+                        settingsTab = "models"
+                        openSettings()
+                    } else {
+                        screen.selectedModel = choice
+                    }
+                })) {
                 Section("MuScriptor · multi-instrument") { ForEach(entries(.muscriptor)) { row($0) } }
                 Section("Piano only") { ForEach(entries(.pianoOnnx)) { row($0) } }
                 Section("Built in") { ForEach(entries(.basicPitch)) { row($0) } }
+                Divider()
+                Text("Manage Models…").tag(Optional(Self.manageTag))
             }
             if let entry {
                 HStack(spacing: Metric.sp4) {

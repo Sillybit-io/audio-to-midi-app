@@ -11,7 +11,6 @@ struct ContentView: View {
     let imports: AudioImportStore
     let preferences: AppPreferences
 
-    @AppStorage("addAudioMode") private var addAudioMode = AddAudioMode.copy.rawValue
     @State private var screen: AudioScreenModel
     @State private var selection: LibrarySelection?
     @State private var showInspector = false
@@ -55,6 +54,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: Metric.windowMinW, minHeight: Metric.windowMinH)
+        .preferredColorScheme(preferences.appearance.colorScheme)
         .onChange(of: workingFolder.folder, initial: true) {
             library.attach(audio: workingFolder.audioFolder, midi: workingFolder.midiFolder)
         }
@@ -87,7 +87,7 @@ struct ContentView: View {
     /// Copies or references the audio as the user prefers, then opens it.
     private func openAudio(_ url: URL) {
         do {
-            let target = try imports.importAudio(from: url, mode: AddAudioMode(rawValue: addAudioMode) ?? .copy,
+            let target = try imports.importAudio(from: url, mode: preferences.addAudioMode,
                                                  audioFolder: workingFolder.audioFolder)
             library.refresh()
             model.open(target)
