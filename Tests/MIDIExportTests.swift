@@ -87,3 +87,33 @@ struct MIDIExportTests {
         #expect(file.tracks.count == 1)
     }
 }
+
+extension MIDIExportTests {
+    @Test func provenanceEventPresentOnlyWhenRequested() throws {
+        func texts(_ options: MIDIExportOptions) throws -> [String] {
+            let file = try parse(try MIDIBuilder.build(notes: [note(0, 1, 60)], options: options))
+            return file.tracks[0].events.compactMap {
+                if case .text(let t) = $0.event, t.text.hasPrefix(MIDIProvenance.prefix) { t.text } else { nil }
+            }
+        }
+        var options = MIDIExportOptions()
+        #expect(try texts(options).isEmpty)
+        options.provenance = MIDIProvenance(source: "take.wav", modelID: "basic-pitch", partial: true)
+        #expect(try texts(options) == [options.provenance!.text])
+    }
+
+    @Test func provenanceChangesNothingButTheConductorTrack() throws {
+        let notes = [note(0, 1, 60), note(0.5, 1.5, 40, "acoustic_bass", program: 32)]
+        var tagged = MIDIExportOptions()
+        tagged.provenance = MIDIProvenance(modelID: "piano-onnx", edited: true)
+        let plain = try parse(try MIDIBuilder.build(notes: notes))
+        let withTag = try parse(try MIDIBuilder.build(notes: notes, options: tagged))
+
+        #expect(plain.tracks.count == withTag.tracks.count)
+        #expect(withTag.tracks[0].events.count == plain.tracks[0].events.count + 1)
+        for index in 1..<plain.tracks.count {
+            #expect(String(describing: absoluteEvents(plain.tracks[index], plain)) == String(describing: absoluteEvents(withTag.tracks[index], withTag)))
+        }
+        #expect(MIDIExportOptions().provenance == nil)
+    }
+}

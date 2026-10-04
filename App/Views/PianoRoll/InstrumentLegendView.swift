@@ -9,8 +9,10 @@ enum InstrumentFamily {
         ("voice", "Voice", ["voice", "orchestra"]),
     ]
 
+    /// An exact class name wins ("bassoon" is a wind, not a bass); otherwise the first family whose key it contains.
     static func id(for instrument: String) -> String {
-        all.first { $0.keys.contains { instrument.contains($0) } }?.id ?? "all"
+        all.first { $0.keys.contains(instrument) }?.id
+            ?? all.first { $0.keys.contains { instrument.contains($0) } }?.id ?? "all"
     }
 }
 

@@ -11,6 +11,8 @@ struct MIDIExportOptions: Sendable {
     var relativeTimeline = true
     var defaultVelocity = 100
     var copyright: String?
+    /// Adds an `smt:` text event to the conductor track. Left nil, the file is exactly what it was before.
+    var provenance: MIDIProvenance?
 }
 
 enum MIDIBuilder {
@@ -57,6 +59,9 @@ enum MIDIBuilder {
         ]
         if let copyright = options.copyright, !copyright.isEmpty {
             conductor.append(.text(type: .copyright, string: ascii(copyright)))
+        }
+        if let provenance = options.provenance {
+            conductor.append(.text(type: .text, string: provenance.text))
         }
 
         let grouped = Dictionary(grouping: notes) { $0.isDrum ? "drums" : $0.instrument }

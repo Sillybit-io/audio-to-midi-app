@@ -10,6 +10,8 @@ struct LibraryEntry: Identifiable, Hashable {
     var isReference = false
     var isMissing = false
     var referenceID: UUID?
+    /// What a MIDI file holds, or nil for audio and for a MIDI file that can't be read.
+    var midiInfo: MIDIFileInfo?
 
     var id: URL { url }
     var name: String { url.deletingPathExtension().lastPathComponent }
@@ -73,6 +75,7 @@ final class LibraryStore {
     @ObservationIgnored private var audioFolder: URL?
     @ObservationIgnored private var midiFolder: URL?
     @ObservationIgnored private var watches: [any FolderWatching] = []
+    @ObservationIgnored private var infoCache: [URL: (stamp: Date, size: Int, info: MIDIFileInfo?)] = [:]
 
     init(imports: AudioImportStore, watcher: any FolderWatcher = DispatchFolderWatcher(), fileManager: FileManager = .default) {
         self.imports = imports
@@ -100,7 +103,22 @@ final class LibraryStore {
             audioEntries.append(LibraryEntry(url: url, kind: .audio, isReference: true, isMissing: resolved == nil, referenceID: reference.id))
         }
         audio = audioEntries.sorted { $0.fileName.localizedStandardCompare($1.fileName) == .orderedAscending }
-        midi = scan(midiFolder, kind: .midi) { ["mid", "midi"].contains($0.pathExtension.lowercased()) }
+        midi = scan(midiFolder, kind: .midi) { ["mid", "midi"].contains($0.pathExtension.lowercased()) }.map { entry in
+            var entry = entry
+            entry.midiInfo = midiInfo(for: entry.url)
+            return entry
+        }
+        infoCache = infoCache.filter { cached in midi.contains { $0.url == cached.key } }
+    }
+
+    private func midiInfo(for url: URL) -> MIDIFileInfo? {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let stamp = values?.contentModificationDate ?? .distantPast
+        let size = values?.fileSize ?? -1
+        if let cached = infoCache[url], cached.stamp == stamp, cached.size == size { return cached.info }
+        let info = MIDIImporter.info(at: url)
+        infoCache[url] = (stamp, size, info)
+        return info
     }
 
     private func scan(_ folder: URL?, kind: LibraryEntry.Kind, matching: (URL) -> Bool) -> [LibraryEntry] {
