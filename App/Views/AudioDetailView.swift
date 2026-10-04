@@ -5,6 +5,7 @@ struct AudioDetailView: View {
     let store: ModelStore
     @Bindable var access: AccessCoordinator
     let session: TranscriptionSession
+    let onOpenAudio: (URL) -> Void
 
     @State private var playback = PlaybackEngine()
     @State private var showModels = false
@@ -44,7 +45,7 @@ struct AudioDetailView: View {
             }
             .dropDestination(for: URL.self) { urls, _ in
                 guard let url = urls.first else { return false }
-                model.open(url)
+                onOpenAudio(url)
                 return true
             }
         }

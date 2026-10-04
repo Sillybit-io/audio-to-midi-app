@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct DropZoneView: View {
-    let model: DocumentModel
+    let onOpen: (URL) -> Void
     @State private var targeted = false
 
     var body: some View {
@@ -21,7 +21,7 @@ struct DropZoneView: View {
         }
         .dropDestination(for: URL.self) { urls, _ in
             guard let url = urls.first else { return false }
-            model.open(url)
+            onOpen(url)
             return true
         } isTargeted: { targeted = $0 }
     }
