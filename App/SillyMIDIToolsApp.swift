@@ -9,6 +9,7 @@ struct SillyMIDIToolsApp: App {
     @State private var workingFolder: WorkingFolderStore
     @State private var imports: AudioImportStore
     @State private var library: LibraryStore
+    @State private var preferences = AppPreferences()
     @Environment(\.openWindow) private var openWindow
 
     init() {
@@ -23,7 +24,7 @@ struct SillyMIDIToolsApp: App {
     var body: some Scene {
         Window("Silly MIDI Tools", id: "main") {
             ContentView(model: model, store: store, access: access, session: session,
-                        workingFolder: workingFolder, library: library, imports: imports)
+                        workingFolder: workingFolder, library: library, imports: imports, preferences: preferences)
                 .onAppear { MIDIExportItem.clearTemporaryFiles() }
                 .onAppear { store.policy = HuggingFaceAccessPolicy(coordinator: access) }
         }

@@ -1,50 +1,28 @@
 import SwiftUI
 
-/// Progress while a run is going, and the failed panel with Try Again. Nothing shows in the other states.
+/// Progress while a run is going (including a first-use download), and the failed panel with Try Again.
 struct AudioStatusView: View {
-    let session: TranscriptionSession
+    let panel: AudioScreenModel.RunPanel?
     let startedAt: Date?
-    let estimatesVelocity: Bool
     let onCancel: () -> Void
     let onRetry: () -> Void
 
     var body: some View {
-        switch session.state {
-        case .loading, .running, .refining:
-            running.padding(.vertical, Metric.sp4)
-        case .failed(let message):
-            failed(message).padding(.vertical, Metric.sp4)
-        default:
+        switch panel {
+        case .running(let steps, let current, let fraction)?:
+            running(steps, current, fraction).padding(.vertical, Metric.sp4)
+        case .failed(let title, let message)?:
+            failed(title, message).padding(.vertical, Metric.sp4)
+        case nil:
             EmptyView()
         }
     }
 
-    private var steps: [String] {
-        ["Load model", "Transcribe"] + (estimatesVelocity ? ["Estimate velocity"] : [])
-    }
-
-    private var currentStep: Int {
-        switch session.state {
-        case .loading: 0
-        case .running: 1
-        case .refining: 2
-        default: 0
-        }
-    }
-
-    private var fraction: Double? {
-        switch session.state {
-        case .loading(let p): p
-        case .running: session.progress
-        default: nil
-        }
-    }
-
-    private var running: some View {
+    private func running(_ steps: [String], _ current: Int, _ fraction: Double?) -> some View {
         VStack(alignment: .leading, spacing: Metric.sp4) {
             HStack(spacing: Metric.sp3) {
                 ForEach(Array(steps.enumerated()), id: \.offset) { index, name in
-                    chip(name, state: index < currentStep ? .done : index == currentStep ? .active : .pending)
+                    chip(name, state: index < current ? .done : index == current ? .active : .pending)
                 }
                 Spacer()
                 Button("Cancel", action: onCancel).keyboardShortcut(".", modifiers: .command)
@@ -71,11 +49,11 @@ struct AudioStatusView: View {
         .accessibilityLabel("Transcription progress")
     }
 
-    private func failed(_ message: String) -> some View {
+    private func failed(_ title: String, _ message: String) -> some View {
         HStack(alignment: .top, spacing: Metric.sp4) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Native.danger)
             VStack(alignment: .leading, spacing: Metric.sp1) {
-                Text("Transcription failed").bold()
+                Text(title).bold()
                 Text(message).font(.caption).foregroundStyle(Native.fgSecondary)
             }
             Spacer()

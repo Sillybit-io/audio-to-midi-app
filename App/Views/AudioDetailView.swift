@@ -3,12 +3,22 @@ import SwiftUI
 /// State shared by the Audio screen and its inspector.
 @MainActor @Observable
 final class AudioScreenModel {
+    /// What the status panel shows above the roll.
+    enum RunPanel: Equatable {
+        case running(steps: [String], current: Int, fraction: Double?)
+        case failed(title: String, message: String)
+    }
+
     let document: DocumentModel
     let store: ModelStore
     let session: TranscriptionSession
+    let access: AccessCoordinator
+    let firstUse: FirstUseTranscription
     let playback = PlaybackEngine()
 
-    var selectedModel: ModelEntry.ID? = "basic-pitch"
+    var selectedModel: ModelEntry.ID? {
+        didSet { downloadFailure = nil }
+    }
     var deviceIndex: Int?
     var threads = max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
     var chosenInstruments: Set<String> = []
@@ -20,11 +30,18 @@ final class AudioScreenModel {
     private(set) var engine: EngineProcess?
     private(set) var engineProblem: String?
     private(set) var startedAt: Date?
+    private(set) var downloadFailure: (entry: ModelEntry, message: String)?
+    @ObservationIgnored private var includesDownload: ModelEntry?
+    @ObservationIgnored private var prepareTask: Task<Void, Never>?
 
-    init(document: DocumentModel, store: ModelStore, session: TranscriptionSession) {
+    init(document: DocumentModel, store: ModelStore, session: TranscriptionSession, access: AccessCoordinator,
+         preferences: AppPreferences, settle: Duration = .milliseconds(400)) {
         self.document = document
         self.store = store
         self.session = session
+        self.access = access
+        firstUse = FirstUseTranscription(installer: store, settle: settle)
+        selectedModel = preferences.defaultModelID
     }
 
     var selectedEntry: ModelEntry? {
@@ -35,19 +52,49 @@ final class AudioScreenModel {
         Array(Set(session.notes.map(\.instrument))).sorted()
     }
 
+    var isPreparing: Bool { prepareTask != nil }
+
     var canStart: Bool {
-        guard document.document != nil, !session.isBusy, let entry = selectedEntry,
-              store.state(for: entry) == .installed else { return false }
+        guard document.document != nil, !session.isBusy, !isPreparing, let entry = selectedEntry else { return false }
+        guard store.state(for: entry) == .installed || entry.downloadURL != nil else { return false }
         return entry.engine != .muscriptor || engine != nil
     }
 
     var transcribeLabel: String {
-        if session.isBusy { return "Transcribing…" }
+        if session.isBusy || isPreparing { return "Transcribing…" }
         guard let entry = selectedEntry else { return "Transcribe" }
         if store.state(for: entry) != .installed { return "Download & Transcribe" }
         switch session.state {
         case .done, .cancelled: return "Transcribe Again"
         default: return "Transcribe"
+        }
+    }
+
+    var runPanel: RunPanel? {
+        if let failure = downloadFailure {
+            return .failed(title: "Couldn\u{2019}t download \(failure.entry.displayName)", message: failure.message)
+        }
+        var steps: [String] = []
+        var offset = 0
+        if let entry = includesDownload {
+            steps = ["Download \(entry.sizeText)", "Verify SHA-256"]
+            offset = 2
+        }
+        steps += ["Load model", "Transcribe"]
+        if estimateVelocity, selectedEntry?.engine == .muscriptor { steps.append("Estimate velocity") }
+        if isPreparing, let entry = includesDownload {
+            switch store.state(for: entry) {
+            case .downloading(let value): return .running(steps: steps, current: 0, fraction: value)
+            case .verifying: return .running(steps: steps, current: 1, fraction: nil)
+            default: return .running(steps: steps, current: 0, fraction: nil)
+            }
+        }
+        switch session.state {
+        case .loading(let value): return .running(steps: steps, current: offset, fraction: value)
+        case .running: return .running(steps: steps, current: offset + 1, fraction: session.progress)
+        case .refining: return .running(steps: steps, current: offset + 2, fraction: nil)
+        case .failed(let message): return .failed(title: "Transcription failed", message: message)
+        default: return nil
         }
     }
 
@@ -76,16 +123,45 @@ final class AudioScreenModel {
         playback.setOriginal(samples: document.slice.cut(audio.samples, sampleRate: audio.sampleRate), sampleRate: audio.sampleRate)
     }
 
-    func cancel() { session.cancel() }
+    /// Stops a run, a download, or a wait on the first-use alert or the licence sheet.
+    func cancel() {
+        prepareTask?.cancel()
+        firstUse.answerConsent(false)
+        if access.request != nil { access.finish(agreed: false) }
+        session.cancel()
+    }
 
+    /// Transcribes the slice, first fetching the model when it isn't on the disk yet.
     func start() {
-        guard canStart, let audio = document.document, let entry = selectedEntry else { return }
+        guard canStart, let entry = selectedEntry else { return }
+        downloadFailure = nil
+        startedAt = Date()
+        if store.state(for: entry) == .installed {
+            includesDownload = nil
+            launch(entry)
+            return
+        }
+        includesDownload = entry
+        prepareTask = Task { [weak self] in
+            guard let self else { return }
+            switch await firstUse.prepare(entry) {
+            case .ready: launch(entry)
+            case .cancelled: includesDownload = nil
+            case .failed(let message):
+                downloadFailure = (entry, message)
+                includesDownload = nil
+            }
+            prepareTask = nil
+        }
+    }
+
+    private func launch(_ entry: ModelEntry) {
+        guard let audio = document.document else { return }
         let samples = document.slice.cut(audio.samples, sampleRate: audio.sampleRate)
         let rate = audio.sampleRate
         let device = deviceIndex.map(String.init) ?? "auto"
         let names = chosenInstruments.sorted()
         let count = threads
-        startedAt = Date()
         if entry.engine == .basicPitch {
             session.start { BasicPitchEngine().stream(samples: samples, sourceRate: rate) }
             return
@@ -130,14 +206,13 @@ struct AudioDetailView: View {
                 Text(problem).foregroundStyle(Native.danger).padding(Metric.sp4)
             }
             WaveformSliceView(model: model)
-            AudioStatusView(session: session, startedAt: screen.startedAt,
-                            estimatesVelocity: screen.estimateVelocity && screen.selectedEntry?.engine == .muscriptor,
+            AudioStatusView(panel: screen.runPanel, startedAt: screen.startedAt,
                             onCancel: screen.cancel, onRetry: screen.start)
                 .padding(.horizontal, Metric.sp6)
             PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
                           playhead: playback.position, hidden: screen.hiddenInstruments,
                           pixelsPerSecond: $screen.pixelsPerSecond,
-                          showsEmptyState: session.notes.isEmpty && session.state == .idle)
+                          showsEmptyState: session.notes.isEmpty && session.state == .idle && !screen.isPreparing)
             Divider()
             AudioFooterView(screen: screen)
         }
@@ -147,6 +222,12 @@ struct AudioDetailView: View {
             return true
         }
         .task { await screen.loadEngineInfo() }
+        .alert(consentTitle, isPresented: Binding(get: { screen.firstUse.consentRequest != nil }, set: { _ in })) {
+            Button("Review Licence…") { screen.firstUse.answerConsent(true) }
+            Button("Cancel", role: .cancel) { screen.firstUse.answerConsent(false) }
+        } message: {
+            Text("The model file is downloaded once and kept on your Mac.")
+        }
         .onChange(of: session.notes.count) { playback.sync(notes: session.notes) }
         .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
         .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
@@ -174,6 +255,11 @@ struct AudioDetailView: View {
                            slice: model.slice, name: model.document?.name ?? "transcription")
             }
         }
+    }
+
+    private var consentTitle: String {
+        guard let entry = screen.firstUse.consentRequest else { return "" }
+        return "\(entry.displayName) downloads on first use (\(entry.sizeText))"
     }
 
     private var isRepeat: Bool {

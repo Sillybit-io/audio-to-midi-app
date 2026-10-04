@@ -9,6 +9,7 @@ struct ContentView: View {
     let workingFolder: WorkingFolderStore
     let library: LibraryStore
     let imports: AudioImportStore
+    let preferences: AppPreferences
 
     @AppStorage("addAudioMode") private var addAudioMode = AddAudioMode.copy.rawValue
     @State private var screen: AudioScreenModel
@@ -17,7 +18,7 @@ struct ContentView: View {
     @State private var showWelcome = false
 
     init(model: DocumentModel, store: ModelStore, access: AccessCoordinator, session: TranscriptionSession,
-         workingFolder: WorkingFolderStore, library: LibraryStore, imports: AudioImportStore) {
+         workingFolder: WorkingFolderStore, library: LibraryStore, imports: AudioImportStore, preferences: AppPreferences) {
         self.model = model
         self.store = store
         self.access = access
@@ -25,7 +26,8 @@ struct ContentView: View {
         self.workingFolder = workingFolder
         self.library = library
         self.imports = imports
-        _screen = State(initialValue: AudioScreenModel(document: model, store: store, session: session))
+        self.preferences = preferences
+        _screen = State(initialValue: AudioScreenModel(document: model, store: store, session: session, access: access, preferences: preferences))
     }
 
     var body: some View {
