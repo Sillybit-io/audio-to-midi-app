@@ -231,12 +231,12 @@ final class PlaybackEngine {
         let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
         try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
         await apply(notes)
+        // Nothing to synthesise: skip the engine, whose start is unreliable on an empty graph.
+        guard !groups.isEmpty else { return 0 }
         try engine.start()
         sequencer.currentPositionInSeconds = 0
-        if !groups.isEmpty {
-            sequencer.prepareToPlay()
-            try sequencer.start()
-        }
+        sequencer.prepareToPlay()
+        try sequencer.start()
         let buffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: 4096)!
         var sum: Double = 0
         var count = 0

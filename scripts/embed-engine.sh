@@ -17,6 +17,7 @@ mkdir -p "$dest"
 cp -f "$build/sillymidi-engine" "$dest/sillymidi-engine"
 for lib in "$build"/*.metallib(N); do
   cp -f "$lib" "$dest/"
+  codesign --force --sign - "$dest/${lib:t}"
 done
 
 codesign --force --sign - --entitlements "$root/Config/Engine.entitlements" "$dest/sillymidi-engine"

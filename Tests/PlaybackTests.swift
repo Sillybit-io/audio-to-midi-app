@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import SillyMIDITools
 
-@MainActor
+@MainActor @Suite(.serialized)
 struct PlaybackTests {
     @Test func programMappingCoversAllGroups() {
         for program in 0...127 {
