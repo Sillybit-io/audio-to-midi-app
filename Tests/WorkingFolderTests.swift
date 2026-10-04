@@ -33,12 +33,6 @@ private final class CountingAccess: ScopedAccess {
 }
 
 @MainActor
-private struct FakePanel: FolderPanel {
-    var result: URL?
-    func chooseFolder(suggested: URL) -> URL? { result }
-}
-
-@MainActor
 struct WorkingFolderTests {
     private let storage = MemoryBookmarks()
     private let codec = PathCodec()
@@ -59,7 +53,7 @@ struct WorkingFolderTests {
         let folder = try tempFolder()
         let store = store()
         #expect(!store.isResolved)
-        #expect(store.choose(using: FakePanel(result: folder)))
+        #expect(store.handlePick(.success(folder)))
         #expect(store.folder == folder)
         #expect(FileManager.default.fileExists(atPath: folder.appending(path: "Audio").path))
         #expect(FileManager.default.fileExists(atPath: folder.appending(path: "MIDI").path))
@@ -73,10 +67,20 @@ struct WorkingFolderTests {
         let store = store()
         try store.adopt(first)
         let before = storage.values[WorkingFolderStore.bookmarkKey]
-        #expect(!store.choose(using: FakePanel(result: nil)))
+        #expect(!store.handlePick(.failure(CocoaError(.userCancelled))))
         #expect(store.folder == first)
         #expect(storage.values[WorkingFolderStore.bookmarkKey] == before)
         #expect(store.errorMessage == nil)
+    }
+
+    @Test func pickerErrorIsReportedAndKeepsOldGrant() throws {
+        let first = try tempFolder()
+        let store = store()
+        try store.adopt(first)
+        struct PickerFailure: LocalizedError { var errorDescription: String? { "The picker failed." } }
+        #expect(!store.handlePick(.failure(PickerFailure())))
+        #expect(store.folder == first)
+        #expect(store.errorMessage == "The picker failed.")
     }
 
     @Test func readOnlyFolderIsRefusedAndKeepsOldGrant() throws {
@@ -87,10 +91,11 @@ struct WorkingFolderTests {
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: readOnly.path)
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: readOnly.path) }
 
-        #expect(!store.choose(using: FakePanel(result: readOnly)))
+        #expect(!store.handlePick(.success(readOnly)))
         #expect(store.folder == good)
         #expect(storage.values[WorkingFolderStore.bookmarkKey] == Data(good.path.utf8))
         #expect(store.errorMessage?.contains("readonly") == true)
+        #expect(access.open == 1)
         #expect(!FileManager.default.fileExists(atPath: readOnly.appending(path: "Audio").path))
     }
 

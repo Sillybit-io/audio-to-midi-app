@@ -1,25 +1,5 @@
-import AppKit
 import Foundation
 import Observation
-
-@MainActor
-protocol FolderPanel {
-    func chooseFolder(suggested: URL) -> URL?
-}
-
-struct SystemFolderPanel: FolderPanel {
-    func chooseFolder(suggested: URL) -> URL? {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = suggested.deletingLastPathComponent()
-        panel.message = "Choose or create the folder where Silly MIDI Tools keeps your audio and MIDI files."
-        panel.prompt = "Choose"
-        return panel.runModal() == .OK ? panel.url : nil
-    }
-}
 
 enum WorkingFolderError: LocalizedError, Equatable {
     case cannotPrepare(folder: String, reason: String)
@@ -95,24 +75,35 @@ final class WorkingFolderStore {
 
     /// Creates `Audio/` and `MIDI/`, then stores the grant. Nothing is stored and the previous folder stays when this throws.
     func adopt(_ url: URL) throws {
-        try prepare(url)
-        let bookmark = try codec.makeBookmark(for: url)
-        storage.set(bookmark, for: Self.bookmarkKey)
-        swapLease(to: access.start(url) ? url : nil)
+        let started = access.start(url)
+        do {
+            try prepare(url)
+            storage.set(try codec.makeBookmark(for: url), for: Self.bookmarkKey)
+        } catch {
+            if started { access.stop(url) }
+            throw error
+        }
+        swapLease(to: started ? url : nil)
         folder = url
         errorMessage = nil
     }
 
-    /// Runs the folder panel. Cancelling or a folder that can't be prepared keeps the current folder. Returns whether a folder was adopted.
+    /// Handles the folder picker's result. Cancelling or a folder that can't be prepared keeps the current folder.
+    /// Returns whether a folder was adopted.
     @discardableResult
-    func choose(using panel: any FolderPanel) -> Bool {
-        guard let url = panel.chooseFolder(suggested: Self.suggestedFolder) else { return false }
-        do {
-            try adopt(url)
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
+    func handlePick(_ result: Result<URL, Error>) -> Bool {
+        switch result {
+        case .failure(let error):
+            if (error as? CocoaError)?.code != .userCancelled { errorMessage = error.localizedDescription }
             return false
+        case .success(let url):
+            do {
+                try adopt(url)
+                return true
+            } catch {
+                errorMessage = error.localizedDescription
+                return false
+            }
         }
     }
 
