@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import SillyMIDITools
@@ -27,5 +28,52 @@ struct LicenseTests {
 
     @Test func onnxRuntimeNoticesAreBundled() {
         #expect(ThirdPartyComponents.onnxRuntimeNoticesText().contains("Third Party Notices") || ThirdPartyComponents.onnxRuntimeNoticesText().count > 100_000)
+    }
+}
+
+struct GroupedLicenceTests {
+    @Test func fourGroupsInOrder() {
+        #expect(ThirdPartyComponents.groups().map(\.title) == ["Models", "Libraries", "Audio", "This app"])
+    }
+
+    @Test func everyNoticeSectionIsGroupedExactlyOnce() {
+        let used = ThirdPartyComponents.groups().flatMap { $0.entries.flatMap(\.sections) }
+        #expect(used.sorted() == ThirdPartyComponents.names.sorted())
+        #expect(Set(used).count == used.count)
+    }
+
+    @Test func everyEntryShowsBundledText() {
+        for group in ThirdPartyComponents.groups() {
+            for entry in group.entries {
+                #expect(!entry.text.isEmpty, "\(entry.name) should have notice text")
+            }
+        }
+    }
+
+    @Test func sectionBodiesKeepNestedHeadingsInsideTheirComponent() {
+        let notices = "## ggml\nMIT text\n```\n## Not a heading\n```\n## pffft\nBSD text\n"
+        let bodies = ThirdPartyComponents.sections(in: notices)
+        #expect(bodies["ggml"]?.contains("## Not a heading") == true)
+        #expect(bodies["pffft"] == "BSD text")
+        #expect(bodies.count == 2)
+    }
+
+    @Test func appLicenceIsTheApacheText() {
+        let app = ThirdPartyComponents.groups().last?.entries.first
+        #expect(app?.text.contains("Apache License") == true)
+    }
+}
+
+struct AppIconTests {
+    @Test func appIconIsInTheAssetCatalog() {
+        let image = NSImage(named: "AppIcon")
+        #expect(image != nil)
+        #expect((image?.size.width ?? 0) >= 128)
+    }
+
+    @Test func bundleDeclaresTheIconAndShipsTheCatalog() {
+        let info = Bundle.main.infoDictionary
+        #expect(info?["CFBundleIconName"] as? String == "AppIcon")
+        #expect(Bundle.main.url(forResource: "Assets", withExtension: "car") != nil)
     }
 }

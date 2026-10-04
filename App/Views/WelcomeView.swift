@@ -16,7 +16,7 @@ struct WelcomeView: View {
 
     var body: some View {
         VStack(spacing: Metric.sp5) {
-            Image(nsImage: NSApp.applicationIconImage)
+            Image(nsImage: .appIcon)
                 .resizable().frame(width: Metric.appIcon, height: Metric.appIcon)
                 .accessibilityHidden(true)
             Text("Welcome to Silly MIDI Tools").font(.title).bold()
