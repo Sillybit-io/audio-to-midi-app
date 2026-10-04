@@ -22,6 +22,9 @@ packages:
   SwiftMIDIFile:
     url: https://github.com/orchetect/swift-midi-file
     exactVersion: 1.0.2
+  OnnxRuntime:
+    url: https://github.com/microsoft/onnxruntime-swift-package-manager
+    exactVersion: 1.24.2
 targets:
   Engine:
     type: ""
@@ -42,6 +45,8 @@ targets:
         link: false
       - package: SwiftMIDIFile
         product: SwiftMIDIFile
+      - package: OnnxRuntime
+        product: onnxruntime
     info:
       path: Config/Info.plist
       properties:

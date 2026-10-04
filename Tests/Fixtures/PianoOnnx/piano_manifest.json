@@ -1,0 +1,10 @@
+{
+  "reference": "piano_transcription_inference piano-onnx pinned commit, LanOss ONNX, onnxruntime 1.19.2 CPU",
+  "sample_rate": 16000,
+  "segment_samples": 160000,
+  "matrix_frames": 400,
+  "classes": 88,
+  "onset_threshold": 0.3,
+  "offset_threshold": 0.3,
+  "frame_threshold": 0.1
+}

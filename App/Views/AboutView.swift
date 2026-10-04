@@ -11,16 +11,15 @@ struct AboutView: View {
                 Text("Silly MIDI Tools").font(.title.bold())
                 Text("Version \(version)").foregroundStyle(.secondary)
                 Text("Licensed under the Apache License 2.0.")
-                Text("MuScriptor models are non-commercial use only; Basic Pitch allows commercial use.")
+                Text("MuScriptor models are non-commercial use only; Basic Pitch and the piano model allow commercial use (the piano model needs credit).")
                     .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             .padding(24)
             .tabItem { Text("About") }
-            ScrollView {
-                Text(ThirdPartyComponents.noticesText()).font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled).padding()
-            }
-            .tabItem { Text("Licences") }
+            LicenseTextView(text: ThirdPartyComponents.noticesText())
+                .tabItem { Text("Licences") }
+            LicenseTextView(text: ThirdPartyComponents.onnxRuntimeNoticesText())
+                .tabItem { Text("ONNX Runtime notices") }
         }
         .frame(width: 640, height: 460)
     }

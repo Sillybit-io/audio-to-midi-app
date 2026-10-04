@@ -25,6 +25,10 @@ struct KeyMatch: Equatable, Sendable, Identifiable {
     var id: String { name }
     static let noteNames = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"]
     var name: String { "\(Self.noteNames[tonic]) \(mode.rawValue)" }
+
+    private static let fileNoteNames = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+    /// Plain ASCII, safe in a file name: "Eb minor".
+    var fileLabel: String { "\(Self.fileNoteNames[tonic]) \(mode.rawValue)" }
 }
 
 /// Ranks keys and scales by correlating a pitch-class profile with Krumhansl-Kessler key profiles

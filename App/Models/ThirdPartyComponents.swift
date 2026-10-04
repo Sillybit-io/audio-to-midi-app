@@ -4,11 +4,16 @@ enum ThirdPartyComponents {
     /// Must equal the level-two headings of THIRD_PARTY_NOTICES.md, in order.
     static let names = [
         "MuScriptor weights", "GGUF conversion", "muscriptor.cpp", "ggml", "pffft", "Basic Pitch",
-        "swift-midi-file", "Jon Worthy and the Bends excerpt", "Apple General MIDI soundbank",
+        "swift-midi-file", "ONNX Runtime", "Piano transcription model", "Piano transcription post-processing", "Jon Worthy and the Bends excerpt", "Apple General MIDI soundbank",
     ]
 
     static func noticesText(bundle: Bundle = Bundle(for: ModelStoreProbe.self)) -> String {
         bundle.url(forResource: "THIRD_PARTY_NOTICES", withExtension: "md")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+    }
+
+    static func onnxRuntimeNoticesText(bundle: Bundle = Bundle(for: ModelStoreProbe.self)) -> String {
+        bundle.url(forResource: "ONNXRuntimeThirdPartyNotices", withExtension: "txt")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
     }
 

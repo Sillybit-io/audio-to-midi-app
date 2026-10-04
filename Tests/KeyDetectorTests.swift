@@ -46,4 +46,13 @@ struct KeyDetectorTests {
         let top = KeyDetector.rank(samples: audio, sampleRate: rate).first
         #expect(top?.tonic == 7 && top?.mode == .major)
     }
+
+    @Test func fileNamesCarryTheKeyInPlainAscii() {
+        #expect(ExportNaming.fileName(base: "Song", key: KeyMatch(tonic: 3, mode: .minor, score: 0.9)) == "Song - Eb minor")
+        #expect(ExportNaming.fileName(base: "Song", key: KeyMatch(tonic: 6, mode: .major, score: 0.9)) == "Song - F# major")
+        #expect(ExportNaming.fileName(base: "Song", key: nil) == "Song")
+        let n = notes([(60, 2), (62, 1), (64, 1), (65, 1), (67, 2), (69, 1), (71, 0.5), (72, 2), (67, 1), (64, 1), (60, 2)])
+        #expect(ExportNaming.fileName(base: "Take", key: KeyDetector.rank(notes: n).first) == "Take - C major")
+        #expect(KeyMatch.noteNames.count == 12 && (0..<12).allSatisfy { !KeyMatch(tonic: $0, mode: .major, score: 0).fileLabel.contains("♯") })
+    }
 }

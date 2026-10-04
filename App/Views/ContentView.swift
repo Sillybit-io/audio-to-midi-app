@@ -33,9 +33,11 @@ struct ContentView: View {
                     TranscribeToolbar(store: store, session: session, devices: devices, modelID: $selectedModel,
                                       deviceIndex: $deviceIndex, threads: $threads, canStart: canStart, onStart: start)
                         .padding(.horizontal)
-                    Toggle("Estimate note velocity from the audio (MuScriptor has none)", isOn: $estimateVelocity).padding(.horizontal)
-                    InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
-                    ExportView(notes: session.notes, entry: ModelCatalog.entries.first { $0.id == selectedModel },
+                    if selectedEntry?.engine == .muscriptor {
+                        Toggle("Estimate note velocity from the audio (MuScriptor has none)", isOn: $estimateVelocity).padding(.horizontal)
+                        InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
+                    }
+                    ExportView(notes: session.notes, entry: selectedEntry,
                                slice: model.slice, name: model.document?.name ?? "transcription").padding(.horizontal)
                     KeyView(notes: session.notes, audio: audioForKey).padding(.horizontal)
                     InstrumentLegendView(instruments: presentInstruments, hidden: $hiddenInstruments).padding(.horizontal)
@@ -94,8 +96,13 @@ struct ContentView: View {
         Array(Set(session.notes.map(\.instrument))).sorted()
     }
 
+    private var selectedEntry: ModelEntry? {
+        ModelCatalog.entries.first { $0.id == selectedModel }
+    }
+
     private var canStart: Bool {
-        (engine != nil || selectedModel == "basic-pitch") && model.document != nil && selectedModel != nil && !session.isBusy
+        guard model.document != nil, !session.isBusy, let entry = selectedEntry else { return false }
+        return entry.engine != .muscriptor || engine != nil
     }
 
     private func loadEngineInfo() async {
@@ -125,6 +132,14 @@ struct ContentView: View {
             return
         }
         guard let modelURL = store.installedURL(for: entry) else { return }
+        if entry.engine == .pianoOnnx {
+            let piano = PianoOnnxEngine(modelURL: modelURL, threads: count)
+            session.start {
+                let resampled = try await Task.detached { try Resampler.resample(samples, from: rate, to: PianoOnnxEngine.sampleRate) }.value
+                return piano.stream(samples: resampled)
+            }
+            return
+        }
         let process = engine
         let audio16 = Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }
         var refine: (@Sendable ([NoteEvent]) async -> [NoteEvent])?

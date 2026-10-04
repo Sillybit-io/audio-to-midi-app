@@ -10,7 +10,11 @@ struct LicenseTests {
                 try String(contentsOf: #require(bundle.url(forResource: t.resource, withExtension: t.ext)), encoding: .utf8)
             }.joined()
             #expect(!joined.isEmpty)
-            let keyword = entry.licenseKind == .nonCommercial ? "NonCommercial" : "Apache License"
+            let keyword = switch entry.licenseKind {
+            case .nonCommercial: "NonCommercial"
+            case .commercialAllowed: "Apache License"
+            case .attributionRequired: "Attribution 4.0 International"
+            }
             #expect(joined.contains(keyword), "\(entry.id) text should name its licence")
         }
     }
@@ -19,5 +23,9 @@ struct LicenseTests {
         let text = ThirdPartyComponents.noticesText()
         #expect(!text.isEmpty)
         #expect(ThirdPartyComponents.headings(in: text) == ThirdPartyComponents.names)
+    }
+
+    @Test func onnxRuntimeNoticesAreBundled() {
+        #expect(ThirdPartyComponents.onnxRuntimeNoticesText().contains("Third Party Notices") || ThirdPartyComponents.onnxRuntimeNoticesText().count > 100_000)
     }
 }
