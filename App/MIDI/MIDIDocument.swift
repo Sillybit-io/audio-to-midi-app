@@ -1,0 +1,251 @@
+import Foundation
+import Observation
+
+struct MIDINote: Identifiable, Equatable, Sendable {
+    let id: Int
+    var track: String
+    var pitch: Int
+    var start: Double
+    var duration: Double
+    var velocity: Int
+
+    var end: Double { start + duration }
+}
+
+struct MIDITrack: Identifiable, Equatable, Sendable {
+    let id: String
+    var name: String
+    var program: Int
+    var isDrums: Bool
+}
+
+/// What a saved file needs to keep from the file it came from. The editor grid itself is always 120 BPM in 4/4.
+struct MIDITimebase: Equatable, Sendable {
+    var ticksPerQuarter = 480
+    var sourceBPM = 120.0
+}
+
+@MainActor @Observable
+final class MIDIDocument {
+    let sourceName: String
+    let timebase: MIDITimebase
+    /// Notes left out because they sit outside C1–B6.
+    let skippedNotes: Int
+
+    private(set) var tracks: [MIDITrack]
+    private(set) var notes: [MIDINote]
+    private(set) var selection: Set<Int> = []
+    private(set) var mutedTracks: Set<String> = []
+    private(set) var soloTracks: Set<String> = []
+    private(set) var hiddenTracks: Set<String> = []
+    /// True once any edit has been applied, and stays true after undo or a save.
+    private(set) var isEdited: Bool
+    /// Counts applied edits, undos and redos, so a view can refresh what the undo manager can do.
+    private(set) var revision = 0
+    private(set) var savedNotes: [MIDINote]
+
+    var snap: SnapGrid = .sixteenth
+    var drawTrackID: String
+    @ObservationIgnored var undoManager: UndoManager?
+    @ObservationIgnored private var nextID: Int
+
+    init(sourceName: String, tracks: [MIDITrack], notes: [MIDINote], timebase: MIDITimebase = MIDITimebase(),
+         isEdited: Bool = false, skippedNotes: Int = 0) {
+        self.sourceName = sourceName
+        self.tracks = tracks
+        self.notes = notes
+        self.timebase = timebase
+        self.isEdited = isEdited
+        self.skippedNotes = skippedNotes
+        savedNotes = notes
+        drawTrackID = tracks.first?.id ?? ""
+        nextID = (notes.map(\.id).max() ?? 0) + 1
+    }
+
+    /// Builds a document from engine output, one track per instrument. Notes outside C1–B6 are counted, not kept.
+    convenience init(sourceName: String, events: [NoteEvent]) {
+        var tracks: [MIDITrack] = []
+        var notes: [MIDINote] = []
+        var skipped = 0
+        for event in events {
+            guard MIDIEditing.pitchRange.contains(event.pitch) else { skipped += 1; continue }
+            if !tracks.contains(where: { $0.id == event.instrument }) {
+                tracks.append(MIDITrack(id: event.instrument, name: event.instrument.replacingOccurrences(of: "_", with: " "),
+                                        program: event.program, isDrums: event.isDrum))
+            }
+            notes.append(MIDINote(id: notes.count + 1, track: event.instrument, pitch: event.pitch, start: event.onset,
+                                  duration: max(MIDIEditing.minimumDuration, event.offset - event.onset),
+                                  velocity: MIDIEditing.clampedVelocity(event.velocity ?? MIDIEditing.defaultVelocity)))
+        }
+        self.init(sourceName: sourceName, tracks: tracks, notes: notes, skippedNotes: skipped)
+    }
+
+    var isDirty: Bool { notes != savedNotes }
+    var canUndo: Bool { undoManager?.canUndo ?? false }
+    var canRedo: Bool { undoManager?.canRedo ?? false }
+    var selectedNotes: [MIDINote] { notes.filter { selection.contains($0.id) } }
+
+    /// The notes as engine events, for playback, key detection and the MIDI builder.
+    var noteEvents: [NoteEvent] {
+        let byID = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0) })
+        return notes.sorted { ($0.start, $0.pitch) < ($1.start, $1.pitch) }.compactMap { note in
+            guard let track = byID[note.track] else { return nil }
+            return NoteEvent(onset: note.start, offset: note.end, pitch: note.pitch, program: track.program, isDrum: track.isDrums,
+                             instrument: track.id, velocity: note.velocity, pitchBends: nil)
+        }
+    }
+
+    func markSaved() {
+        savedNotes = notes
+    }
+
+    // MARK: Selection
+
+    func select(_ id: Int) {
+        guard notes.contains(where: { $0.id == id }) else { return }
+        selection = [id]
+    }
+
+    func toggleSelection(_ id: Int) {
+        guard notes.contains(where: { $0.id == id }) else { return }
+        if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
+    }
+
+    func selectAll() {
+        selection = Set(notes.filter { !hiddenTracks.contains($0.track) }.map(\.id))
+    }
+
+    func clearSelection() {
+        selection = []
+    }
+
+    /// Selects the visible notes overlapping the rectangle, on top of `base` when the marquee is additive.
+    func selectNotes(inTime time: ClosedRange<Double>, pitches: ClosedRange<Int>, additiveTo base: Set<Int> = []) {
+        selection = base.union(MIDIEditing.notes(inTime: time, pitches: pitches, among: notes, hiddenTracks: hiddenTracks))
+    }
+
+    // MARK: Tracks
+
+    func isVisible(_ note: MIDINote) -> Bool {
+        !hiddenTracks.contains(note.track)
+    }
+
+    func isAudible(_ note: MIDINote) -> Bool {
+        isVisible(note) && !mutedTracks.contains(note.track) && (soloTracks.isEmpty || soloTracks.contains(note.track))
+    }
+
+    func toggleMute(_ track: String) {
+        toggle(track, in: \.mutedTracks)
+    }
+
+    func toggleSolo(_ track: String) {
+        toggle(track, in: \.soloTracks)
+    }
+
+    func toggleHidden(_ track: String) {
+        toggle(track, in: \.hiddenTracks)
+        let hidden = Set(notes.filter { hiddenTracks.contains($0.track) }.map(\.id))
+        selection.subtract(hidden)
+    }
+
+    private func toggle(_ track: String, in keyPath: ReferenceWritableKeyPath<MIDIDocument, Set<String>>) {
+        if self[keyPath: keyPath].contains(track) {
+            self[keyPath: keyPath].remove(track)
+        } else {
+            self[keyPath: keyPath].insert(track)
+        }
+    }
+
+    // MARK: Edits
+
+    /// Draws a note on the draw track and selects it. Returns its id, or nil when the draw is rejected.
+    @discardableResult
+    func draw(at time: Double, pitch: Int, length: Double? = nil) -> Int? {
+        guard tracks.contains(where: { $0.id == drawTrackID }), !hiddenTracks.contains(drawTrackID),
+              let note = MIDIEditing.draw(at: time, pitch: pitch, track: drawTrackID, id: nextID, grid: snap, length: length)
+        else { return nil }
+        nextID += 1
+        commit(notes + [note], named: "Draw Note")
+        selection = [note.id]
+        return note.id
+    }
+
+    @discardableResult
+    func erase(_ ids: Set<Int>) -> Bool {
+        commit(MIDIEditing.erase(notes, ids: ids), named: "Delete Notes")
+    }
+
+    @discardableResult
+    func deleteSelection() -> Bool {
+        erase(selection)
+    }
+
+    @discardableResult
+    func move(_ ids: Set<Int>? = nil, deltaTime: Double, deltaPitch: Int) -> Bool {
+        commit(MIDIEditing.move(notes, ids: ids ?? selection, deltaTime: deltaTime, deltaPitch: deltaPitch, grid: snap), named: "Move Notes")
+    }
+
+    @discardableResult
+    func resize(_ ids: Set<Int>? = nil, delta: Double) -> Bool {
+        commit(MIDIEditing.resize(notes, ids: ids ?? selection, delta: delta, grid: snap), named: "Resize Notes")
+    }
+
+    @discardableResult
+    func transpose(by semitones: Int) -> Bool {
+        commit(MIDIEditing.transpose(notes, ids: selection, by: semitones), named: "Transpose")
+    }
+
+    @discardableResult
+    func nudge(steps: Int) -> Bool {
+        commit(MIDIEditing.nudge(notes, ids: selection, steps: steps, grid: snap), named: "Nudge Notes")
+    }
+
+    /// Quantizes the selection, or every note when nothing is selected.
+    @discardableResult
+    func quantize() -> Bool {
+        commit(MIDIEditing.quantize(notes, ids: selection.isEmpty ? nil : selection, grid: snap), named: "Quantize")
+    }
+
+    @discardableResult
+    func setVelocity(_ value: Int, for ids: Set<Int>? = nil) -> Bool {
+        commit(MIDIEditing.setVelocity(notes, ids: ids ?? selection, to: value), named: "Change Velocity")
+    }
+
+    @discardableResult
+    func paintVelocity(from: Double, to: Double, value: Int) -> Bool {
+        commit(MIDIEditing.paintVelocity(notes, from: from, to: to, value: value, hiddenTracks: hiddenTracks), named: "Change Velocity")
+    }
+
+    func undo() {
+        undoManager?.undo()
+    }
+
+    func redo() {
+        undoManager?.redo()
+    }
+
+    // MARK: Undo
+
+    @discardableResult
+    private func commit(_ edited: [MIDINote]?, named name: String) -> Bool {
+        guard let edited, edited != notes else { return false }
+        replace(notes, with: edited, named: name)
+        return true
+    }
+
+    /// Swaps in `new` and registers the swap back, so undo and redo are the same operation run in opposite directions.
+    private func replace(_ old: [MIDINote], with new: [MIDINote], named name: String) {
+        notes = new
+        selection.formIntersection(Set(new.map(\.id)))
+        isEdited = true
+        revision += 1
+        guard let undoManager else { return }
+        let opensGroup = !undoManager.isUndoing && !undoManager.isRedoing
+        if opensGroup { undoManager.beginUndoGrouping() }
+        undoManager.registerUndo(withTarget: self) { document in
+            MainActor.assumeIsolated { document.replace(new, with: old, named: name) }
+        }
+        undoManager.setActionName(name)
+        if opensGroup { undoManager.endUndoGrouping() }
+    }
+}
