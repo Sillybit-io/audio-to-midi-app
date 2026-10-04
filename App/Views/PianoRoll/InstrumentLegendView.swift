@@ -1,9 +1,22 @@
 import SwiftUI
 
-enum InstrumentColor {
-    static func color(for name: String) -> Color {
-        let hash = name.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 360 }
-        return Color(hue: Double(hash) / 360, saturation: 0.65, brightness: 0.9)
+enum InstrumentFamily {
+    static let all: [(id: String, title: String, keys: [String])] = [
+        ("keys", "Keys", ["piano", "organ", "chromatic"]), ("guitars", "Guitars", ["guitar"]), ("bass", "Bass", ["bass"]),
+        ("drums", "Drums", ["drums", "timpani"]), ("strings", "Strings", ["violin", "viola", "cello", "contrabass", "harp", "string"]),
+        ("winds", "Winds", ["sax", "oboe", "horn_e", "english", "bassoon", "clarinet", "flute"]),
+        ("brass", "Brass", ["trumpet", "trombone", "tuba", "french", "brass"]), ("synth", "Synth", ["synth"]),
+        ("voice", "Voice", ["voice", "orchestra"]),
+    ]
+
+    static func id(for instrument: String) -> String {
+        all.first { $0.keys.contains { instrument.contains($0) } }?.id ?? "all"
+    }
+}
+
+extension InstrumentColor {
+    static func color(for instrument: String) -> Color {
+        color(forFamily: InstrumentFamily.id(for: instrument))
     }
 }
 
@@ -16,8 +29,8 @@ struct InstrumentLegendView: View {
             ForEach(instruments, id: \.self) { name in
                 Toggle(isOn: Binding(get: { !hidden.contains(name) },
                                      set: { if $0 { hidden.remove(name) } else { hidden.insert(name) } })) {
-                    HStack(spacing: 4) {
-                        Circle().fill(InstrumentColor.color(for: name)).frame(width: 8, height: 8)
+                    HStack(spacing: Metric.sp2) {
+                        Circle().fill(InstrumentColor.color(for: name)).frame(width: Metric.sp4, height: Metric.sp4)
                         Text(name.replacingOccurrences(of: "_", with: " "))
                     }
                 }

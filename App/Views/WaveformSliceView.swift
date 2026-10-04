@@ -18,11 +18,11 @@ struct WaveformSliceView: View {
                             var path = Path()
                             path.move(to: CGPoint(x: x, y: mid - CGFloat(peak.max) * mid))
                             path.addLine(to: CGPoint(x: x, y: mid - CGFloat(peak.min) * mid))
-                            context.stroke(path, with: .color(.accentColor), lineWidth: 1)
+                            context.stroke(path, with: .color(Token.waveSel), lineWidth: Metric.hairline)
                         }
                     }
-                    Rectangle().fill(.black.opacity(0.35)).frame(width: x0)
-                    Rectangle().fill(.black.opacity(0.35)).frame(width: max(0, width - x1)).offset(x: x1)
+                    Rectangle().fill(Token.regionDim).frame(width: x0)
+                    Rectangle().fill(Token.regionDim).frame(width: max(0, width - x1)).offset(x: x1)
                     handle(at: x0) { model.slice.setStart($0 / width * duration) }
                     handle(at: x1) { model.slice.setEnd($0 / width * duration) }
                 }
@@ -42,9 +42,9 @@ struct WaveformSliceView: View {
     }
 
     private func handle(at x: CGFloat, onDrag: @escaping (CGFloat) -> Void) -> some View {
-        Rectangle().fill(.white).frame(width: 4)
-            .overlay(Rectangle().fill(.clear).frame(width: 16).contentShape(Rectangle()))
-            .offset(x: x - 2)
+        Rectangle().fill(Token.handle).frame(width: Metric.sp2)
+            .overlay(Rectangle().fill(.clear).frame(width: Metric.sp6).contentShape(Rectangle()))
+            .offset(x: x - Metric.sp1)
             .gesture(DragGesture(minimumDistance: 0).onChanged { onDrag(x + $0.translation.width) })
     }
 }

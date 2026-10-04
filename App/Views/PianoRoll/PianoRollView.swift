@@ -34,7 +34,7 @@ struct PianoRollView: View {
                 zoomAtStart = base
                 pixelsPerSecond = min(1000, max(10, base * value.magnification))
             }.onEnded { _ in zoomAtStart = nil })
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(Token.surface)
             .accessibilityElement()
             .accessibilityLabel("\(notes.count) notes")
         }
@@ -43,15 +43,17 @@ struct PianoRollView: View {
     private func draw(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout) {
         for pitch in Self.lowPitch...Self.highPitch where pitch % 12 == 0 {
             let y = layout.y(pitch: pitch)
-            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: layout.laneHeight)), with: .color(.gray.opacity(0.12)))
+            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: layout.laneHeight)), with: .color(Token.gridBeat))
         }
         let visible = layout.visibleNotes(notes, from: layout.seconds(atX: 0), to: layout.seconds(atX: size.width))
         for note in visible where !hidden.contains(note.instrument) && (Self.lowPitch...Self.highPitch).contains(note.pitch) {
             let rect = layout.rect(for: note)
-            context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(InstrumentColor.color(for: note.instrument)))
+            let path = Path(roundedRect: rect, cornerRadius: Metric.rNote)
+            context.fill(path, with: .color(InstrumentColor.color(for: note.instrument)))
+            context.stroke(path, with: .color(Token.noteEdge), lineWidth: Metric.hairline)
         }
-        line(context, size, x: layout.x(seconds: finalizedThrough), color: .secondary)
-        if let playhead { line(context, size, x: layout.x(seconds: playhead), color: .red) }
+        line(context, size, x: layout.x(seconds: finalizedThrough), color: Native.fgSecondary)
+        if let playhead { line(context, size, x: layout.x(seconds: playhead), color: Token.playhead) }
     }
 
     private func line(_ context: GraphicsContext, _ size: CGSize, x: CGFloat, color: Color) {
