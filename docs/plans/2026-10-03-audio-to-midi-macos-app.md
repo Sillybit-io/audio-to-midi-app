@@ -612,7 +612,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T0 — Copy the plan into the project
 
-- [ ] Open
+- [x] Done
 - Do: if this file is not already inside the project, copy it to `docs/plans/` under its current name and do the rest of the build there. If it is already there, do not copy it.
 - Must not: change any other part of the plan while copying, or make a second copy
 - Closes gap: none
@@ -624,7 +624,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T1 — Bootstrap the repository on main
 
-- [ ] Open
+- [x] Done
 - Do: in the project folder run `git init -b main` and add the origin `https://github.com/Sillybit-io/audio-to-midi-app.git`; write `LICENSE` with the unmodified Apache License 2.0 text and the line `Copyright 2026 Sillybit` in the appendix boilerplate; write `README.md` naming Silly MIDI Tools, both models, each model's licence, the non-commercial restriction on MuScriptor, the Hugging Face token step, the build commands from T3 and T4, the models folder location and the known limits, no velocity from MuScriptor and no OGG; write `.gitignore` covering `*.xcodeproj`, `DerivedData/`, `build/`, `Engine/build-*/`, `*.gguf`, `.venv/`, `xcuserdata/`, `*.xcresult`, `reports/` and `.DS_Store`; write `THIRD_PARTY_NOTICES.md` with one heading per component that T13 fills in; add muscriptor.cpp as the submodule `Engine/muscriptor.cpp` pinned to commit `a4f6fe5dbc1050a9517f5112ff732bf553479ecc`; stage everything that remains, including the agent-skill folders, `skills-lock.json` and the plan copy; run the grep gate from Acceptance; commit; push `main`.
 - Must not: push before the grep gate passes; commit a token, a personal address, a home-directory path, model weights or build products; create any branch other than `main`
 - Closes gap: G1, G11
@@ -636,7 +636,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T2 — Prove the engine builds on Intel and fetch verified weights
 
-- [ ] Open
+- [x] Done
 - Do: from `Engine/muscriptor.cpp/cpp` configure and build the `macos-x86_64` preset with tests off and the bench on; write `scripts/fetch-gguf.sh`, which takes a size, downloads `v1/muscriptor-<size>-f16.gguf` from the mirror at the pinned revision into `${XDG_CACHE_HOME:-$HOME/.cache}/sillymidi/models`, verifies the SHA-256 against the three sums compiled into the script, deletes the file on mismatch and prints the verified path; copy or link the small file into the submodule's `testdata/weights` folder where the bench looks for `--size small`; run the bench's `--transcribe` on the bundled fixture on the CPU and record the real-time factor and the note count in the build evidence.
 - Must not: set `MUSCRIPTOR_NATIVE`; commit weights, build trees or links; edit any file inside the submodule
 - Closes gap: G2
@@ -649,7 +649,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T3 — Build the sillymidi-engine sidecar
 
-- [ ] Open
+- [x] Done
 - Do: write `Engine/CMakeLists.txt`, which adds the submodule's `cpp` directory with its tests and bench off, builds the executable `sillymidi-engine` from `Engine/src/main.cpp`, links `muscriptor_ggml` and calls `muscriptor_add_metal_library` on the executable; implement in `Engine/src/main.cpp` the three subcommands and the line protocol from Design: `devices` from `availableDevices` and `autoDevice`, `instruments` from `allInstrumentGroups`, `instrumentName` and `programFor`, and `transcribe`, which loads with `on_progress`, runs `Transcriber::transcribe` with a per-chunk callback that emits one `update` line, labels notes with `instrumentLabel`, maps every `Error` to its `describe` string, reads raw float32 or a 16 kHz RIFF WAV by its header, and sets one shared cancel flag from a stdin reader thread and a SIGTERM handler; write `scripts/build-engine.sh`, which configures `Engine/build-$(uname -m)` with Ninja, Release, `CMAKE_OSX_ARCHITECTURES` equal to the host, `CMAKE_OSX_DEPLOYMENT_TARGET` 26.0 and precompiled Metal shaders when `xcrun -sdk macosx metal --version` succeeds, otherwise runtime compilation, then builds; write `scripts/smoke-engine.sh`, which fetches the small model through `scripts/fetch-gguf.sh` when missing, transcribes the submodule's `fixture_3chunks_16k.wav` on the CPU, checks that the last line is `done` with a note count above 0, and prints `smoke ok:` with that count.
 - Must not: link the engine into the app process; decode compressed audio or write MIDI in C++; write anything but single-line JSON to stdout; build more than one architecture per tree; enable `MUSCRIPTOR_NATIVE`
 - Closes gap: G2
@@ -662,7 +662,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T4 — Generate the Xcode project with XcodeGen and embed the engine
 
-- [ ] Open
+- [x] Done
 - Do: write `project.yml` for XcodeGen 2.46.0 with `projectFormat` `xcode16_3`, `defaultSourceDirectoryType` `syncedFolder`, deployment target macOS 26.0, `bundleIdPrefix` `io.sillybit`, Swift 6 language mode with strict concurrency, an `Engine` legacy target whose `toolPath` is `scripts/build-engine.sh`, an app target `SillyMIDITools` with sources under `App`, a dependency on `Engine`, an `info` plist with `CFBundleDisplayName` "Silly MIDI Tools", an `entitlements` plist enabling `com.apple.security.app-sandbox`, `com.apple.security.network.client` and `com.apple.security.files.user-selected.read-write`, ad-hoc signing with `CODE_SIGN_IDENTITY` `-`, a post-build script `scripts/embed-engine.sh` that copies `sillymidi-engine` and its Metal libraries from the host-architecture build tree into `Contents/MacOS` of the app and ad-hoc signs the helper with `app-sandbox` and `inherit` entitlements, the package `swift-midi-file` at exact version 1.0.2, and a `SillyMIDIToolsTests` unit-test target on Swift Testing; add `App/SillyMIDIToolsApp.swift` with a window titled "Silly MIDI Tools", `App/Engine/EngineProtocol.swift` with Codable types for every line in Design, `App/Engine/EngineLocator.swift`, which resolves the helper through `Bundle.main.url(forAuxiliaryExecutable:)` and turns a missing helper into a user-facing "Engine missing" error, and one Swift Testing suite `EngineProtocolTests` that decodes each sample line from Design.
 - Must not: commit the generated `.xcodeproj`; turn on hardened runtime or Developer ID signing; ship the engine outside the app bundle; add XCTest-based tests
 - Closes gap: G1, G10
@@ -674,7 +674,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T5 — Decode, draw and slice dropped audio
 
-- [ ] Open
+- [x] Done
 - Do: add `App/Audio/AudioDocument.swift`, an Observable model that opens a URL with `AVAudioFile(forReading:)`, reads the whole file into a float32 buffer, downmixes to mono by averaging channels and keeps the source rate and duration; `App/Audio/Resampler.swift`, which converts a mono float32 buffer to 16000 or 22050 with `AVAudioConverter.convert(to:error:withInputFrom:)`; `App/Audio/WaveformPeaks.swift`, which bucketises min and max per pixel column; `App/Audio/AudioSlice.swift` with start and end in seconds snapped to 10 ms, a minimum span of 10 ms, a `relativeTimeline` flag defaulting to true and a `cut` that returns the sliced buffer; `App/Views/DropZoneView.swift` with `dropDestination(for: URL.self)`, a `fileImporter` on Command-O limited to audio types that wraps each URL in `startAccessingSecurityScopedResource`, and the text "Drop an audio file here"; `App/Views/WaveformSliceView.swift` with two draggable handles, a reset button and a duration label; Swift Testing suite `AudioIngestTests` with `resampleLength` (one second of 44.1 kHz sine resamples to 16000 and to 22050 frames within one frame), `sliceClamping` (an end dragged before the start snaps to start plus 10 ms) and `peaksBucketCount` (500 columns yield 500 pairs).
 - Must not: decode OGG; implement a custom resampler; keep more than the original buffer and one working copy in memory; hold security-scoped access after decoding finishes
 - Closes gap: G3
@@ -686,7 +686,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T6 — Model catalog, verified store and picker
 
-- [ ] Open
+- [x] Done
 - Do: add `App/Models/ModelCatalog.swift` with four entries: MuScriptor small, medium and large, each carrying the mirror repository `DamRsn/muscriptor-gguf`, the pinned revision `d7045f94e8b19427f4ff9542975035e66596e51c`, the file path under `v1`, the byte size and SHA-256 from the Evidence index, the authors' repository `MuScriptor/muscriptor-<size>` for the auth check, the licence kind CC BY-NC 4.0 with attribution to Mirelo and Kyutai and the conversion by Damien Ronssin, the gating flag on, and the memory estimate of weights plus the float32 cache; and Basic Pitch, bundled, Apache-2.0, Spotify, no download; `App/Models/ModelStore.swift`, an Observable store that lists installed models under Application Support, downloads with `URLSession.download(for:delegate:)` reporting progress through the task delegate, hashes the finished file with CryptoKit `SHA256` in chunks, moves it into the models folder only when the digest equals the catalog sum, deletes it otherwise, and offers reveal and delete; `App/Resources/Licenses/` with the CC BY-NC 4.0 summary, the authors' conditions verbatim from the mirror's notice, the Apache-2.0 text and the Basic Pitch NOTICE; `App/Views/ModelPickerView.swift` listing entries with size, memory, installed state and a download button; `App/Views/LicenseBadge.swift` reading "Non-commercial use only" or "Commercial use allowed" from the entry; Swift Testing suite `ModelStoreTests` with `catalogSumsMatchPinnedRevision` (the three sums equal the mirror's published list), `verifyRejectsCorruptFile` (a file of the right size with one flipped byte is deleted and reported) and `licenseResourcesResolve` (every entry's licence resource loads non-empty).
 - Must not: download from `main`; trust a checksum fetched at run time; store models outside Application Support; mark a model installed before its digest is verified
 - Closes gap: G4
@@ -698,7 +698,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T7 — Hugging Face token, access gate and licence sheet
 
-- [ ] Open
+- [x] Done
 - Do: add `App/Models/KeychainStore.swift`, which keeps the token as a generic password for service `io.sillybit.sillymiditools.huggingface` through `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate` and `SecItemDelete` off the main actor; `App/Models/HuggingFaceClient.swift`, a protocol with a URLSession implementation that calls `whoami-v2` and the authors' repository `auth-check` endpoint with a `Bearer` header and distinguishes 200, 401 and 403; `App/Models/ModelAccessGate.swift`, which decides for a gated entry between needs-token, invalid-token, needs-terms-acceptance with the model page URL, and allowed, and maps a 401 or 403 from the download itself back to needs-terms-acceptance; `App/Views/LicenseSheet.swift`, shown before the first download of each entry, rendering the entry's licence text plus three confirmations (non-commercial use of the model and its MIDI, the user holds the rights to the audio, the model and its output come as is with Mirelo and Kyutai not liable), with an "Open model page" button and an "I agree, download" button enabled only when the gate allows; `App/Views/SettingsView.swift` with a Hugging Face section where the user pastes a read token, sees the whoami username and can remove the token; route the picker's download button through the gate; Swift Testing suite `AccessGateTests` against a mocked client covering all five outcomes.
 - Must not: send the token anywhere but `huggingface.co`; log it; keep it in UserDefaults; start a gated download before `auth-check` returns 200
 - Closes gap: G4
@@ -710,7 +710,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T8 — Sidecar process, transcription session, chips and progress
 
-- [ ] Open
+- [x] Done
 - Do: add `App/Engine/EngineProcess.swift`, an actor that launches the helper from `EngineLocator` with Foundation `Process`, writes the 16 kHz slice as raw float32 to a temporary file, iterates stdout through `FileHandle.bytes.lines` decoding each line with the Design types, exposes `devices()`, `instruments()` and `transcribe(...)` as an `AsyncThrowingStream` of events, cancels by writing a newline to stdin and terminating after five seconds, and removes the temporary file on every exit path; `App/Session/TranscriptionSession.swift`, an Observable main-actor state machine with idle, loading, running, done, failed and cancelled states, notes grouped by instrument, `finalizedThrough`, `progress`, an ETA smoothed from the wall-clock gap between the last two updates, and the engine's error code mapped to one sentence per `Error` case; `App/Views/InstrumentChipsView.swift` fed by `instruments`, grouped into keys, guitars, bass, drums, strings, winds, brass, synth and voice, with an empty selection meaning automatic; `App/Views/TranscribeToolbar.swift` with the model picker, a device picker from `devices` defaulting to CPU on Intel and Auto elsewhere, a threads stepper, the `LicenseBadge` for the active model, Transcribe and Cancel buttons, a progress bar and the ETA; `Tests/Fixtures/fake-engine.sh`, a shell script that replays canned protocol lines with short sleeps, answers a stdin line with the cancelled error and exit 2, and exits 1 after two updates when asked to crash; Swift Testing suites `EngineProcessTests` (events arrive in order, cancel ends the stream with the cancelled error within five seconds, a crash after two updates keeps those notes and surfaces the error) and `TranscriptionSessionTests` (state transitions, and the ETA from a pair of update timestamps).
 - Must not: parse stdout on the main actor; block the UI while a model loads; run two transcriptions at once; leave a temporary audio file behind
 - Closes gap: G5
@@ -722,7 +722,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T9 — Streaming piano roll
 
-- [ ] Open
+- [x] Done
 - Do: add `App/Views/PianoRoll/PianoRollLayout.swift`, a pure value type mapping seconds to x at a pixels-per-second zoom with a scroll offset and pitch to y across 128 lanes of a fixed lane height; `App/Views/PianoRoll/PianoRollView.swift`, a `Canvas` with `rendersAsynchronously` on that draws one rounded rectangle per note coloured by instrument group, a vertical line at `finalizedThrough`, a playhead bound to the playback position, pinch-to-zoom and horizontal scroll, and an accessibility label reading the note count; `App/Views/PianoRoll/InstrumentLegendView.swift` with one row per instrument present and a visibility toggle each; redraw once per session update, not per note; Swift Testing suite `PianoRollLayoutTests` (two seconds at 100 pixels per second with a 200-pixel offset maps to x equal to 400, pitch 60 in 8-pixel lanes maps to y equal to 536, and a visible-range query returns only the notes overlapping it).
 - Must not: create one SwiftUI view per note; redraw per incoming note; do layout work on the main actor beyond the draw call
 - Closes gap: G5
@@ -734,7 +734,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T10 — Basic Pitch engine on Core ML with reference fixtures
 
-- [ ] Open
+- [x] Done
 - Do: vendor Basic Pitch's `nmp.mlpackage` from commit `fa5997a` into `App/Resources/BasicPitch/BasicPitch.mlpackage` with its NOTICE beside it; write `scripts/gen-basicpitch-fixtures.sh`, which creates a uv-managed Python 3.10 environment with `basic-pitch`, synthesises a three-second clip of C4, E4 and G4 sines at 22050 Hz, runs the reference `predict` on that clip and on the engine fixture WAV, and writes to `Tests/Fixtures/BasicPitch/` the note events as CSV for both and the raw note, onset and contour outputs for the synthetic clip as little-endian float32 files with a JSON manifest of their shapes, falling back to the ONNX runtime when coremltools has no wheel for the interpreter; add `App/Engine/BasicPitchEngine.swift`, which resamples the slice to 22050 Hz, prepends 3840 zero samples, windows into 43844-sample frames with hop 36164 zero-padding the last, runs each window through `MLModel` loaded with CPU-only compute units as `input_2` of shape 1×43844×1, reads `Identity_1`, `Identity_2` and `Identity` as note, onset and contour, trims 15 frames from each side of every window and concatenates; add `App/Engine/BasicPitchNotes.swift`, a port of the reference note extraction with the frequency constraint, inferred onsets from frame differences, onset peaks at threshold 0.5, backward note tracking at frame threshold 0.3 with energy tolerance 11 and minimum length 11 frames, the melodia pass, amplitude as mean frame energy scaled to velocity, pitch bends from the contour with a 25-bin tolerance and a gaussian window, and frame-to-seconds conversion with the per-window alignment offset; expose the engine through the session so the picker's Basic Pitch entry runs in-process with the same progress and note stream; Swift Testing suite `BasicPitchTests` with `windowingMatchesReference` (ten seconds of audio yields 7 windows and 865 trimmed frames), `postProcessingMatchesReference` (the Swift extraction on the dumped reference outputs reproduces the reference note list with identical frames and pitches and amplitudes within 0.001) and `endToEndMatchesReference` (Core ML on the synthetic clip matches the reference notes within one frame, the same pitch and velocity within 2).
 - Must not: ship Python or call it at run time; run the model on the main actor; change the reference default thresholds; commit the virtual environment
 - Closes gap: G6
@@ -746,7 +746,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T11 — Playback through AVAudioSequencer and the bundled soundbank
 
-- [ ] Open
+- [x] Done
 - Do: add `App/Playback/PlaybackEngine.swift`, an Observable controller owning one `AVAudioEngine`, an `AVAudioPlayerNode` for the original slice, one `AVAudioUnitSampler` per instrument group present in the session, all created before playback starts, each loading `gs_instruments.dls` from the CoreAudio component with the group's General MIDI program and bank 0x79, or bank 0x78 on channel 9 for drums, and an `AVAudioSequencer` attached to the engine with a 120 bpm tempo event and one track per sampler through `createAndAppendTrack` and `destinationAudioUnit`; `App/Playback/NoteScheduler.swift`, which converts session notes to `AVMIDINoteEvent` values at a beat equal to seconds times two, a duration in beats and a velocity from the note or 100 for MuScriptor, adds them with `addEvent(_:at:)` as updates arrive and clears a track's range before re-adding on reset; transport with play, pause, stop and seek that start the player node and the sequencer from the same host time, a rate control, a mix slider between the original and the samplers, per-instrument mute through the track's muted property, and a playhead bound to `currentPositionInSeconds`; play-while-transcribing pauses the transport at `finalizedThrough` and resumes as it advances; `App/Views/TransportView.swift`; Swift Testing suite `PlaybackTests` with `programMappingCoversAllGroups` (every instrument group maps to a program and bank, drums to channel 9), `beatConversion` (1.5 seconds maps to 3 beats at 120 bpm) and `offlineRenderProducesSound` (an engine in offline manual rendering mode with one sampler playing C4 renders one second whose RMS is above 0.001).
 - Must not: load soundbanks on the main actor; allocate samplers or tracks per note; rewire a track's destination while the sequencer plays; download any soundfont
 - Closes gap: G7
@@ -758,7 +758,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T12 — MIDI export with Transferable drag-out and licence notice
 
-- [ ] Open
+- [x] Done
 - Do: add `App/Export/MIDIBuilder.swift`, which builds a `MusicalMIDI1File` with format `multipleTracksSynchronous` and 480 ticks per quarter: track one carries a tempo event at 120 bpm, a 4/4 time signature, the sequence name and, when the notice toggle is on, one copyright text event with the active model's licence sentence; one further track per instrument group with a track name, a program change on its channel, channels assigned 0 to 15 skipping 9, drums on channel 9, note on and note off as tick deltas at seconds times 960, velocity from the note or the user's default of 100 for MuScriptor, pitch bend events for Basic Pitch notes that carry bends, times offset by the slice start unless `relativeTimeline` is on, and notes that run past the slice end clipped rather than dropped; `App/Export/MIDIExportItem.swift`, a `Transferable` with a `FileRepresentation` of content type `.midi` whose exporting closure writes `rawData()` to a temporary `.mid` file off the main actor; `App/Views/ExportView.swift` with a MIDI badge made `draggable`, an Export button on Command-E that opens `fileExporter` with content type `.midi` and a default name taken from the audio file, and a sheet stating the model's licence sentence with an "Embed this notice in the MIDI file" toggle on by default; Swift Testing suite `MIDIExportTests` with `roundTripTrackCount` (notes in three instruments produce four tracks when re-read with `MusicalMIDI1File(data:)`), `tickMath` (a note from 1.0 to 1.5 seconds becomes a note on at 960 ticks and a note off 480 ticks later), `copyrightEventPresent` (the notice toggle adds exactly one copyright text event on track one) and `sliceClipping` (a note ending after the slice end is cut at the end).
 - Must not: use the SMPTE timebase; emit non-ASCII text in meta events; write the file on the main actor during a drag; leave temporary files behind after a cancelled drag or dialog
 - Closes gap: G8
@@ -770,7 +770,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T13 — Licences, About window and third-party notices
 
-- [ ] Open
+- [x] Done
 - Do: fill `THIRD_PARTY_NOTICES.md` with one level-two heading per component and its licence text: MuScriptor weights (CC BY-NC 4.0, Mirelo and Kyutai, with the authors' conditions), the GGUF conversion (CC BY-NC 4.0, Damien Ronssin, with its NOTICE), muscriptor.cpp (MIT), ggml (MIT), pffft (BSD-style), Basic Pitch model and code (Apache-2.0, Spotify, with its NOTICE), swift-midi-file (MIT), the Jon Worthy and the Bends test excerpt (CC BY 4.0) and Apple's General MIDI soundbank as a system component; bundle that file as a resource; add `App/Views/AboutView.swift` with an About tab showing the app name, version and the app's own licence, and a Licences tab rendering the bundled notices; add `App/Models/ThirdPartyComponents.swift`, the component list the About window and the test share; show the `LicenseBadge` beside the model name in the toolbar and in the picker; Swift Testing suite `LicenseTests` with `everyCatalogEntryHasLicenseText` (each catalog entry's licence resource loads non-empty and names its licence) and `noticesHeadingsMatchComponents` (the level-two headings of the bundled notices equal the component list).
 - Must not: paraphrase a licence text; mix MuScriptor's conditions into Basic Pitch's notice; hard-code licence prose in Swift strings
 - Closes gap: G9
@@ -782,7 +782,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T14 — Continuous integration on GitHub Actions
 
-- [ ] Open
+- [x] Done
 - Do: write `.github/workflows/ci.yml`, triggered on pushes and pull requests to `main` and running on `macos-26`, with steps that check out with submodules recursive, install `xcodegen` and `ninja` through Homebrew, run `xcodegen generate`, run `scripts/build-engine.sh`, which compiles the Metal shaders at run time when the runner lacks the Metal toolchain, build and test with the xcodebuild commands from Verification strategy and `CODE_SIGN_IDENTITY=-`, zip the built `SillyMIDITools.app` with `ditto -c -k --keepParent`, and upload it with `actions/upload-artifact`; the workflow downloads no model and reads no secret.
 - Must not: add any secret or certificate; download model weights; add a nightly or scheduled job; cache anything but Homebrew
 - Closes gap: G10
@@ -794,7 +794,7 @@ When the wave is done, start the next wave, including the final wave. Do not ask
 
 ### T15 — Sweep, publish main and tag the first release
 
-- [ ] Open
+- [x] Done
 - Do: write `scripts/sweep.sh`, which runs the grep gate from T1 over the working tree and over the tree of every commit from `git rev-list main`, prints every hit with its revision, file and line, and prints `sweep: clean` with exit 0 when there is none, else exits 1; run the installed `secret-and-privacy-sweep` skill over the working tree and the full history and keep its report under `reports/`, which is ignored; fix anything either sweep finds by removing the value from the tree and from the local commits above the pushed bootstrap commit before anything else is pushed; push `main`; watch the workflow with `gh run watch`; when it succeeds, tag `v0.1.0` and push the tag.
 - Must not: push before both sweeps pass; rewrite any commit that is already on the remote; commit the sweep report; create a GitHub release page or any branch
 - Closes gap: G11
@@ -810,14 +810,14 @@ Change `- [ ] Open` to `- [x] Done` in the project copy when that gate is finish
 
 ### F1 — Plan compliance
 
-- [ ] Open
+- [x] Done
 - Do: confirm every Must Have from MH1 to MH19 exists and every Must NOT Have from MN1 to MN11 is absent, citing the file or test that proves each
 - Acceptance: a table in the build record with one row per MH and MN item and its evidence; `git ls-files | grep -E '\.xcodeproj|\.gguf$|DerivedData|^Engine/build-'` prints nothing; `ls scripts` lists no lipo, notarisation or Python-engine script
 - Commit: no
 
 ### F2 — Code quality
 
-- [ ] Open
+- [x] Done
 - Do: run `xcodegen generate`, the build and the full `xcodebuild test` from Verification strategy, `scripts/build-engine.sh` and `scripts/smoke-engine.sh`; compare with the baseline, which recorded no project commands, so any failure is new; state that the project defines no lint command; then the slop pass: `git grep -nE 'print\(|try!|as!|TODO|FIXME' -- 'App/*.swift' 'Engine/src/*.cpp'` for debug prints, forced tries, forced casts and leftover markers, plus a read for empty catch blocks and commented-out code
 - Acceptance: the build, the tests, the engine build and the smoke test each exit 0 with `** BUILD SUCCEEDED **`, `** TEST SUCCEEDED **` and `smoke ok:`; the slop grep prints nothing, or every hit is justified in the build record
 - Commit: no
@@ -838,7 +838,7 @@ Change `- [ ] Open` to `- [x] Done` in the project copy when that gate is finish
 
 ### F5 — Published state
 
-- [ ] Open
+- [x] Done
 - Do: confirm that the remote and the local tree agree and that the published run is green
 - Acceptance: `git fetch origin` then `git rev-parse HEAD origin/main` prints two identical hashes; `gh run list --branch main --limit 1 --json conclusion --jq '.[0].conclusion'` prints `success`; `gh api repos/Sillybit-io/audio-to-midi-app/actions/artifacts --jq '.total_count'` prints a number above 0
 - Commit: no
@@ -849,6 +849,8 @@ Change `- [ ] Open` to `- [x] Done` in the project copy when that gate is finish
 - Do: with agent-device on the macos platform, launch the built `SillyMIDITools.app` and, at window sizes of 1000 by 700 and 1400 by 900 points, snapshot the window and check that the text "Drop an audio file here" is present; press Command-O, press Command-Shift-G in the open panel, type the engine fixture's absolute path from the checkout, press Return twice, wait for the waveform and check that the duration label reads fifteen seconds; click "Basic Pitch" in the picker so that no download is needed; click "Transcribe", wait for the text "Done" and check that the piano roll's accessibility label reports a note count above 0; press Command-E, press Command-Shift-G in the save dialog, type a temporary folder path, press Return, type `ui-qa.mid`, press Return, and check that the file exists; capture a screenshot after each step into `reports/ui-qa/silly-midi-tools/`
 - Acceptance: eight screenshots exist under `reports/ui-qa/silly-midi-tools/`; every check above passed at both window sizes; `head -c 4` on the exported file prints `MThd`
 - Commit: no
+
+- Build record (2026-10-04): T0 to T15, F1, F2 and F5 are done. Open: F3 (the full scenario pass is partial: unit-level happy and failure paths ran in the test suites and the planted-token gate ran, but the real-model transcription, Metal, token-gated download, drag-out and dialog scenarios need the owner's M3 Pro and a Hugging Face account), F4 (no independent result review has been run) and Automated UI QA (agent-device could not run: the macOS daemon timed out because Accessibility and Screen Recording permissions are not granted to it).
 
 ## Success criteria
 
