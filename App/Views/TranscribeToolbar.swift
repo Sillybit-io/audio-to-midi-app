@@ -44,6 +44,7 @@ struct TranscribeToolbar: View {
             ProgressView(value: session.progress) {
                 Text(session.eta.map { "About \(Int($0.rounded())) s left" } ?? "Transcribing")
             }.frame(width: 160)
+        case .refining: ProgressView { Text("Estimating velocity") }.frame(width: 160)
         case .done(let n): Text("Done — \(n) notes")
         case .failed(let m): Text(m).foregroundStyle(.red).lineLimit(2)
         case .cancelled: Text("Cancelled — partial notes kept")

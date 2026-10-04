@@ -30,6 +30,20 @@ struct TranscriptionSessionTests {
         #expect(session.deviceName == "CPU")
     }
 
+    @Test func refineRunsAfterDoneAndKeepsTheCount() async {
+        let session = TranscriptionSession()
+        session.start(refine: { notes in notes.map { var n = $0; n.velocity = 99; return n } }) {
+            AsyncThrowingStream { c in
+                c.yield(.update(progress: 1, finalizedThrough: 5, notes: [Self.note(60)]))
+                c.yield(.done(noteCount: 1))
+                c.finish()
+            }
+        }
+        await settle(session)
+        #expect(session.state == .done(1))
+        #expect(session.notes.first?.velocity == 99)
+    }
+
     @Test func etaFromTwoUpdates() {
         let eta = TranscriptionSession.eta(previous: (0.25, 100), progress: 0.5, time: 110)
         #expect(eta == 20)

@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var instruments: [EngineInstrument] = []
     @State private var chosenInstruments: Set<String> = []
     @State private var hiddenInstruments: Set<String> = []
+    @State private var estimateVelocity = true
     @State private var engine: EngineProcess?
     @State private var engineProblem: String?
 
@@ -32,6 +33,7 @@ struct ContentView: View {
                     TranscribeToolbar(store: store, session: session, devices: devices, modelID: $selectedModel,
                                       deviceIndex: $deviceIndex, threads: $threads, canStart: canStart, onStart: start)
                         .padding(.horizontal)
+                    Toggle("Estimate note velocity from the audio (MuScriptor has none)", isOn: $estimateVelocity).padding(.horizontal)
                     InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
                     ExportView(notes: session.notes, entry: ModelCatalog.entries.first { $0.id == selectedModel },
                                slice: model.slice, name: model.document?.name ?? "transcription").padding(.horizontal)
@@ -118,8 +120,16 @@ struct ContentView: View {
         }
         guard let modelURL = store.installedURL(for: entry) else { return }
         let process = engine
-        session.start {
-            let resampled = try await Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }.value
+        let audio16 = Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }
+        var refine: (@Sendable ([NoteEvent]) async -> [NoteEvent])?
+        if estimateVelocity {
+            refine = { (notes: [NoteEvent]) async -> [NoteEvent] in
+                guard let audio = try? await audio16.value else { return notes }
+                return await Task.detached { VelocityEstimator.estimate(notes: notes, samples: audio, sampleRate: 16000) }.value
+            }
+        }
+        session.start(refine: refine) {
+            let resampled = try await audio16.value
             guard let process else { throw EngineLocatorError.missing }
             return process.transcribe(model: modelURL, samples: resampled, device: device, threads: count, instruments: names)
         }

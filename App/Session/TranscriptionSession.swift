@@ -7,6 +7,7 @@ final class TranscriptionSession {
         case idle
         case loading(Double)
         case running
+        case refining
         case done(Int)
         case failed(String)
         case cancelled
@@ -21,11 +22,13 @@ final class TranscriptionSession {
 
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var last: (progress: Double, time: TimeInterval)?
+    @ObservationIgnored private var doneCount: Int?
+    @ObservationIgnored private var refine: (@Sendable ([NoteEvent]) async -> [NoteEvent])?
     @ObservationIgnored var now: @Sendable () -> TimeInterval = { Date.timeIntervalSinceReferenceDate }
 
     var isBusy: Bool {
         switch state {
-        case .loading, .running: true
+        case .loading, .running, .refining: true
         default: false
         }
     }
@@ -49,8 +52,12 @@ final class TranscriptionSession {
         }
     }
 
-    func start(_ make: @escaping @Sendable () async throws -> AsyncThrowingStream<EngineEvent, Error>) {
+    /// `refine`, when given, post-processes the finished notes (for example velocity estimation).
+    func start(refine: (@Sendable ([NoteEvent]) async -> [NoteEvent])? = nil,
+               _ make: @escaping @Sendable () async throws -> AsyncThrowingStream<EngineEvent, Error>) {
         guard !isBusy else { return }
+        self.refine = refine
+        doneCount = nil
         notes = []
         finalizedThrough = 0
         progress = 0
@@ -61,7 +68,7 @@ final class TranscriptionSession {
             do {
                 let stream = try await make()
                 for try await event in stream { self?.handle(event) }
-                self?.finishWithoutDone()
+                await self?.finishRun()
             } catch is CancellationError {
             } catch {
                 self?.fail(error.localizedDescription)
@@ -75,8 +82,19 @@ final class TranscriptionSession {
         state = .cancelled
     }
 
-    private func finishWithoutDone() {
-        if isBusy { state = .failed(EngineProcessError.stoppedUnexpectedly(0).localizedDescription) }
+    private func finishRun() async {
+        guard isBusy else { return }
+        guard let count = doneCount else {
+            state = .failed(EngineProcessError.stoppedUnexpectedly(0).localizedDescription)
+            return
+        }
+        if let refine {
+            state = .refining
+            let refined = await refine(notes)
+            guard state == .refining else { return }
+            notes = refined
+        }
+        state = .done(count)
     }
 
     private func fail(_ message: String) {
@@ -103,7 +121,7 @@ final class TranscriptionSession {
         case .done(let count):
             progress = 1
             eta = nil
-            state = .done(count)
+            doneCount = count
         case .error(let code, _):
             state = code == "Cancelled" ? .cancelled : .failed(Self.message(forCode: code))
         case .devices, .instruments: break
