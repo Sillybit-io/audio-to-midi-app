@@ -34,6 +34,7 @@ final class PlaybackEngine {
     @ObservationIgnored private var latest: [NoteEvent] = []
     @ObservationIgnored private var syncing = false
     @ObservationIgnored private var original: AVAudioPCMBuffer?
+    @ObservationIgnored private var originalFormat: AVAudioFormat?
     @ObservationIgnored private var waitingForLimit = false
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var clockStart: (position: Double, time: Date)?
@@ -67,7 +68,13 @@ final class PlaybackEngine {
         buffer.frameLength = AVAudioFrameCount(samples.count)
         samples.withUnsafeBufferPointer { buffer.floatChannelData![0].update(from: $0.baseAddress!, count: samples.count) }
         original = buffer
+        // The time-pitch unit cannot convert channel counts or sample rates, so both of its connections take the
+        // file's format; the mixer converts to the output device.
+        guard originalFormat != format else { return }
+        if engine.isRunning { engine.stop() }
         engine.connect(player, to: timePitch, format: format)
+        engine.connect(timePitch, to: engine.mainMixerNode, format: format)
+        originalFormat = format
     }
 
     private func applyMix() {
@@ -226,17 +233,23 @@ final class PlaybackEngine {
 
     // MARK: Offline rendering (tests)
 
-    /// Renders the synthesised notes offline and returns the RMS of the output.
+    /// Renders the synthesised notes, and the original audio if one is loaded, offline and returns the RMS of the output.
     func renderOffline(notes: [NoteEvent], seconds: Double) async throws -> Float {
         let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
         try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
         await apply(notes)
-        // Nothing to synthesise: skip the engine, whose start is unreliable on an empty graph.
-        guard !groups.isEmpty else { return 0 }
+        // Nothing to play: skip the engine, whose start is unreliable on an empty graph.
+        guard !groups.isEmpty || original != nil else { return 0 }
         try engine.start()
         sequencer.currentPositionInSeconds = 0
-        sequencer.prepareToPlay()
-        try sequencer.start()
+        if original != nil {
+            schedulePlayer(from: 0)
+            player.play()
+        }
+        if !groups.isEmpty {
+            sequencer.prepareToPlay()
+            try sequencer.start()
+        }
         let buffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: 4096)!
         var sum: Double = 0
         var count = 0
@@ -251,7 +264,8 @@ final class PlaybackEngine {
             }
             rendered += Int(buffer.frameLength)
         }
-        sequencer.stop()
+        if !groups.isEmpty { sequencer.stop() }
+        player.stop()
         engine.stop()
         return count > 0 ? Float((sum / Double(count)).squareRoot()) : 0
     }
