@@ -7,62 +7,29 @@ struct ContentView: View {
     @Bindable var access: AccessCoordinator
     let session: TranscriptionSession
 
-    @State private var playback = PlaybackEngine()
-    @State private var showModels = false
-    @State private var selectedModel: ModelEntry.ID?
-    @State private var deviceIndex: Int?
-    @State private var threads = max(1, ProcessInfo.processInfo.performanceCoreCount)
-    @State private var devices: [EngineDevice] = []
-    @State private var instruments: [EngineInstrument] = []
-    @State private var chosenInstruments: Set<String> = []
-    @State private var hiddenInstruments: Set<String> = []
-    @State private var estimateVelocity = true
-    @State private var engine: EngineProcess?
-    @State private var engineProblem: String?
+    @State private var selection: LibrarySelection?
+    @State private var showInspector = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let engineProblem {
-                Text(engineProblem).foregroundStyle(.red).padding(8)
-            }
-            if model.document == nil {
-                DropZoneView(model: model)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    WaveformSliceView(model: model)
-                    TranscribeToolbar(store: store, session: session, devices: devices, modelID: $selectedModel,
-                                      deviceIndex: $deviceIndex, threads: $threads, canStart: canStart, onStart: start)
-                        .padding(.horizontal)
-                    if selectedEntry?.engine == .muscriptor {
-                        Toggle("Estimate note velocity from the audio (MuScriptor has none)", isOn: $estimateVelocity).padding(.horizontal)
-                        InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: Metric.sidebarW - Metric.sp9, ideal: Metric.sidebarW, max: Metric.sidebarW + Metric.sp10)
+        } detail: {
+            detail
+                .navigationTitle(title)
+                .navigationSubtitle(subtitle)
+                .inspector(isPresented: $showInspector) {
+                    inspector.inspectorColumnWidth(Metric.inspectorW)
+                }
+                .toolbar {
+                    ToolbarItem {
+                        Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                            .help(showInspector ? "Hide Inspector" : "Show Inspector")
                     }
-                    ExportView(notes: session.notes, entry: selectedEntry,
-                               slice: model.slice, name: model.document?.name ?? "transcription").padding(.horizontal)
-                    KeyView(notes: session.notes, audio: audioForKey).padding(.horizontal)
-                    InstrumentLegendView(instruments: presentInstruments, hidden: $hiddenInstruments).padding(.horizontal)
-                    TransportView(playback: playback, instruments: presentInstruments, prepare: prepareOriginal).padding(.horizontal)
-                    PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
-                                  playhead: playback.position, hidden: hiddenInstruments)
-                        .frame(minHeight: 180)
                 }
-                .dropDestination(for: URL.self) { urls, _ in
-                    guard let url = urls.first else { return false }
-                    model.open(url)
-                    return true
-                }
-            }
         }
-        .task { await loadEngineInfo() }
-        .onChange(of: session.notes.count) { playback.sync(notes: session.notes) }
-        .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
-        .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
-        .onChange(of: model.slice) { playback.duration = model.slice.span }
-        .toolbar { Button("Models") { showModels = true } }
-        .sheet(isPresented: $showModels) {
-            VStack { ModelPickerView(store: store, selection: $selectedModel); Button("Done") { showModels = false }.padding() }
-                .frame(width: 640, height: 360)
-        }
+        .frame(minWidth: showInspector ? Metric.windowMinW + Metric.inspectorW : Metric.windowMinW, minHeight: Metric.windowMinH)
+        .onChange(of: model.document?.url) { _, url in selection = url.map { .audio($0) } }
         .sheet(item: $access.request) { request in
             LicenseSheet(coordinator: access, request: request).interactiveDismissDisabled()
         }
@@ -81,82 +48,60 @@ struct ContentView: View {
         }
     }
 
-    private func audioForKey() -> (samples: [Float], rate: Double)? {
-        guard let document = model.document else { return nil }
-        return (model.slice.cut(document.samples, sampleRate: document.sampleRate), document.sampleRate)
-    }
-
-    private func prepareOriginal() {
-        guard let document = model.document else { return }
-        playback.duration = model.slice.span
-        playback.setOriginal(samples: model.slice.cut(document.samples, sampleRate: document.sampleRate), sampleRate: document.sampleRate)
-    }
-
-    private var presentInstruments: [String] {
-        Array(Set(session.notes.map(\.instrument))).sorted()
-    }
-
-    private var selectedEntry: ModelEntry? {
-        ModelCatalog.entries.first { $0.id == selectedModel }
-    }
-
-    private var canStart: Bool {
-        guard model.document != nil, !session.isBusy, let entry = selectedEntry else { return false }
-        return entry.engine != .muscriptor || engine != nil
-    }
-
-    private func loadEngineInfo() async {
-        do {
-            let process = EngineProcess(executable: try EngineLocator.locate())
-            engine = process
-            devices = try await process.devices()
-            instruments = try await process.instruments()
-            #if arch(x86_64)
-            deviceIndex = devices.first { $0.backend == "CPU" }?.index
-            #endif
-        } catch {
-            engineProblem = error.localizedDescription
+    @ViewBuilder private var detail: some View {
+        if model.document == nil {
+            DropZoneView(model: model)
+        } else {
+            AudioDetailView(model: model, store: store, access: access, session: session)
         }
     }
 
-    private func start() {
-        guard let document = model.document,
-              let entry = ModelCatalog.entries.first(where: { $0.id == selectedModel }) else { return }
-        let samples = model.slice.cut(document.samples, sampleRate: document.sampleRate)
-        let rate = document.sampleRate
-        let device = deviceIndex.map(String.init) ?? "auto"
-        let names = chosenInstruments.sorted()
-        let count = threads
-        if entry.engine == .basicPitch {
-            session.start { BasicPitchEngine().stream(samples: samples, sourceRate: rate) }
-            return
-        }
-        guard let modelURL = store.installedURL(for: entry) else { return }
-        if entry.engine == .pianoOnnx {
-            let piano = PianoOnnxEngine(modelURL: modelURL, threads: count)
-            session.start {
-                let resampled = try await Task.detached { try Resampler.resample(samples, from: rate, to: PianoOnnxEngine.sampleRate) }.value
-                return piano.stream(samples: resampled)
+    private var sidebar: some View {
+        List(selection: $selection) {
+            Section("Audio") {
+                if let document = model.document {
+                    Label(document.name, systemImage: "waveform").tag(LibrarySelection.audio(document.url))
+                } else {
+                    Text("No audio files yet").foregroundStyle(Native.fgSecondary)
+                }
             }
-            return
-        }
-        let process = engine
-        let audio16 = Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }
-        var refine: (@Sendable ([NoteEvent]) async -> [NoteEvent])?
-        if estimateVelocity {
-            refine = { (notes: [NoteEvent]) async -> [NoteEvent] in
-                guard let audio = try? await audio16.value else { return notes }
-                return await Task.detached { VelocityEstimator.estimate(notes: notes, samples: audio, sampleRate: 16000) }.value
+            Section("MIDI") {
+                Text("No MIDI files yet").foregroundStyle(Native.fgSecondary)
             }
         }
-        session.start(refine: refine) {
-            let resampled = try await audio16.value
-            guard let process else { throw EngineLocatorError.missing }
-            return process.transcribe(model: modelURL, samples: resampled, device: device, threads: count, instruments: names)
+        .safeAreaInset(edge: .bottom) {
+            Button("Open Audio…") { model.isImporting = true }
+                .padding(Metric.sp4)
         }
     }
-}
 
-private extension ProcessInfo {
-    var performanceCoreCount: Int { max(1, activeProcessorCount / 2) }
+    private var inspector: some View {
+        Group {
+            if let document = model.document {
+                Form {
+                    Section("File") {
+                        LabeledContent("Name", value: document.name)
+                        LabeledContent("Duration", value: String(format: "%.1f s", document.duration))
+                        LabeledContent("Sample rate", value: sampleRateText(document.sampleRate))
+                    }
+                }
+                .formStyle(.grouped)
+            } else {
+                ContentUnavailableView("No Audio Selected", systemImage: "waveform")
+            }
+        }
+    }
+
+    private var title: String {
+        model.document?.name ?? "Silly MIDI Tools"
+    }
+
+    private var subtitle: String {
+        guard let document = model.document else { return "" }
+        return String(format: "%.1f s · %@", document.duration, sampleRateText(document.sampleRate))
+    }
+
+    private func sampleRateText(_ rate: Double) -> String {
+        "\((rate / 1000).formatted(.number.precision(.fractionLength(0...2)))) kHz"
+    }
 }
