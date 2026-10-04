@@ -212,8 +212,19 @@ final class MIDIDocument {
     }
 
     @discardableResult
+    func setVelocities(_ values: [Int: Int]) -> Bool {
+        commit(MIDIEditing.setVelocities(notes, values: values), named: "Change Velocity")
+    }
+
+    @discardableResult
     func paintVelocity(from: Double, to: Double, value: Int) -> Bool {
         commit(MIDIEditing.paintVelocity(notes, from: from, to: to, value: value, hiddenTracks: hiddenTracks), named: "Change Velocity")
+    }
+
+    /// Drops this document's undo and redo steps, for when it is closed or replaced.
+    func closeUndo() {
+        undoManager?.removeAllActions(withTarget: self)
+        undoManager = nil
     }
 
     func undo() {

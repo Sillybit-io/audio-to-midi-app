@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var selection: LibrarySelection?
     @State private var showInspector = false
     @State private var showWelcome = false
+    @State private var midiEditor: MIDIEditorModel?
+    @State private var midiFailure: (name: String, message: String)?
 
     init(model: DocumentModel, store: ModelStore, access: AccessCoordinator, session: TranscriptionSession,
          workingFolder: WorkingFolderStore, library: LibraryStore, imports: AudioImportStore, preferences: AppPreferences) {
@@ -63,6 +65,7 @@ struct ContentView: View {
         .onChange(of: model.document?.url) { _, url in selection = url.map { .audio($0) } }
         .onChange(of: selection) { _, new in
             if case .audio(let url) = new, url != model.document?.url { model.open(url) }
+            if case .midi(let url) = new { loadMIDI(url) } else { closeMIDI() }
         }
         .sheet(isPresented: Binding(get: { !workingFolder.isResolved || showWelcome }, set: { showWelcome = $0 })) {
             WelcomeView(workingFolder: workingFolder) { showWelcome = false }
@@ -98,10 +101,32 @@ struct ContentView: View {
         }
     }
 
+    private func loadMIDI(_ url: URL) {
+        closeMIDI()
+        do {
+            midiEditor = try MIDIEditorModel.load(url)
+            midiFailure = nil
+        } catch {
+            midiFailure = (url.lastPathComponent, error.localizedDescription)
+        }
+    }
+
+    private func closeMIDI() {
+        midiEditor?.document.closeUndo()
+        midiEditor = nil
+        midiFailure = nil
+    }
+
     @ViewBuilder private var detail: some View {
         if case .midi(let url) = selection {
-            ContentUnavailableView(url.deletingPathExtension().lastPathComponent, systemImage: "pianokeys",
-                                   description: Text("The MIDI editor isn\u{2019}t available yet."))
+            if let midiEditor, midiEditor.url == url {
+                MIDIEditorView(editor: midiEditor).id(midiEditor.id)
+            } else if let midiFailure {
+                ContentUnavailableView("Could not open \u{201C}\(midiFailure.name)\u{201D}", systemImage: "exclamationmark.triangle",
+                                       description: Text(midiFailure.message))
+            } else {
+                ProgressView()
+            }
         } else if model.document == nil {
             DropZoneView(onOpen: openAudio, onChooseFile: { model.isImporting = true },
                          folderPath: workingFolder.folder.map { $0.abbreviatedPath + "/" })
@@ -112,7 +137,13 @@ struct ContentView: View {
 
     private var inspector: some View {
         Group {
-            if model.document != nil, !isMIDISelected {
+            if isMIDISelected {
+                if let midiEditor {
+                    MIDIEditorInspectorView(editor: midiEditor)
+                } else {
+                    ContentUnavailableView("No MIDI File", systemImage: "pianokeys")
+                }
+            } else if model.document != nil {
                 AudioInspectorView(screen: screen)
             } else {
                 ContentUnavailableView("No Audio Selected", systemImage: "waveform")
@@ -130,7 +161,12 @@ struct ContentView: View {
     }
 
     private var subtitle: String {
-        if case .midi = selection { return "" }
+        if case .midi = selection {
+            guard let editor = midiEditor else { return "" }
+            let count = editor.document.notes.count
+            let origin = editor.provenance.map { $0.edited ? "Edited" : "From audio" } ?? "Imported"
+            return "\(count) \(count == 1 ? "note" : "notes") \u{00B7} \(origin)"
+        }
         guard let document = model.document else { return "" }
         return String(format: "%.1f s · %@", document.duration, sampleRateText(document.sampleRate))
     }

@@ -1,0 +1,134 @@
+import SwiftUI
+
+struct MIDIEditorInspectorView: View {
+    let editor: MIDIEditorModel
+
+    private var document: MIDIDocument { editor.document }
+
+    private static let pitchNames = ["C", "C\u{266F}", "D", "D\u{266F}", "E", "F", "F\u{266F}", "G", "G\u{266F}", "A", "A\u{266F}", "B"]
+
+    static func pitchName(_ pitch: Int) -> String {
+        "\(pitchNames[pitch % 12])\(pitch / 12 - 1)"
+    }
+
+    var body: some View {
+        Form {
+            fileSection
+            selectionSection
+            tracksSection
+            keySection
+        }
+        .formStyle(.grouped)
+    }
+
+    // MARK: File
+
+    private var model: ModelEntry? {
+        editor.provenance?.modelID.flatMap { id in ModelCatalog.entries.first { $0.id == id } }
+    }
+
+    private var sourceText: String {
+        guard let source = editor.provenance?.source else { return "Imported file" }
+        if source.hasPrefix("reference:") { return "Referenced audio" }
+        return URL(string: source)?.lastPathComponent ?? "Audio file"
+    }
+
+    private var fileSection: some View {
+        Section("File") {
+            LabeledContent("Name", value: editor.name)
+            LabeledContent("Where") {
+                Text(editor.url.deletingLastPathComponent().abbreviatedPath).font(.caption.monospaced())
+                    .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+            }
+            LabeledContent("Source", value: sourceText)
+            if let model {
+                LabeledContent("Made with") {
+                    HStack(spacing: Metric.sp3) {
+                        Text(model.displayName)
+                        LicenseBadge(entry: model)
+                    }
+                }
+            }
+            LabeledContent("Tempo", value: "120 BPM \u{00B7} 4/4")
+        }
+    }
+
+    // MARK: Selection
+
+    private var selectionSection: some View {
+        let selected = document.selectedNotes
+        return Section("Selection") {
+            if let note = selected.first, selected.count == 1 {
+                LabeledContent("Note", value: Self.pitchName(note.pitch))
+                LabeledContent("Start", value: String(format: "%.3f s", note.start))
+                LabeledContent("Length", value: String(format: "%.0f ms", note.duration * 1000))
+                LabeledContent("Velocity") {
+                    TextField("Velocity", value: Binding(get: { note.velocity }, set: { document.setVelocity($0, for: [note.id]) }), format: .number)
+                        .labelsHidden().multilineTextAlignment(.trailing).frame(width: 56).accessibilityLabel("Velocity, 1 to 127")
+                }
+            } else if selected.isEmpty {
+                Text("Click a note to select it, \u{21E7}-click to add more, or drag a box around several.")
+                    .font(.caption).foregroundStyle(Native.fgSecondary)
+            } else {
+                LabeledContent("Notes", value: "\(selected.count) selected")
+            }
+            if !selected.isEmpty {
+                LabeledContent("Transpose") {
+                    HStack(spacing: Metric.sp2) {
+                        ForEach([-12, -1, 1, 12], id: \.self) { step in
+                            Button(step > 0 ? "+\(step)" : "\u{2212}\(-step)") { document.transpose(by: step) }
+                                .controlSize(.small).accessibilityLabel("Transpose \(step) semitones")
+                        }
+                    }
+                }
+                Button("Delete \(selected.count) \(selected.count == 1 ? "Note" : "Notes")", role: .destructive) { document.deleteSelection() }
+            }
+        }
+    }
+
+    // MARK: Tracks
+
+    private var tracksSection: some View {
+        Section("Tracks") {
+            ForEach(document.tracks) { track in
+                HStack(spacing: Metric.sp3) {
+                    Circle().fill(InstrumentColor.color(for: track.id)).frame(width: Metric.sp4, height: Metric.sp4)
+                    Text(track.name).lineLimit(1)
+                    Spacer(minLength: Metric.sp2)
+                    Text("\(document.notes.filter { $0.track == track.id }.count)").font(.caption).foregroundStyle(Native.fgSecondary)
+                    flag("M", "Mute \(track.name)", on: document.mutedTracks.contains(track.id)) { document.toggleMute(track.id) }
+                    flag("S", "Solo \(track.name)", on: document.soloTracks.contains(track.id)) { document.toggleSolo(track.id) }
+                    Toggle(isOn: Binding(get: { document.hiddenTracks.contains(track.id) }, set: { _ in document.toggleHidden(track.id) })) {
+                        Image(systemName: document.hiddenTracks.contains(track.id) ? "eye.slash" : "eye")
+                    }
+                    .toggleStyle(.button).controlSize(.small).help("Hide \(track.name)").accessibilityLabel("Hide \(track.name)")
+                }
+            }
+            Picker("Draw on", selection: Binding(get: { document.drawTrackID }, set: { document.drawTrackID = $0 })) {
+                ForEach(document.tracks) { Text($0.name).tag($0.id) }
+            }
+        }
+    }
+
+    private func flag(_ title: String, _ label: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Toggle(title, isOn: Binding(get: { on }, set: { _ in action() }))
+            .toggleStyle(.button).controlSize(.small).help(label).accessibilityLabel(label)
+    }
+
+    // MARK: Key
+
+    private var keySection: some View {
+        let matches = KeyDetector.rank(notes: document.noteEvents).prefix(3)
+        return Section {
+            if matches.isEmpty {
+                Text("\u{2014}").foregroundStyle(Native.fgSecondary)
+            } else {
+                ForEach(Array(matches)) { Text("\($0.name)  \(Int(($0.score * 100).rounded()))%").font(.caption) }
+            }
+        } header: {
+            Text("Key from notes")
+        } footer: {
+            Text("Recomputed after every edit. Similar modes can score closely.")
+        }
+    }
+}

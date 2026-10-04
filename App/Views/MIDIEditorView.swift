@@ -1,0 +1,375 @@
+import AppKit
+import SwiftUI
+
+enum MIDITool: String, CaseIterable, Identifiable {
+    case select, draw, erase
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+    var key: String {
+        switch self {
+        case .select: "v"
+        case .draw: "d"
+        case .erase: "e"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .select: "cursorarrow"
+        case .draw: "pencil"
+        case .erase: "eraser"
+        }
+    }
+}
+
+/// One open MIDI file: its document plus the editor's own view state.
+@MainActor @Observable
+final class MIDIEditorModel {
+    let id = UUID()
+    let url: URL
+    let document: MIDIDocument
+    let provenance: MIDIProvenance?
+    var tool: MIDITool = .select
+    var pixelsPerSecond: CGFloat = 120
+
+    init(url: URL, imported: ImportedMIDI) {
+        self.url = url
+        provenance = imported.provenance
+        document = MIDIDocument(sourceName: url.lastPathComponent, imported: imported)
+    }
+
+    var name: String { url.deletingPathExtension().lastPathComponent }
+
+    static func load(_ url: URL) throws -> MIDIEditorModel {
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw MIDIImportError.readFailed(url.lastPathComponent)
+        }
+        return MIDIEditorModel(url: url, imported: try MIDIImporter.decode(data))
+    }
+}
+
+/// The editable piano roll. Every change goes through `MIDIDocument`, so it is undoable; while a drag is in progress
+/// the roll only previews the result of the same pure edit and commits once when the pointer is released.
+struct MIDIEditorView: View {
+    @Bindable var editor: MIDIEditorModel
+    @Environment(\.undoManager) private var undoManager
+    @State private var offset = CGPoint.zero
+    @State private var session: Session?
+    @State private var preview: [EditorNote]?
+    @FocusState private var focused: Bool
+
+    private static let pitches = MIDIEditing.pitchRange
+
+    private var document: MIDIDocument { editor.document }
+
+    private struct Session {
+        enum Mode {
+            case none
+            case marquee(base: Set<Int>)
+            case move
+            case resize
+            case draw(time: Double, pitch: Int)
+            case erase
+        }
+
+        var mode: Mode
+        var start: CGPoint
+        var startGrid: CGPoint
+        var currentGrid: CGPoint
+        var ids: Set<Int> = []
+        var moved = false
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let layout = PianoRollLayout(pixelsPerSecond: editor.pixelsPerSecond, xOrigin: -offset.x,
+                                         laneHeight: Metric.rowH, topPitch: Self.pitches.upperBound)
+            let extent = max(8, (document.notes.map(\.end).max() ?? 0) + 4)
+            let contentWidth = max(proxy.size.width - Metric.keysW, layout.contentWidth(duration: extent))
+            let contentHeight = RollDrawing.contentHeight(pitches: Self.pitches)
+            let yOffset = offset.y
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Token.surfaceSunken.frame(width: Metric.keysW, height: Metric.rulerH)
+                    Canvas { context, size in RollDrawing.ruler(context, size, layout) }
+                        .frame(height: Metric.rulerH).background(Token.surfaceSunken)
+                }
+                HStack(spacing: 0) {
+                    Canvas { context, size in RollDrawing.keys(context, size, pitches: Self.pitches, yOffset: yOffset) }
+                        .frame(width: Metric.keysW)
+                    ScrollView([.horizontal, .vertical]) {
+                        Color.clear.frame(width: contentWidth, height: contentHeight)
+                    }
+                    .defaultScrollAnchor(UnitPoint(x: 0, y: 0.45))
+                    .onScrollGeometryChange(for: CGPoint.self) { $0.contentOffset } action: { _, new in
+                        offset = CGPoint(x: max(0, new.x), y: max(0, new.y))
+                    }
+                    .overlay {
+                        Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, size in
+                            draw(context, size, layout, yOffset: yOffset)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                    .gesture(editGesture(layout))
+                    .onContinuousHover { phase in updateCursor(phase, layout) }
+                }
+                Divider()
+                HStack(spacing: 0) {
+                    Text("Vel").font(.caption).foregroundStyle(Native.fgSecondary)
+                        .frame(width: Metric.keysW, height: Metric.velH).background(Token.surfaceSunken)
+                    MIDIVelocityLaneView(document: document, layout: layout)
+                }
+                Divider()
+                MIDIEditorFooterView(editor: editor, document: document)
+            }
+            .background(Token.surface)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("MIDI editor")
+            .accessibilityValue("\(document.notes.count) notes, \(document.selection.count) selected")
+        }
+        .focusable()
+        .focused($focused)
+        .focusEffectDisabled()
+        .onKeyPress { handle($0) }
+        .onChange(of: undoManager, initial: true) { _, manager in document.undoManager = manager }
+        .toolbar {
+            ToolbarItem {
+                Picker("Tool", selection: $editor.tool) {
+                    ForEach(MIDITool.allCases) { tool in
+                        Label("\(tool.title) (\(tool.key.uppercased()))", systemImage: tool.symbol).tag(tool)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .help("Select (V), Draw (D), Erase (E)")
+            }
+            ToolbarItemGroup {
+                Button { document.undo() } label: { Label("Undo", systemImage: "arrow.uturn.backward") }
+                    .disabled(!(document.revision >= 0 && document.canUndo)).help("Undo")
+                Button { document.redo() } label: { Label("Redo", systemImage: "arrow.uturn.forward") }
+                    .disabled(!(document.revision >= 0 && document.canRedo)).help("Redo")
+            }
+            ToolbarItem {
+                Circle().fill(Token.warn).frame(width: Metric.sp4, height: Metric.sp4)
+                    .opacity(document.isDirty ? 1 : 0)
+                    .help("Unsaved changes")
+                    .accessibilityLabel(document.isDirty ? "Unsaved changes" : "No unsaved changes")
+            }
+        }
+    }
+
+    // MARK: Drawing
+
+    private func draw(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout, yOffset: CGFloat) {
+        var context = context
+        context.translateBy(x: 0, y: -yOffset)
+        let top = yOffset, bottom = yOffset + size.height
+        RollDrawing.grid(context, size, layout, pitches: Self.pitches, top: top, bottom: bottom)
+        for note in preview ?? document.notes where document.isVisible(note) {
+            let rect = MIDIEditing.rect(of: note, in: layout)
+            guard rect.maxX >= 0, rect.minX <= size.width, rect.maxY >= top, rect.minY <= bottom else { continue }
+            let level = 0.4 + 0.6 * Double(note.velocity) / 127
+            let color = InstrumentColor.color(for: note.track).opacity(document.isAudible(note) ? level : 0.3)
+            RollDrawing.note(context, rect: rect, color: color, selected: document.selection.contains(note.id))
+        }
+        guard let session else { return }
+        switch session.mode {
+        case .draw(let time, let pitch):
+            let length = MIDIEditing.drawLength(dragSeconds: dragSeconds(session), grid: document.snap)
+            let ghost = EditorNote(id: -1, track: document.drawTrackID, pitch: pitch, start: MIDIEditing.snapFloor(time, to: document.snap),
+                                   duration: length, velocity: MIDIEditing.defaultVelocity)
+            RollDrawing.note(context, rect: MIDIEditing.rect(of: ghost, in: layout), color: InstrumentColor.color(for: ghost.track).opacity(0.7), selected: true)
+        case .marquee where session.moved:
+            let box = CGRect(x: min(session.startGrid.x, session.currentGrid.x), y: min(session.startGrid.y, session.currentGrid.y),
+                             width: abs(session.currentGrid.x - session.startGrid.x), height: abs(session.currentGrid.y - session.startGrid.y))
+            context.fill(Path(box), with: .color(Token.accentSoft))
+            context.stroke(Path(box), with: .color(Token.accent), lineWidth: Metric.hairline)
+        default:
+            break
+        }
+    }
+
+    // MARK: Pointer
+
+    private func dragSeconds(_ session: Session) -> Double {
+        Double((session.currentGrid.x - session.startGrid.x) / editor.pixelsPerSecond)
+    }
+
+    private func editGesture(_ layout: PianoRollLayout) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if session == nil { begin(at: value.startLocation, layout) }
+                update(to: value.location, layout)
+            }
+            .onEnded { value in
+                update(to: value.location, layout)
+                finish()
+            }
+    }
+
+    private func gridPoint(_ location: CGPoint) -> CGPoint {
+        CGPoint(x: location.x, y: location.y + offset.y)
+    }
+
+    private func begin(at location: CGPoint, _ layout: PianoRollLayout) {
+        focused = true
+        let point = gridPoint(location)
+        let hit = MIDIEditing.hit(at: point, notes: document.notes, layout: layout, hiddenTracks: document.hiddenTracks)
+        let shift = NSEvent.modifierFlags.contains(.shift)
+        var session = Session(mode: .none, start: location, startGrid: point, currentGrid: point)
+        if editor.tool == .erase {
+            session.mode = .erase
+            if let hit { session.ids = [hit.id] }
+            preview = document.notes.filter { !session.ids.contains($0.id) }
+        } else if let hit {
+            if shift {
+                document.toggleSelection(hit.id)
+            } else {
+                if !document.selection.contains(hit.id) { document.select(hit.id) }
+                session.ids = document.selection
+                if case .resizeEdge = hit { session.mode = .resize } else { session.mode = .move }
+            }
+        } else if editor.tool == .draw {
+            session.mode = .draw(time: layout.seconds(atX: location.x), pitch: MIDIEditing.pitch(atGridY: point.y))
+        } else {
+            let base = shift ? document.selection : []
+            if !shift { document.clearSelection() }
+            session.mode = .marquee(base: base)
+        }
+        self.session = session
+    }
+
+    private func update(to location: CGPoint, _ layout: PianoRollLayout) {
+        guard var session else { return }
+        session.currentGrid = gridPoint(location)
+        session.moved = session.moved || abs(location.x - session.start.x) >= 3 || abs(location.y - session.start.y) >= 3
+        let seconds = dragSeconds(session)
+        switch session.mode {
+        case .none, .draw:
+            break
+        case .marquee(let base):
+            if session.moved {
+                let box = MIDIEditing.marquee(from: session.startGrid, to: session.currentGrid, layout: layout)
+                document.selectNotes(inTime: box.time, pitches: box.pitches, additiveTo: base)
+            }
+        case .move:
+            if session.moved {
+                let steps = MIDIEditing.semitones(forDragY: location.y - session.start.y)
+                preview = MIDIEditing.move(document.notes, ids: session.ids, deltaTime: seconds, deltaPitch: steps, grid: document.snap)
+            }
+        case .resize:
+            if session.moved { preview = MIDIEditing.resize(document.notes, ids: session.ids, delta: seconds, grid: document.snap) }
+        case .erase:
+            if let hit = MIDIEditing.hit(at: session.currentGrid, notes: document.notes, layout: layout, hiddenTracks: document.hiddenTracks) {
+                session.ids.insert(hit.id)
+            }
+            preview = document.notes.filter { !session.ids.contains($0.id) }
+        }
+        self.session = session
+    }
+
+    /// Commits the whole gesture as one undoable edit.
+    private func finish() {
+        guard let session else { return }
+        defer {
+            self.session = nil
+            preview = nil
+        }
+        let seconds = dragSeconds(session)
+        let steps = MIDIEditing.semitones(forDragY: session.currentGrid.y - session.startGrid.y)
+        switch session.mode {
+        case .none, .marquee:
+            break
+        case .move:
+            if session.moved { document.move(session.ids, deltaTime: seconds, deltaPitch: steps) }
+        case .resize:
+            if session.moved { document.resize(session.ids, delta: seconds) }
+        case .draw(let time, let pitch):
+            document.draw(at: time, pitch: pitch, length: MIDIEditing.drawLength(dragSeconds: seconds, grid: document.snap))
+        case .erase:
+            document.erase(session.ids)
+        }
+    }
+
+    private func updateCursor(_ phase: HoverPhase, _ layout: PianoRollLayout) {
+        guard case .active(let location) = phase else {
+            NSCursor.arrow.set()
+            return
+        }
+        let hit = MIDIEditing.hit(at: gridPoint(location), notes: document.notes, layout: layout, hiddenTracks: document.hiddenTracks)
+        if case .resizeEdge = hit, editor.tool != .erase {
+            NSCursor.resizeLeftRight.set()
+        } else if editor.tool == .draw, hit == nil {
+            NSCursor.crosshair.set()
+        } else {
+            NSCursor.arrow.set()
+        }
+    }
+
+    // MARK: Keyboard
+
+    private func handle(_ press: KeyPress) -> KeyPress.Result {
+        let shift = press.modifiers.contains(.shift)
+        if press.modifiers.contains(.command) {
+            guard press.characters == "a" else { return .ignored }
+            document.selectAll()
+            return .handled
+        }
+        switch press.key {
+        case .delete, .deleteForward: document.deleteSelection()
+        case .upArrow: document.transpose(by: shift ? 12 : 1)
+        case .downArrow: document.transpose(by: shift ? -12 : -1)
+        case .leftArrow: document.nudge(steps: -1)
+        case .rightArrow: document.nudge(steps: 1)
+        case .escape: document.clearSelection()
+        default:
+            let character = press.characters.lowercased()
+            if let tool = MIDITool.allCases.first(where: { $0.key == character }) {
+                editor.tool = tool
+            } else if character == "q" {
+                document.quantize()
+            } else {
+                return .ignored
+            }
+        }
+        return .handled
+    }
+}
+
+private struct MIDIEditorFooterView: View {
+    @Bindable var editor: MIDIEditorModel
+    @Bindable var document: MIDIDocument
+
+    var body: some View {
+        HStack(spacing: Metric.sp6) {
+            Text(summary).font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+            Spacer(minLength: Metric.sp4)
+            HStack(spacing: Metric.sp3) {
+                Text("Snap").font(.caption)
+                Picker("Snap", selection: $document.snap) {
+                    ForEach(SnapGrid.allCases) { Text($0.title).tag($0) }
+                }
+                .labelsHidden().controlSize(.small).fixedSize()
+            }
+            Button(document.selection.isEmpty ? "Quantize All" : "Quantize Selection") { document.quantize() }
+                .controlSize(.small)
+                .disabled(document.snap == .off || document.notes.isEmpty)
+            HStack(spacing: Metric.sp3) {
+                Image(systemName: "minus").font(.caption)
+                Slider(value: $editor.pixelsPerSecond, in: 30...400).frame(width: 80).accessibilityLabel("Zoom")
+                Image(systemName: "plus").font(.caption)
+            }
+        }
+        .padding(.horizontal, Metric.sp6).padding(.vertical, Metric.sp4)
+    }
+
+    private var summary: String {
+        var parts = ["\(document.notes.count) \(document.notes.count == 1 ? "note" : "notes")"]
+        if !document.selection.isEmpty { parts.append("\(document.selection.count) selected") }
+        if document.skippedNotes > 0 { parts.append("\(document.skippedNotes) outside C1\u{2013}B6 skipped") }
+        return parts.joined(separator: " \u{00B7} ")
+    }
+}

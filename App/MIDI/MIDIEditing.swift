@@ -151,6 +151,19 @@ enum MIDIEditing {
         return changed ? result : nil
     }
 
+    /// Gives each listed note its own velocity, for a paint stroke that changes value along the way.
+    static func setVelocities(_ notes: [EditorNote], values: [Int: Int]) -> [EditorNote]? {
+        var changed = false
+        let result = notes.map { note in
+            guard let value = values[note.id], clampedVelocity(value) != note.velocity else { return note }
+            var painted = note
+            painted.velocity = clampedVelocity(value)
+            changed = true
+            return painted
+        }
+        return changed ? result : nil
+    }
+
     /// Sets the velocity of every visible note that starts inside the painted time span.
     static func paintVelocity(_ notes: [EditorNote], from: Double, to: Double, value: Int, hiddenTracks: Set<String>) -> [EditorNote]? {
         let span = min(from, to)...max(from, to)
@@ -166,15 +179,43 @@ enum MIDIEditing {
         }.map(\.id))
     }
 
+    static func rect(of note: EditorNote, in layout: PianoRollLayout) -> CGRect {
+        layout.rect(for: NoteEvent(onset: note.start, offset: note.end, pitch: note.pitch, program: 0, isDrum: false,
+                                   instrument: note.track, velocity: note.velocity, pitchBends: nil))
+    }
+
     /// The topmost visible note under `point`, and whether the point is on its right-edge resize handle.
+    /// `point` is in the layout's space: x as drawn, y from the top of the C1–B6 grid.
     static func hit(at point: CGPoint, notes: [EditorNote], layout: PianoRollLayout, hiddenTracks: Set<String>) -> MIDIHit? {
         for note in notes.reversed() where !hiddenTracks.contains(note.track) {
-            let rect = layout.rect(for: NoteEvent(onset: note.start, offset: note.end, pitch: note.pitch, program: 0, isDrum: false,
-                                                  instrument: note.track, velocity: note.velocity, pitchBends: nil))
+            let rect = rect(of: note, in: layout)
             guard rect.contains(point) else { continue }
             let edge = min(resizeEdgeWidth, rect.width / 2)
             return point.x >= rect.maxX - edge ? .resizeEdge(note.id) : .body(note.id)
         }
         return nil
+    }
+
+    /// The pitch of the grid row at `y`, measured from the top of the grid. May lie outside C1–B6.
+    static func pitch(atGridY y: CGFloat) -> Int {
+        pitchRange.upperBound - Int((y / Metric.rowH).rounded(.down))
+    }
+
+    /// Whole semitones for a vertical drag; dragging up raises the pitch.
+    static func semitones(forDragY dy: CGFloat) -> Int {
+        -Int((dy / Metric.rowH).rounded())
+    }
+
+    /// The time and pitch ranges a marquee between two points covers.
+    static func marquee(from a: CGPoint, to b: CGPoint, layout: PianoRollLayout) -> (time: ClosedRange<Double>, pitches: ClosedRange<Int>) {
+        let time = layout.seconds(atX: min(a.x, b.x))...layout.seconds(atX: max(a.x, b.x))
+        let pitches = pitch(atGridY: max(a.y, b.y))...pitch(atGridY: min(a.y, b.y))
+        return (time, pitches)
+    }
+
+    /// A drawn note starts one grid step long (a quarter second with the grid off); dragging right lengthens it.
+    static func drawLength(dragSeconds: Double, grid: SnapGrid) -> Double {
+        let base = grid == .off ? 0.25 : grid.step
+        return max(minimumLength(on: grid), snap(base + dragSeconds, to: grid))
     }
 }

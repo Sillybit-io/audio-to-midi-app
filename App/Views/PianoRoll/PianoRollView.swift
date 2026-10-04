@@ -1,5 +1,88 @@
 import SwiftUI
 
+/// Drawing shared by the read-only Audio roll and the MIDI editor. Hit testing is deliberately not here.
+enum RollDrawing {
+    /// The export grid is fixed at 120 BPM in 4/4: one bar is two seconds.
+    static let secondsPerBar = MIDIEditing.secondsPerBar
+
+    private static let blackKeys: Set<Int> = [1, 3, 6, 8, 10]
+
+    static func isBlack(_ pitch: Int) -> Bool { blackKeys.contains(pitch % 12) }
+
+    static func contentHeight(pitches: ClosedRange<Int>) -> CGFloat {
+        CGFloat(pitches.count) * Metric.rowH
+    }
+
+    static func ruler(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout) {
+        let firstBar = max(0, Int(layout.seconds(atX: 0) / secondsPerBar))
+        let lastBar = Int(layout.seconds(atX: size.width) / secondsPerBar) + 1
+        for bar in firstBar...max(firstBar, lastBar) {
+            let x = layout.x(seconds: Double(bar) * secondsPerBar)
+            var tick = Path()
+            tick.move(to: CGPoint(x: x, y: size.height * 0.45))
+            tick.addLine(to: CGPoint(x: x, y: size.height))
+            context.stroke(tick, with: .color(Token.gridBar), lineWidth: Metric.hairline)
+            context.draw(Text("\(bar + 1)").font(.system(size: TypeScale.caption)).foregroundStyle(Native.fgSecondary),
+                         at: CGPoint(x: x + Metric.sp2, y: size.height * 0.3), anchor: .leading)
+        }
+    }
+
+    static func keys(_ context: GraphicsContext, _ size: CGSize, pitches: ClosedRange<Int>, yOffset: CGFloat) {
+        for pitch in pitches {
+            let y = CGFloat(pitches.upperBound - pitch) * Metric.rowH - yOffset
+            guard y + Metric.rowH >= 0, y <= size.height else { continue }
+            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: Metric.rowH)), with: .color(Token.keyWhite))
+            if isBlack(pitch) {
+                context.fill(Path(CGRect(x: 0, y: y, width: size.width * 0.6, height: Metric.rowH)), with: .color(Token.keyBlack))
+            }
+            if pitch % 12 == 0 {
+                context.draw(Text("C\(pitch / 12 - 1)").font(.system(size: TypeScale.micro)).foregroundStyle(Token.keyLabel),
+                             at: CGPoint(x: size.width - Metric.sp2, y: y + Metric.rowH / 2), anchor: .trailing)
+            }
+        }
+    }
+
+    /// Lanes and beat lines. `context` is already translated so y is content-space; `top`/`bottom` bound what is visible.
+    static func grid(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout, pitches: ClosedRange<Int>, top: CGFloat, bottom: CGFloat) {
+        for pitch in pitches {
+            let y = layout.y(pitch: pitch)
+            guard y + Metric.rowH >= top, y <= bottom else { continue }
+            if isBlack(pitch) {
+                context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: Metric.rowH)), with: .color(Token.gridBeat))
+            }
+            if pitch % 12 == 0 {
+                var line = Path()
+                line.move(to: CGPoint(x: 0, y: y + Metric.rowH))
+                line.addLine(to: CGPoint(x: size.width, y: y + Metric.rowH))
+                context.stroke(line, with: .color(Token.gridBar), lineWidth: Metric.hairline)
+            }
+        }
+        let beat = secondsPerBar / 4
+        let firstBeat = max(0, Int(layout.seconds(atX: 0) / beat))
+        let lastBeat = Int(layout.seconds(atX: size.width) / beat) + 1
+        for index in firstBeat...max(firstBeat, lastBeat) {
+            let x = layout.x(seconds: Double(index) * beat)
+            var line = Path()
+            line.move(to: CGPoint(x: x, y: top))
+            line.addLine(to: CGPoint(x: x, y: bottom))
+            context.stroke(line, with: .color(index % 4 == 0 ? Token.gridBar : Token.gridBeat), lineWidth: Metric.hairline)
+        }
+    }
+
+    static func note(_ context: GraphicsContext, rect: CGRect, color: Color, selected: Bool = false) {
+        let path = Path(roundedRect: rect, cornerRadius: Metric.rNote)
+        context.fill(path, with: .color(color))
+        context.stroke(path, with: .color(selected ? Token.fg : Token.noteEdge), lineWidth: selected ? 1.5 : Metric.hairline)
+    }
+
+    static func line(_ context: GraphicsContext, x: CGFloat, top: CGFloat, bottom: CGFloat, color: Color) {
+        var path = Path()
+        path.move(to: CGPoint(x: x, y: top))
+        path.addLine(to: CGPoint(x: x, y: bottom))
+        context.stroke(path, with: .color(color), lineWidth: 1.5)
+    }
+}
+
 struct PianoRollView: View {
     let notes: [NoteEvent]
     let duration: Double
@@ -14,26 +97,23 @@ struct PianoRollView: View {
 
     static let lowPitch = 21
     static let highPitch = 108
-    /// The export grid is fixed at 120 BPM in 4/4: one bar is two seconds.
-    static let secondsPerBar = 2.0
-
-    private static let blackKeys: Set<Int> = [1, 3, 6, 8, 10]
+    private var pitches: ClosedRange<Int> { Self.lowPitch...Self.highPitch }
 
     var body: some View {
         GeometryReader { proxy in
             let layout = PianoRollLayout(pixelsPerSecond: pixelsPerSecond, xOrigin: -offset.x,
                                          laneHeight: Metric.rowH, topPitch: Self.highPitch)
             let contentWidth = max(proxy.size.width - Metric.keysW, layout.contentWidth(duration: duration) + Metric.sp10)
-            let contentHeight = CGFloat(Self.highPitch - Self.lowPitch + 1) * Metric.rowH
+            let contentHeight = RollDrawing.contentHeight(pitches: pitches)
             let xOffset = offset.x, yOffset = offset.y
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Token.surfaceSunken.frame(width: Metric.keysW, height: Metric.rulerH)
-                    Canvas { context, size in drawRuler(context, size, layout) }
+                    Canvas { context, size in RollDrawing.ruler(context, size, layout) }
                         .frame(height: Metric.rulerH).background(Token.surfaceSunken)
                 }
                 HStack(spacing: 0) {
-                    Canvas { context, size in drawKeys(context, size, yOffset: yOffset) }
+                    Canvas { context, size in RollDrawing.keys(context, size, pitches: pitches, yOffset: yOffset) }
                         .frame(width: Metric.keysW)
                     ZStack {
                         ScrollView([.horizontal, .vertical]) {
@@ -80,79 +160,16 @@ struct PianoRollView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func isBlack(_ pitch: Int) -> Bool { Self.blackKeys.contains(pitch % 12) }
-
-    private func drawRuler(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout) {
-        let firstBar = max(0, Int(layout.seconds(atX: 0) / Self.secondsPerBar))
-        let lastBar = Int(layout.seconds(atX: size.width) / Self.secondsPerBar) + 1
-        for bar in firstBar...max(firstBar, lastBar) {
-            let x = layout.x(seconds: Double(bar) * Self.secondsPerBar)
-            var tick = Path()
-            tick.move(to: CGPoint(x: x, y: size.height * 0.45))
-            tick.addLine(to: CGPoint(x: x, y: size.height))
-            context.stroke(tick, with: .color(Token.gridBar), lineWidth: Metric.hairline)
-            context.draw(Text("\(bar + 1)").font(.system(size: TypeScale.caption)).foregroundStyle(Native.fgSecondary),
-                         at: CGPoint(x: x + Metric.sp2, y: size.height * 0.3), anchor: .leading)
-        }
-    }
-
-    private func drawKeys(_ context: GraphicsContext, _ size: CGSize, yOffset: CGFloat) {
-        for pitch in Self.lowPitch...Self.highPitch {
-            let y = CGFloat(Self.highPitch - pitch) * Metric.rowH - yOffset
-            guard y + Metric.rowH >= 0, y <= size.height else { continue }
-            let width = isBlack(pitch) ? size.width * 0.6 : size.width
-            context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: Metric.rowH)), with: .color(Token.keyWhite))
-            if isBlack(pitch) {
-                context.fill(Path(CGRect(x: 0, y: y, width: width, height: Metric.rowH)), with: .color(Token.keyBlack))
-            }
-            if pitch % 12 == 0 {
-                context.draw(Text("C\(pitch / 12 - 1)").font(.system(size: TypeScale.micro)).foregroundStyle(Token.keyLabel),
-                             at: CGPoint(x: size.width - Metric.sp2, y: y + Metric.rowH / 2), anchor: .trailing)
-            }
-        }
-    }
-
     private func draw(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout, xOffset: CGFloat, yOffset: CGFloat) {
         var context = context
         context.translateBy(x: 0, y: -yOffset)
         let top = yOffset, bottom = yOffset + size.height
-        for pitch in Self.lowPitch...Self.highPitch {
-            let y = layout.y(pitch: pitch)
-            guard y + Metric.rowH >= top, y <= bottom else { continue }
-            if isBlack(pitch) {
-                context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: Metric.rowH)), with: .color(Token.gridBeat))
-            }
-            if pitch % 12 == 0 {
-                var line = Path()
-                line.move(to: CGPoint(x: 0, y: y + Metric.rowH))
-                line.addLine(to: CGPoint(x: size.width, y: y + Metric.rowH))
-                context.stroke(line, with: .color(Token.gridBar), lineWidth: Metric.hairline)
-            }
-        }
-        let beat = Self.secondsPerBar / 4
-        let firstBeat = max(0, Int(layout.seconds(atX: 0) / beat))
-        let lastBeat = Int(layout.seconds(atX: size.width) / beat) + 1
-        for index in firstBeat...max(firstBeat, lastBeat) {
-            let x = layout.x(seconds: Double(index) * beat)
-            var line = Path()
-            line.move(to: CGPoint(x: x, y: top))
-            line.addLine(to: CGPoint(x: x, y: bottom))
-            context.stroke(line, with: .color(index % 4 == 0 ? Token.gridBar : Token.gridBeat), lineWidth: Metric.hairline)
-        }
+        RollDrawing.grid(context, size, layout, pitches: pitches, top: top, bottom: bottom)
         let visible = layout.visibleNotes(notes, from: layout.seconds(atX: 0), to: layout.seconds(atX: size.width))
-        for note in visible where !hidden.contains(note.instrument) && (Self.lowPitch...Self.highPitch).contains(note.pitch) {
-            let path = Path(roundedRect: layout.rect(for: note), cornerRadius: Metric.rNote)
-            context.fill(path, with: .color(InstrumentColor.color(for: note.instrument)))
-            context.stroke(path, with: .color(Token.noteEdge), lineWidth: Metric.hairline)
+        for note in visible where !hidden.contains(note.instrument) && pitches.contains(note.pitch) {
+            RollDrawing.note(context, rect: layout.rect(for: note), color: InstrumentColor.color(for: note.instrument))
         }
-        if finalizedThrough > 0 { line(context, x: layout.x(seconds: finalizedThrough), top: top, bottom: bottom, color: Native.fgSecondary) }
-        if let playhead { line(context, x: layout.x(seconds: playhead), top: top, bottom: bottom, color: Token.playhead) }
-    }
-
-    private func line(_ context: GraphicsContext, x: CGFloat, top: CGFloat, bottom: CGFloat, color: Color) {
-        var path = Path()
-        path.move(to: CGPoint(x: x, y: top))
-        path.addLine(to: CGPoint(x: x, y: bottom))
-        context.stroke(path, with: .color(color), lineWidth: 1.5)
+        if finalizedThrough > 0 { RollDrawing.line(context, x: layout.x(seconds: finalizedThrough), top: top, bottom: bottom, color: Native.fgSecondary) }
+        if let playhead { RollDrawing.line(context, x: layout.x(seconds: playhead), top: top, bottom: bottom, color: Token.playhead) }
     }
 }

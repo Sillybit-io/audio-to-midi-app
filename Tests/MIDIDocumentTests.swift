@@ -119,6 +119,27 @@ struct MIDIDocumentTests {
         #expect(MIDIEditing.hit(at: CGPoint(x: 30, y: bassRow), notes: document.notes, layout: layout, hiddenTracks: ["bass"]) == nil)
     }
 
+    @Test func pointerGeometryMapsToPitchesStepsAndRanges() {
+        let layout = PianoRollLayout(pixelsPerSecond: 100, xOrigin: -50, laneHeight: 12, topPitch: 95)
+        #expect(MIDIEditing.pitch(atGridY: 0) == 95 && MIDIEditing.pitch(atGridY: 11.9) == 95)
+        #expect(MIDIEditing.pitch(atGridY: 12) == 94)
+        #expect(MIDIEditing.pitch(atGridY: 71 * 12) == 24)
+        #expect(MIDIEditing.pitch(atGridY: 72 * 12) == 23)
+        #expect(MIDIEditing.pitch(atGridY: -1) == 96)
+        #expect(MIDIEditing.semitones(forDragY: -25) == 2 && MIDIEditing.semitones(forDragY: 25) == -2)
+        #expect(MIDIEditing.semitones(forDragY: 5) == 0)
+
+        let box = MIDIEditing.marquee(from: CGPoint(x: 250, y: 60), to: CGPoint(x: 150, y: 12), layout: layout)
+        #expect(box.time == 2.0...3.0)
+        #expect(box.pitches == 90...94)
+
+        #expect(MIDIEditing.drawLength(dragSeconds: 0, grid: .sixteenth) == 0.125)
+        #expect(MIDIEditing.drawLength(dragSeconds: 0.4, grid: .sixteenth) == 0.5)
+        #expect(MIDIEditing.drawLength(dragSeconds: -9, grid: .sixteenth) == 0.125)
+        #expect(MIDIEditing.drawLength(dragSeconds: 0.1, grid: .off) == 0.35)
+        #expect(MIDIEditing.drawLength(dragSeconds: -9, grid: .off) == MIDIEditing.minimumDuration)
+    }
+
     @Test func resizeIsSnappedAndNeverBelowOneGridStep() throws {
         let document = makeDocument()
         #expect(document.resize([1], delta: 0.19))
@@ -182,6 +203,28 @@ struct MIDIDocumentTests {
         #expect(document.paintVelocity(from: 0, to: 2, value: 33))
         #expect(document.notes.map(\.velocity) == [1, 55, 55, 33])
         #expect(!document.paintVelocity(from: 5, to: 6, value: 10))
+    }
+
+    @Test func aPaintStrokeGivesEachNoteItsOwnVelocityInOneUndoStep() {
+        let undo = makeUndoManager()
+        let document = makeDocument(undo: undo)
+        #expect(document.setVelocities([1: 20, 2: 127, 3: 500, 99: 50]))
+        #expect(document.notes.map(\.velocity) == [20, 127, 127, 70])
+        #expect(!document.setVelocities([1: 20, 2: 127]))
+        #expect(!document.setVelocities([:]))
+        document.undo()
+        #expect(document.notes.map(\.velocity) == [80, 90, 100, 70])
+        #expect(!document.canUndo)
+    }
+
+    @Test func closingADocumentDropsItsUndoSteps() {
+        let undo = makeUndoManager()
+        let document = makeDocument(undo: undo)
+        document.select(1)
+        document.transpose(by: 2)
+        #expect(undo.canUndo)
+        document.closeUndo()
+        #expect(!undo.canUndo && document.undoManager == nil)
     }
 
     @Test func trackMuteSoloAndHideChangeAudibilityButNeverDirtyTheDocument() {
