@@ -32,7 +32,7 @@ struct ExportView: View {
     var body: some View {
         HStack {
             Label("MIDI", systemImage: "music.note")
-                .padding(.horizontal, 10).padding(.vertical, 4)
+                .padding(.horizontal, Metric.sp4).padding(.vertical, Metric.sp2)
                 .background(.quaternary, in: Capsule())
                 .draggable(makeItem(embed: embedNotice))
                 .help("Drag into Finder or a DAW")

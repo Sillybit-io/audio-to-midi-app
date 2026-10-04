@@ -1,54 +1,30 @@
 import SwiftUI
 
-struct TranscribeToolbar: View {
-    let store: ModelStore
-    let session: TranscriptionSession
-    let devices: [EngineDevice]
-    @Binding var modelID: ModelEntry.ID?
-    @Binding var deviceIndex: Int?
-    @Binding var threads: Int
+/// The toolbar's one prominent action: Transcribe / Transcribe Again / Download & Transcribe / Transcribing…
+/// Drawn as an explicit capsule so it keeps its accent colour when the system flattens toolbar glass.
+struct TranscribeButton: View {
+    let label: String
+    let isBusy: Bool
+    let isPrimary: Bool
     let canStart: Bool
-    let onStart: () -> Void
+    let action: () -> Void
 
-    private var usable: [ModelEntry] {
-        ModelCatalog.entries.filter { store.state(for: $0) == .installed }
-    }
+    private var isEnabled: Bool { !isBusy && canStart }
 
     var body: some View {
-        HStack {
-            Picker("Model", selection: $modelID) {
-                Text("Choose a model").tag(ModelEntry.ID?.none)
-                ForEach(usable) { Text($0.displayName).tag(Optional($0.id)) }
-            }.frame(maxWidth: 220)
-            if let entry = ModelCatalog.entries.first(where: { $0.id == modelID }) { LicenseBadge(entry: entry) }
-            Picker("Device", selection: $deviceIndex) {
-                Text("Auto").tag(Int?.none)
-                ForEach(devices, id: \.index) { Text("\($0.name) (\($0.backend))").tag(Optional($0.index)) }
-            }.frame(maxWidth: 220)
-            Stepper("Threads \(threads)", value: $threads, in: 1...32)
-            Spacer()
-            statusView
-            if session.isBusy {
-                Button("Cancel") { session.cancel() }
-            } else {
-                Button("Transcribe", action: onStart).disabled(!canStart).keyboardShortcut(.return)
-            }
+        Button(action: action) {
+            Label(label, systemImage: "waveform.badge.magnifyingglass")
+                .labelStyle(.titleAndIcon)
+                .padding(.horizontal, Metric.sp5).padding(.vertical, Metric.sp2)
+                .foregroundStyle(isPrimary ? Token.fgOnAccent : Native.fg)
+                .background(isPrimary ? Token.accent : Token.surfaceSunken, in: Capsule())
+                .overlay(Capsule().strokeBorder(isPrimary ? Color.clear : Token.border))
+                .opacity(isEnabled ? 1 : 0.5)
         }
-    }
-
-    @ViewBuilder private var statusView: some View {
-        switch session.state {
-        case .loading(let p):
-            ProgressView(value: p) { Text("Loading model") }.frame(width: 160)
-        case .running:
-            ProgressView(value: session.progress) {
-                Text(session.eta.map { "About \(Int($0.rounded())) s left" } ?? "Transcribing")
-            }.frame(width: 160)
-        case .refining: ProgressView { Text("Estimating velocity") }.frame(width: 160)
-        case .done(let n): Text("Done — \(n) notes")
-        case .failed(let m): Text(m).foregroundStyle(.red).lineLimit(2)
-        case .cancelled: Text("Cancelled — partial notes kept")
-        case .idle: EmptyView()
-        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .keyboardShortcut(.return)
+        .help("Transcribe the selected slice")
+        .accessibilityLabel(label)
     }
 }

@@ -1,91 +1,57 @@
 import SwiftUI
 
-struct AudioDetailView: View {
-    @Bindable var model: DocumentModel
+/// State shared by the Audio screen and its inspector.
+@MainActor @Observable
+final class AudioScreenModel {
+    let document: DocumentModel
     let store: ModelStore
-    @Bindable var access: AccessCoordinator
     let session: TranscriptionSession
-    let onOpenAudio: (URL) -> Void
+    let playback = PlaybackEngine()
 
-    @State private var playback = PlaybackEngine()
-    @State private var showModels = false
-    @State private var selectedModel: ModelEntry.ID?
-    @State private var deviceIndex: Int?
-    @State private var threads = max(1, ProcessInfo.processInfo.performanceCoreCount)
-    @State private var devices: [EngineDevice] = []
-    @State private var instruments: [EngineInstrument] = []
-    @State private var chosenInstruments: Set<String> = []
-    @State private var hiddenInstruments: Set<String> = []
-    @State private var estimateVelocity = true
-    @State private var engine: EngineProcess?
-    @State private var engineProblem: String?
+    var selectedModel: ModelEntry.ID? = "basic-pitch"
+    var deviceIndex: Int?
+    var threads = max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
+    var chosenInstruments: Set<String> = []
+    var hiddenInstruments: Set<String> = []
+    var estimateVelocity = true
+    var pixelsPerSecond: CGFloat = Metric.ppsDefault
+    private(set) var devices: [EngineDevice] = []
+    private(set) var instruments: [EngineInstrument] = []
+    private(set) var engine: EngineProcess?
+    private(set) var engineProblem: String?
+    private(set) var startedAt: Date?
 
-    var body: some View {
-        VStack(spacing: 0) {
-            if let engineProblem {
-                Text(engineProblem).foregroundStyle(Native.danger).padding(Metric.sp4)
-            }
-            VStack(alignment: .leading, spacing: Metric.sp4) {
-                WaveformSliceView(model: model)
-                TranscribeToolbar(store: store, session: session, devices: devices, modelID: $selectedModel,
-                                  deviceIndex: $deviceIndex, threads: $threads, canStart: canStart, onStart: start)
-                    .padding(.horizontal)
-                if selectedEntry?.engine == .muscriptor {
-                    Toggle("Estimate note velocity from the audio (MuScriptor has none)", isOn: $estimateVelocity).padding(.horizontal)
-                    InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
-                }
-                ExportView(notes: session.notes, entry: selectedEntry,
-                           slice: model.slice, name: model.document?.name ?? "transcription").padding(.horizontal)
-                KeyView(notes: session.notes, audio: audioForKey).padding(.horizontal)
-                InstrumentLegendView(instruments: presentInstruments, hidden: $hiddenInstruments).padding(.horizontal)
-                TransportView(playback: playback, instruments: presentInstruments, prepare: prepareOriginal).padding(.horizontal)
-                PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
-                              playhead: playback.position, hidden: hiddenInstruments)
-                    .frame(minHeight: 180)
-            }
-            .dropDestination(for: URL.self) { urls, _ in
-                guard let url = urls.first else { return false }
-                onOpenAudio(url)
-                return true
-            }
-        }
-        .task { await loadEngineInfo() }
-        .onChange(of: session.notes.count) { playback.sync(notes: session.notes) }
-        .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
-        .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
-        .onChange(of: model.slice) { playback.duration = model.slice.span }
-        .toolbar { Button("Models") { showModels = true } }
-        .sheet(isPresented: $showModels) {
-            VStack { ModelPickerView(store: store, selection: $selectedModel); Button("Done") { showModels = false }.padding() }
-                .frame(width: 640, height: 360)
-        }
+    init(document: DocumentModel, store: ModelStore, session: TranscriptionSession) {
+        self.document = document
+        self.store = store
+        self.session = session
     }
 
-    private func audioForKey() -> (samples: [Float], rate: Double)? {
-        guard let document = model.document else { return nil }
-        return (model.slice.cut(document.samples, sampleRate: document.sampleRate), document.sampleRate)
-    }
-
-    private func prepareOriginal() {
-        guard let document = model.document else { return }
-        playback.duration = model.slice.span
-        playback.setOriginal(samples: model.slice.cut(document.samples, sampleRate: document.sampleRate), sampleRate: document.sampleRate)
-    }
-
-    private var presentInstruments: [String] {
-        Array(Set(session.notes.map(\.instrument))).sorted()
-    }
-
-    private var selectedEntry: ModelEntry? {
+    var selectedEntry: ModelEntry? {
         ModelCatalog.entries.first { $0.id == selectedModel }
     }
 
-    private var canStart: Bool {
-        guard model.document != nil, !session.isBusy, let entry = selectedEntry else { return false }
+    var presentInstruments: [String] {
+        Array(Set(session.notes.map(\.instrument))).sorted()
+    }
+
+    var canStart: Bool {
+        guard document.document != nil, !session.isBusy, let entry = selectedEntry,
+              store.state(for: entry) == .installed else { return false }
         return entry.engine != .muscriptor || engine != nil
     }
 
-    private func loadEngineInfo() async {
+    var transcribeLabel: String {
+        if session.isBusy { return "Transcribing…" }
+        guard let entry = selectedEntry else { return "Transcribe" }
+        if store.state(for: entry) != .installed { return "Download & Transcribe" }
+        switch session.state {
+        case .done, .cancelled: return "Transcribe Again"
+        default: return "Transcribe"
+        }
+    }
+
+    func loadEngineInfo() async {
         do {
             let process = EngineProcess(executable: try EngineLocator.locate())
             engine = process
@@ -99,14 +65,27 @@ struct AudioDetailView: View {
         }
     }
 
-    private func start() {
-        guard let document = model.document,
-              let entry = ModelCatalog.entries.first(where: { $0.id == selectedModel }) else { return }
-        let samples = model.slice.cut(document.samples, sampleRate: document.sampleRate)
-        let rate = document.sampleRate
+    func audioForKey() -> (samples: [Float], rate: Double)? {
+        guard let audio = document.document else { return nil }
+        return (document.slice.cut(audio.samples, sampleRate: audio.sampleRate), audio.sampleRate)
+    }
+
+    func prepareOriginal() {
+        guard let audio = document.document else { return }
+        playback.duration = document.slice.span
+        playback.setOriginal(samples: document.slice.cut(audio.samples, sampleRate: audio.sampleRate), sampleRate: audio.sampleRate)
+    }
+
+    func cancel() { session.cancel() }
+
+    func start() {
+        guard canStart, let audio = document.document, let entry = selectedEntry else { return }
+        let samples = document.slice.cut(audio.samples, sampleRate: audio.sampleRate)
+        let rate = audio.sampleRate
         let device = deviceIndex.map(String.init) ?? "auto"
         let names = chosenInstruments.sorted()
         let count = threads
+        startedAt = Date()
         if entry.engine == .basicPitch {
             session.start { BasicPitchEngine().stream(samples: samples, sourceRate: rate) }
             return
@@ -137,6 +116,144 @@ struct AudioDetailView: View {
     }
 }
 
-private extension ProcessInfo {
-    var performanceCoreCount: Int { max(1, activeProcessorCount / 2) }
+struct AudioDetailView: View {
+    @Bindable var screen: AudioScreenModel
+    let onOpenAudio: (URL) -> Void
+
+    private var model: DocumentModel { screen.document }
+    private var session: TranscriptionSession { screen.session }
+    private var playback: PlaybackEngine { screen.playback }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let problem = screen.engineProblem {
+                Text(problem).foregroundStyle(Native.danger).padding(Metric.sp4)
+            }
+            WaveformSliceView(model: model)
+            AudioStatusView(session: session, startedAt: screen.startedAt,
+                            estimatesVelocity: screen.estimateVelocity && screen.selectedEntry?.engine == .muscriptor,
+                            onCancel: screen.cancel, onRetry: screen.start)
+                .padding(.horizontal, Metric.sp6)
+            PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
+                          playhead: playback.position, hidden: screen.hiddenInstruments,
+                          pixelsPerSecond: $screen.pixelsPerSecond,
+                          showsEmptyState: session.notes.isEmpty && session.state == .idle)
+            Divider()
+            AudioFooterView(screen: screen)
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first else { return false }
+            onOpenAudio(url)
+            return true
+        }
+        .task { await screen.loadEngineInfo() }
+        .onChange(of: session.notes.count) { playback.sync(notes: session.notes) }
+        .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
+        .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
+        .onChange(of: model.slice) { playback.duration = model.slice.span }
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    if playback.isPlaying { playback.pause() } else { screen.prepareOriginal(); playback.play() }
+                } label: {
+                    Label(playback.isPlaying ? "Pause" : "Play", systemImage: playback.isPlaying ? "pause.fill" : "play.fill")
+                }
+                .help(playback.isPlaying ? "Pause" : "Play")
+                Button { playback.stop() } label: { Label("Stop", systemImage: "stop.fill") }
+                    .help("Stop")
+                Text(String(format: "%.1f s", playback.position))
+                    .monospacedDigit().foregroundStyle(Native.fgSecondary)
+                    .accessibilityLabel("Playback position")
+            }
+            ToolbarItem {
+                TranscribeButton(label: screen.transcribeLabel, isBusy: session.isBusy, isPrimary: !isRepeat,
+                                 canStart: screen.canStart, action: screen.start)
+            }
+            ToolbarItem {
+                ExportView(notes: session.notes, entry: screen.selectedEntry,
+                           slice: model.slice, name: model.document?.name ?? "transcription")
+            }
+        }
+    }
+
+    private var isRepeat: Bool {
+        switch session.state {
+        case .done, .cancelled: true
+        default: false
+        }
+    }
+}
+
+struct AudioFooterView: View {
+    @Bindable var screen: AudioScreenModel
+
+    private var playback: PlaybackEngine { screen.playback }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Metric.sp6) {
+                summaryText
+                Spacer(minLength: Metric.sp4)
+                mixControl
+                speedControl
+                zoomControl
+            }
+            VStack(alignment: .leading, spacing: Metric.sp3) {
+                HStack { summaryText; Spacer(); zoomControl }
+                HStack(spacing: Metric.sp6) { mixControl; speedControl; Spacer(minLength: 0) }
+            }
+            VStack(alignment: .leading, spacing: Metric.sp3) {
+                summaryText
+                mixControl
+                speedControl
+                zoomControl
+            }
+        }
+        .padding(.horizontal, Metric.sp6).padding(.vertical, Metric.sp4)
+    }
+
+    private var summaryText: some View {
+        VStack(alignment: .leading, spacing: Metric.sp1) {
+            Text(summary).font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+            if let message = playback.lastError { Text(message).font(.caption).foregroundStyle(Native.danger) }
+        }
+    }
+
+    private var mixControl: some View {
+        HStack(spacing: Metric.sp3) {
+            Text("Original").font(.caption)
+            Slider(value: Binding(get: { playback.mix }, set: { playback.mix = $0 }))
+                .frame(width: 90).accessibilityLabel("Original and notes mix")
+            Text("Notes").font(.caption)
+        }
+    }
+
+    private var speedControl: some View {
+        HStack(spacing: Metric.sp3) {
+            Text("Speed").font(.caption)
+            Slider(value: Binding(get: { Double(playback.rate) }, set: { playback.rate = Float($0) }), in: 0.5...2)
+                .frame(width: 80).accessibilityLabel("Playback speed")
+            Text(String(format: "%.2f×", playback.rate)).font(.caption.monospacedDigit()).frame(width: 40, alignment: .leading)
+        }
+    }
+
+    private var zoomControl: some View {
+        HStack(spacing: Metric.sp3) {
+            Image(systemName: "minus").font(.caption)
+            Slider(value: Binding(get: { Double(screen.pixelsPerSecond) }, set: { screen.pixelsPerSecond = CGFloat($0) }), in: 10...400)
+                .frame(width: 80).accessibilityLabel("Zoom")
+            Image(systemName: "plus").font(.caption)
+        }
+    }
+
+    private var summary: String {
+        let count = screen.session.notes.count
+        switch screen.session.state {
+        case .idle: return count == 0 ? "No notes yet" : "\(count) notes"
+        case .loading, .running, .refining: return "Transcribing… \(count) notes so far"
+        case .done(let total): return "Done — \(total) notes"
+        case .cancelled: return "Cancelled — partial notes kept · \(count) notes"
+        case .failed: return "Transcription failed"
+        }
+    }
 }

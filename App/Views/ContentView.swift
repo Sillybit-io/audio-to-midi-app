@@ -11,9 +11,22 @@ struct ContentView: View {
     let imports: AudioImportStore
 
     @AppStorage("addAudioMode") private var addAudioMode = AddAudioMode.copy.rawValue
+    @State private var screen: AudioScreenModel
     @State private var selection: LibrarySelection?
     @State private var showInspector = false
     @State private var showWelcome = false
+
+    init(model: DocumentModel, store: ModelStore, access: AccessCoordinator, session: TranscriptionSession,
+         workingFolder: WorkingFolderStore, library: LibraryStore, imports: AudioImportStore) {
+        self.model = model
+        self.store = store
+        self.access = access
+        self.session = session
+        self.workingFolder = workingFolder
+        self.library = library
+        self.imports = imports
+        _screen = State(initialValue: AudioScreenModel(document: model, store: store, session: session))
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -21,20 +34,25 @@ struct ContentView: View {
                                selection: $selection, openAudio: { model.isImporting = true })
                 .navigationSplitViewColumnWidth(min: Metric.sidebarW - Metric.sp9, ideal: Metric.sidebarW, max: Metric.sidebarW + Metric.sp10)
         } detail: {
-            detail
-                .navigationTitle(title)
-                .navigationSubtitle(subtitle)
-                .inspector(isPresented: $showInspector) {
-                    inspector.inspectorColumnWidth(Metric.inspectorW)
+            // A plain trailing pane rather than `.inspector`: with Reduce Transparency on, macOS 26.5 draws the
+            // system inspector without its controls or default-coloured text.
+            HStack(spacing: 0) {
+                detail.frame(maxWidth: .infinity)
+                if showInspector {
+                    Divider()
+                    inspector.frame(width: Metric.inspectorW).background(Token.bg)
                 }
-                .toolbar {
-                    ToolbarItem {
-                        Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
-                            .help(showInspector ? "Hide Inspector" : "Show Inspector")
-                    }
+            }
+            .navigationTitle(title)
+            .navigationSubtitle(subtitle)
+            .toolbar {
+                ToolbarItem {
+                    Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                        .help(showInspector ? "Hide Inspector" : "Show Inspector")
                 }
+            }
         }
-        .frame(minWidth: showInspector ? Metric.windowMinW + Metric.inspectorW : Metric.windowMinW, minHeight: Metric.windowMinH)
+        .frame(minWidth: Metric.windowMinW, minHeight: Metric.windowMinH)
         .onChange(of: workingFolder.folder, initial: true) {
             library.attach(audio: workingFolder.audioFolder, midi: workingFolder.midiFolder)
         }
@@ -81,27 +99,25 @@ struct ContentView: View {
             ContentUnavailableView(url.deletingPathExtension().lastPathComponent, systemImage: "pianokeys",
                                    description: Text("The MIDI editor isn\u{2019}t available yet."))
         } else if model.document == nil {
-            DropZoneView(onOpen: openAudio)
+            DropZoneView(onOpen: openAudio, onChooseFile: { model.isImporting = true },
+                         folderPath: workingFolder.folder.map { $0.abbreviatedPath + "/" })
         } else {
-            AudioDetailView(model: model, store: store, access: access, session: session, onOpenAudio: openAudio)
+            AudioDetailView(screen: screen, onOpenAudio: openAudio)
         }
     }
 
     private var inspector: some View {
         Group {
-            if let document = model.document {
-                Form {
-                    Section("File") {
-                        LabeledContent("Name", value: document.name)
-                        LabeledContent("Duration", value: String(format: "%.1f s", document.duration))
-                        LabeledContent("Sample rate", value: sampleRateText(document.sampleRate))
-                    }
-                }
-                .formStyle(.grouped)
+            if model.document != nil, !isMIDISelected {
+                AudioInspectorView(screen: screen)
             } else {
                 ContentUnavailableView("No Audio Selected", systemImage: "waveform")
             }
         }
+    }
+
+    private var isMIDISelected: Bool {
+        if case .midi = selection { true } else { false }
     }
 
     private var title: String {
