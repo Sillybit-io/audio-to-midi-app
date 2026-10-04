@@ -10,6 +10,7 @@ private func collect(_ stream: AsyncThrowingStream<EngineEvent, Error>) async ->
     return (events, nil)
 }
 
+@Suite(.serialized)
 struct EngineProcessTests {
     private func stream(_ engine: EngineProcess) -> AsyncThrowingStream<EngineEvent, Error> {
         engine.transcribe(model: URL(fileURLWithPath: "/tmp/none.gguf"), samples: [0, 0, 0], device: "cpu", threads: 1, instruments: [])

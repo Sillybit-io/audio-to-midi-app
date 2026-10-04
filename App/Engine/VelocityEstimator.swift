@@ -92,7 +92,7 @@ enum VelocityEstimator {
     }
 
     /// |sum x[n] e^{-j w n}|^2 by an oscillator recurrence.
-    private static func tonePower(_ x: [Double], frequency: Double, sampleRate: Double) -> Double {
+    static func tonePower(_ x: [Double], frequency: Double, sampleRate: Double) -> Double {
         let omega = 2 * .pi * frequency / sampleRate
         let c = cos(omega), s = sin(omega)
         var cn = 1.0, sn = 0.0

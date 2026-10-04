@@ -37,6 +37,7 @@ struct ContentView: View {
                     InstrumentChipsView(instruments: instruments, selection: $chosenInstruments).padding(.horizontal)
                     ExportView(notes: session.notes, entry: ModelCatalog.entries.first { $0.id == selectedModel },
                                slice: model.slice, name: model.document?.name ?? "transcription").padding(.horizontal)
+                    KeyView(notes: session.notes, audio: audioForKey).padding(.horizontal)
                     InstrumentLegendView(instruments: presentInstruments, hidden: $hiddenInstruments).padding(.horizontal)
                     TransportView(playback: playback, instruments: presentInstruments, prepare: prepareOriginal).padding(.horizontal)
                     PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
@@ -76,6 +77,11 @@ struct ContentView: View {
         } message: {
             Text(model.errorMessage ?? "")
         }
+    }
+
+    private func audioForKey() -> (samples: [Float], rate: Double)? {
+        guard let document = model.document else { return nil }
+        return (model.slice.cut(document.samples, sampleRate: document.sampleRate), document.sampleRate)
     }
 
     private func prepareOriginal() {
