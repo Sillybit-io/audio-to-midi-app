@@ -8,7 +8,7 @@ Get `SillyMIDITools-<version>-macOS-arm64.zip` from the [Releases](https://githu
 
 Requirements: macOS 26 or later on a Mac with Apple silicon (M1 or newer). Release builds are not built for Intel Macs; to run on Intel, build from source.
 
-1. Unzip the file and move `SillyMIDITools.app` to `/Applications`.
+1. Unzip the file by double-clicking it in Finder, or run `ditto -x -k <zip file> .`. Plain `unzip` drops signature data from the bundled Metal libraries. Move `SillyMIDITools.app` to `/Applications`.
 2. The app is ad-hoc signed and not notarized, so Gatekeeper blocks the first launch. Clear the quarantine flag once:
 
    ```sh
