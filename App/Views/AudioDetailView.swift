@@ -14,6 +14,7 @@ final class AudioScreenModel {
     let session: TranscriptionSession
     let access: AccessCoordinator
     let firstUse: FirstUseTranscription
+    let writer = TranscriptionWriter()
     let playback = PlaybackEngine()
 
     var selectedModel: ModelEntry.ID? {
@@ -33,15 +34,58 @@ final class AudioScreenModel {
     private(set) var downloadFailure: (entry: ModelEntry, message: String)?
     @ObservationIgnored private var includesDownload: ModelEntry?
     @ObservationIgnored private var prepareTask: Task<Void, Never>?
+    /// The run in flight; it is consumed by the first terminal state, so a run is saved once.
+    @ObservationIgnored private var run: TranscriptionWriter.Run?
+    @ObservationIgnored private let destination: () -> URL?
+    @ObservationIgnored private let references: () -> [AudioReference]
+    @ObservationIgnored private let onSaved: () -> Void
 
+    /// `destination` is the MIDI folder to save results in; `onSaved` lets the library pick the new file up.
     init(document: DocumentModel, store: ModelStore, session: TranscriptionSession, access: AccessCoordinator,
-         preferences: AppPreferences, settle: Duration = .milliseconds(400)) {
+         preferences: AppPreferences, settle: Duration = .milliseconds(400), destination: @escaping () -> URL? = { nil },
+         references: @escaping () -> [AudioReference] = { [] }, onSaved: @escaping () -> Void = {}) {
         self.document = document
         self.store = store
         self.session = session
         self.access = access
+        self.destination = destination
+        self.references = references
+        self.onSaved = onSaved
         firstUse = FirstUseTranscription(installer: store, settle: settle)
         selectedModel = preferences.defaultModelID
+        observeSession()
+    }
+
+    /// Watches the session for the end of a run. This lives on the model, not on a view, so a run that finishes
+    /// while another screen is showing is still saved.
+    private func observeSession() {
+        withObservationTracking {
+            _ = session.state
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.sessionStateChanged()
+                self?.observeSession()
+            }
+        }
+    }
+
+    func sessionStateChanged() {
+        guard let run else { return }
+        switch session.state {
+        case .done, .cancelled:
+            self.run = nil
+            writer.finish(session.state, notes: session.notes, run: run, folder: destination())
+            if case .saved = writer.status { onSaved() }
+        case .failed:
+            self.run = nil
+        case .idle, .loading, .running, .refining:
+            break
+        }
+    }
+
+    func retrySave() {
+        writer.retry(folder: destination())
+        if case .saved = writer.status { onSaved() }
     }
 
     var selectedEntry: ModelEntry? {
@@ -157,6 +201,9 @@ final class AudioScreenModel {
 
     private func launch(_ entry: ModelEntry) {
         guard let audio = document.document else { return }
+        run = TranscriptionWriter.Run(source: audio.url, sourceID: TranscriptionWriter.sourceIdentifier(for: audio.url, references: references()),
+                                      title: audio.name, modelID: entry.id, notice: entry.exportNotice, slice: document.slice)
+        writer.reset()
         let samples = document.slice.cut(audio.samples, sampleRate: audio.sampleRate)
         let rate = audio.sampleRate
         let device = deviceIndex.map(String.init) ?? "auto"
@@ -301,7 +348,27 @@ struct AudioFooterView: View {
     private var summaryText: some View {
         VStack(alignment: .leading, spacing: Metric.sp1) {
             Text(summary).font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+            saveLine
             if let message = playback.lastError { Text(message).font(.caption).foregroundStyle(Native.danger) }
+        }
+    }
+
+    @ViewBuilder private var saveLine: some View {
+        switch screen.writer.status {
+        case .idle:
+            EmptyView()
+        case .saved(let url, let partial):
+            Text("\(partial ? "Partial result saved" : "Saved") to MIDI/\(url.lastPathComponent)")
+                .font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+        case .keptPrevious(let url):
+            Text("Kept the earlier result in MIDI/\(url.lastPathComponent)").font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+        case .empty:
+            Text("No notes found, so nothing was saved.").font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+        case .failed(let message):
+            HStack(spacing: Metric.sp3) {
+                Text(message).font(.caption).foregroundStyle(Native.danger).lineLimit(2)
+                Button("Try Saving Again", action: screen.retrySave).controlSize(.small)
+            }
         }
     }
 

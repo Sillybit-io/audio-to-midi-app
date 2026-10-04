@@ -26,7 +26,9 @@ struct ContentView: View {
         self.library = library
         self.imports = imports
         self.preferences = preferences
-        _screen = State(initialValue: AudioScreenModel(document: model, store: store, session: session, access: access, preferences: preferences))
+        _screen = State(initialValue: AudioScreenModel(document: model, store: store, session: session, access: access, preferences: preferences,
+                                                       destination: { workingFolder.midiFolder }, references: { imports.references },
+                                                       onSaved: { library.refresh() }))
     }
 
     var body: some View {
