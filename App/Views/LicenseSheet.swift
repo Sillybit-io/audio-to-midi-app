@@ -34,7 +34,7 @@ struct LicenseSheet: View {
             Toggle("I will use this model and its MIDI output for non-commercial purposes only.", isOn: $nonCommercial)
             Toggle("I hold the rights to the audio I transcribe.", isOn: $ownsAudio)
             Toggle("The model and its output are provided as is; Mirelo and Kyutai are not liable.", isOn: $asIs)
-            if let message { Text(message).foregroundStyle(.orange) }
+            if let message { Text(message).foregroundStyle(Token.warn) }
             if request.decision == .needsToken || request.decision == .invalidToken {
                 HStack {
                     SecureField("Hugging Face read token", text: $token)
