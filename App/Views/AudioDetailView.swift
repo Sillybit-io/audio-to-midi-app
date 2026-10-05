@@ -170,6 +170,12 @@ final class AudioScreenModel {
         playback.setOriginal(samples: document.slice.cut(audio.samples, sampleRate: audio.sampleRate), sampleRate: audio.sampleRate)
     }
 
+    /// Moves the playhead within the slice.
+    func seek(to seconds: Double) {
+        playback.duration = document.slice.span
+        playback.seek(to: seconds)
+    }
+
     func togglePlayback() {
         if playback.isPlaying {
             playback.pause()
@@ -269,6 +275,8 @@ final class AudioScreenModel {
 struct AudioDetailView: View {
     @Bindable var screen: AudioScreenModel
     let onOpenAudio: (URL) -> Void
+    @Environment(AppPreferences.self) private var preferences
+    @FocusState private var focused: Bool
 
     private var model: DocumentModel { screen.document }
     private var session: TranscriptionSession { screen.session }
@@ -285,8 +293,9 @@ struct AudioDetailView: View {
                 .padding(.horizontal, Metric.sp6)
             PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
                           playhead: playback.position, hidden: screen.hiddenInstruments,
-                          pixelsPerSecond: $screen.pixelsPerSecond,
+                          pixelsPerSecond: $screen.pixelsPerSecond, follows: preferences.followPlayhead, onSeek: screen.seek,
                           showsEmptyState: session.notes.isEmpty && session.state == .idle && !screen.isPreparing)
+                .onTapGesture { focused = true }
             Divider()
             AudioFooterView(screen: screen)
         }
@@ -296,6 +305,20 @@ struct AudioDetailView: View {
             return true
         }
         .task { await screen.loadEngineInfo() }
+        .focusable()
+        .focused($focused)
+        .focusEffectDisabled()
+        .onKeyPress { press in
+            guard press.modifiers.isEmpty else { return .ignored }
+            if press.characters == " " {
+                screen.togglePlayback()
+            } else if press.characters.lowercased() == "l" {
+                playback.loops.toggle()
+            } else {
+                return .ignored
+            }
+            return .handled
+        }
         .alert(consentTitle, isPresented: Binding(get: { screen.firstUse.consentRequest != nil }, set: { _ in })) {
             Button("Review Licence…") { screen.firstUse.answerConsent(true) }
             Button("Cancel", role: .cancel) { screen.firstUse.answerConsent(false) }
@@ -308,16 +331,8 @@ struct AudioDetailView: View {
         .onChange(of: model.slice) { playback.duration = model.slice.span }
         .onChange(of: model.document?.url) { screen.clearKeyFromAudio() }
         .toolbar {
-            ToolbarItemGroup {
-                Button { screen.togglePlayback() } label: {
-                    Label(playback.isPlaying ? "Pause" : "Play", systemImage: playback.isPlaying ? "pause.fill" : "play.fill")
-                }
-                .help(playback.isPlaying ? "Pause" : "Play")
-                Button { playback.stop() } label: { Label("Stop", systemImage: "stop.fill") }
-                    .help("Stop")
-                Text(String(format: "%.1f s", playback.position))
-                    .monospacedDigit().foregroundStyle(Native.fgSecondary)
-                    .accessibilityLabel("Playback position")
+            ToolbarItem {
+                TransportView(playback: playback, toggle: screen.togglePlayback)
             }
             ToolbarItem {
                 TranscribeButton(label: screen.transcribeLabel, isBusy: session.isBusy, isPrimary: !isRepeat,

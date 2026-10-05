@@ -67,6 +67,8 @@ struct AppCommands: Commands {
         CommandMenu("Controls") {
             Button(target?.isPlaying == true ? "Pause" : "Play") { target?.togglePlayback() }.disabled(!(target?.canPlay ?? false))
             Button("Stop") { target?.stop() }.disabled(!(target?.canPlay ?? false))
+            Toggle("Loop", isOn: Binding(get: { target?.isLooping ?? false }, set: { _ in target?.toggleLoop() }))
+                .disabled(!(target?.canPlay ?? false))
         }
         CommandGroup(after: .windowArrangement) {
             Divider()

@@ -17,6 +17,7 @@ struct AppCommandTarget {
     var canDetectKey = false
     var canPlay = false
     var isPlaying = false
+    var isLooping = false
     var canSelectAudio = false
     var canSelectMIDI = false
     var hasWorkingFolder = false
@@ -42,6 +43,7 @@ struct AppCommandTarget {
     var setTool: (MIDITool) -> Void = { _ in }
     var togglePlayback: () -> Void = {}
     var stop: () -> Void = {}
+    var toggleLoop: () -> Void = {}
     var selectAudio: () -> Void = {}
     var selectMIDI: () -> Void = {}
     var showWelcome: () -> Void = {}

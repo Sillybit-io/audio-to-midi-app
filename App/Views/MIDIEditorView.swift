@@ -34,6 +34,7 @@ final class MIDIEditorModel {
     var fingerprint: FileFingerprint?
     var tool: MIDITool = .select
     var pixelsPerSecond: CGFloat = 120
+    let playback = PlaybackEngine()
 
     init(url: URL, imported: ImportedMIDI, fingerprint: FileFingerprint? = nil) {
         self.url = url
@@ -43,6 +44,26 @@ final class MIDIEditorModel {
     }
 
     var name: String { url.deletingPathExtension().lastPathComponent }
+
+    /// The playback groups to switch off: every track that isn't audible. Matches `PlaybackEngine.groupKey`.
+    var silencedGroups: Set<String> {
+        Set(document.tracks.filter { !document.isAudible(track: $0.id) }.map { $0.isDrums ? "drums" : $0.id })
+    }
+
+    /// Gives the engine the document's notes and the end of the last one as the loop end.
+    func syncPlayback() {
+        playback.duration = document.notes.map(\.end).max() ?? 0
+        playback.replace(notes: document.noteEvents)
+        playback.setSilenced(silencedGroups)
+    }
+
+    func togglePlayback() {
+        if playback.isPlaying {
+            playback.pause()
+        } else {
+            playback.play()
+        }
+    }
 
     static func load(_ url: URL) throws -> MIDIEditorModel {
         let data: Data
@@ -61,6 +82,8 @@ struct MIDIEditorView: View {
     @Bindable var editor: MIDIEditorModel
     @Environment(\.undoManager) private var undoManager
     @Environment(MIDISaveCoordinator.self) private var coordinator
+    @Environment(AppPreferences.self) private var preferences
+    @State private var scroll = ScrollPosition()
     @State private var offset = CGPoint.zero
     @State private var session: Session?
     @State private var preview: [EditorNote]?
@@ -96,11 +119,16 @@ struct MIDIEditorView: View {
             let contentWidth = max(proxy.size.width - Metric.keysW, layout.contentWidth(duration: extent))
             let contentHeight = RollDrawing.contentHeight(pitches: Self.pitches)
             let yOffset = offset.y
+            let playhead: Double? = editor.playback.isPlaying || editor.playback.position > 0 ? editor.playback.position : nil
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Token.surfaceSunken.frame(width: Metric.keysW, height: Metric.rulerH)
                     Canvas { context, size in RollDrawing.ruler(context, size, layout) }
                         .frame(height: Metric.rulerH).background(Token.surfaceSunken)
+                        .gesture(SpatialTapGesture().onEnded { editor.playback.seek(to: layout.seconds(atX: $0.location.x)) })
+                        .help("Click to move the playhead")
+                        .accessibilityLabel("Ruler")
+                        .accessibilityHint("Click to move the playhead")
                 }
                 HStack(spacing: 0) {
                     Canvas { context, size in RollDrawing.keys(context, size, pitches: Self.pitches, yOffset: yOffset) }
@@ -109,12 +137,13 @@ struct MIDIEditorView: View {
                         Color.clear.frame(width: contentWidth, height: contentHeight)
                     }
                     .defaultScrollAnchor(UnitPoint(x: 0, y: 0.45))
+                    .scrollPosition($scroll)
                     .onScrollGeometryChange(for: CGPoint.self) { $0.contentOffset } action: { _, new in
                         offset = CGPoint(x: max(0, new.x), y: max(0, new.y))
                     }
                     .overlay {
                         Canvas(opaque: false, colorMode: .nonLinear, rendersAsynchronously: false) { context, size in
-                            draw(context, size, layout, yOffset: yOffset)
+                            draw(context, size, layout, yOffset: yOffset, playhead: playhead)
                         }
                         .allowsHitTesting(false)
                     }
@@ -131,6 +160,7 @@ struct MIDIEditorView: View {
                 MIDIEditorFooterView(editor: editor, document: document)
             }
             .background(Token.surface)
+            .onChange(of: playhead) { _, seconds in follow(seconds, viewport: proxy.size.width - Metric.keysW) }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("MIDI editor")
             .accessibilityValue("\(document.notes.count) notes, \(document.selection.count) selected")
@@ -142,7 +172,12 @@ struct MIDIEditorView: View {
         .onCommand(#selector(NSResponder.selectAll(_:))) { document.selectAll() }
         .onDeleteCommand { document.deleteSelection() }
         .onChange(of: undoManager, initial: true) { _, manager in document.undoManager = manager }
+        .onChange(of: document.revision, initial: true) { editor.syncPlayback() }
+        .onChange(of: editor.silencedGroups) { _, groups in editor.playback.setSilenced(groups) }
         .toolbar {
+            ToolbarItem {
+                TransportView(playback: editor.playback, toggle: editor.togglePlayback)
+            }
             ToolbarItem {
                 Picker("Tool", selection: $editor.tool) {
                     ForEach(MIDITool.allCases) { tool in
@@ -173,7 +208,14 @@ struct MIDIEditorView: View {
 
     // MARK: Drawing
 
-    private func draw(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout, yOffset: CGFloat) {
+    private func follow(_ seconds: Double?, viewport: CGFloat) {
+        guard preferences.followPlayhead, let seconds,
+              let target = PlaybackEngine.followOffset(playheadX: CGFloat(seconds) * editor.pixelsPerSecond, offsetX: offset.x, viewport: viewport)
+        else { return }
+        scroll.scrollTo(point: CGPoint(x: target, y: offset.y))
+    }
+
+    private func draw(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout, yOffset: CGFloat, playhead: Double?) {
         var context = context
         context.translateBy(x: 0, y: -yOffset)
         let top = yOffset, bottom = yOffset + size.height
@@ -185,6 +227,7 @@ struct MIDIEditorView: View {
             let color = InstrumentColor.color(for: note.track).opacity(document.isAudible(note) ? level : 0.3)
             RollDrawing.note(context, rect: rect, color: color, selected: document.selection.contains(note.id))
         }
+        if let playhead { RollDrawing.line(context, x: layout.x(seconds: playhead), top: top, bottom: bottom, color: Token.playhead) }
         guard let session else { return }
         switch session.mode {
         case .draw(let time, let pitch):
@@ -329,6 +372,7 @@ struct MIDIEditorView: View {
             return .handled
         }
         switch press.key {
+        case .space: editor.togglePlayback()
         case .delete, .deleteForward: document.deleteSelection()
         case .upArrow: document.transpose(by: shift ? 12 : 1)
         case .downArrow: document.transpose(by: shift ? -12 : -1)
@@ -341,6 +385,8 @@ struct MIDIEditorView: View {
                 editor.tool = tool
             } else if character == "q" {
                 document.quantize()
+            } else if character == "l" {
+                editor.playback.loops.toggle()
             } else {
                 return .ignored
             }
@@ -354,26 +400,58 @@ private struct MIDIEditorFooterView: View {
     @Bindable var document: MIDIDocument
 
     var body: some View {
-        HStack(spacing: Metric.sp6) {
-            Text(summary).font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
-            Spacer(minLength: Metric.sp4)
-            HStack(spacing: Metric.sp3) {
-                Text("Snap").font(.caption)
-                Picker("Snap", selection: $document.snap) {
-                    ForEach(SnapGrid.allCases) { Text($0.title).tag($0) }
-                }
-                .labelsHidden().controlSize(.small).fixedSize()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Metric.sp6) {
+                summaryText
+                Spacer(minLength: Metric.sp4)
+                snapControl
+                quantizeButton
+                speedControl
+                zoomControl
             }
-            Button(document.selection.isEmpty ? "Quantize All" : "Quantize Selection") { document.quantize() }
-                .controlSize(.small)
-                .disabled(document.snap == .off || document.notes.isEmpty)
-            HStack(spacing: Metric.sp3) {
-                Image(systemName: "minus").font(.caption)
-                Slider(value: $editor.pixelsPerSecond, in: 30...400).frame(width: 80).accessibilityLabel("Zoom")
-                Image(systemName: "plus").font(.caption)
+            VStack(alignment: .leading, spacing: Metric.sp3) {
+                HStack { summaryText; Spacer(minLength: Metric.sp4); zoomControl }
+                HStack(spacing: Metric.sp6) { snapControl; quantizeButton; speedControl; Spacer(minLength: 0) }
             }
         }
         .padding(.horizontal, Metric.sp6).padding(.vertical, Metric.sp4)
+    }
+
+    private var summaryText: some View {
+        Text(summary).font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+    }
+
+    private var snapControl: some View {
+        HStack(spacing: Metric.sp3) {
+            Text("Snap").font(.caption).fixedSize()
+            Picker("Snap", selection: $document.snap) {
+                ForEach(SnapGrid.allCases) { Text($0.title).tag($0) }
+            }
+            .labelsHidden().controlSize(.small).fixedSize()
+        }
+    }
+
+    private var quantizeButton: some View {
+        Button(document.selection.isEmpty ? "Quantize All" : "Quantize Selection") { document.quantize() }
+            .controlSize(.small).fixedSize()
+            .disabled(document.snap == .off || document.notes.isEmpty)
+    }
+
+    private var speedControl: some View {
+        HStack(spacing: Metric.sp3) {
+            Text("Speed").font(.caption).fixedSize()
+            Slider(value: Binding(get: { Double(editor.playback.rate) }, set: { editor.playback.rate = Float($0) }), in: 0.5...2)
+                .frame(width: 80).accessibilityLabel("Playback speed")
+            Text(String(format: "%.2f\u{00D7}", editor.playback.rate)).font(.caption.monospacedDigit()).frame(width: 40, alignment: .leading)
+        }
+    }
+
+    private var zoomControl: some View {
+        HStack(spacing: Metric.sp3) {
+            Image(systemName: "minus").font(.caption)
+            Slider(value: $editor.pixelsPerSecond, in: 30...400).frame(width: 80).accessibilityLabel("Zoom")
+            Image(systemName: "plus").font(.caption)
+        }
     }
 
     private var summary: String {

@@ -67,6 +67,7 @@ struct ContentView: View {
         }
         .frame(minWidth: Metric.windowMinW, minHeight: Metric.windowMinH)
         .environment(saveCoordinator)
+        .environment(preferences)
         .focusedSceneValue(\.commandTarget, commandTarget)
         .sheet(isPresented: $showShortcuts) { KeyboardShortcutsView() }
         .background(WindowGuard(coordinator: saveCoordinator, edited: saveCoordinator.hasUnsavedChanges))
@@ -82,7 +83,12 @@ struct ContentView: View {
         .onChange(of: model.document?.url) { _, url in selection = url.map { .audio($0) } }
         .onChange(of: selection) { _, new in
             if case .audio(let url) = new, url != model.document?.url { model.open(url) }
-            if case .midi(let url) = new { loadMIDI(url) } else { closeMIDI() }
+            if case .midi(let url) = new {
+                screen.playback.stop()
+                loadMIDI(url)
+            } else {
+                closeMIDI()
+            }
         }
         .sheet(isPresented: Binding(get: { !workingFolder.isResolved || showWelcome }, set: { showWelcome = $0 })) {
             WelcomeView(workingFolder: workingFolder) { showWelcome = false }
@@ -130,8 +136,10 @@ struct ContentView: View {
         target.isTranscribing = session.isBusy || screen.isPreparing
         target.canResetSlice = isAudio
         target.canDetectKey = isAudio && !screen.isDetectingKey
-        target.canPlay = isAudio
-        target.isPlaying = isAudio && screen.playback.isPlaying
+        let transport = isMIDI ? editor?.playback : isAudio ? screen.playback : nil
+        target.canPlay = transport != nil
+        target.isPlaying = transport?.isPlaying ?? false
+        target.isLooping = transport?.loops ?? false
         target.canSelectAudio = model.document != nil || !library.audio.isEmpty
         target.canSelectMIDI = !library.midi.isEmpty
         target.hasWorkingFolder = workingFolder.folder != nil
@@ -157,8 +165,9 @@ struct ContentView: View {
         target.zoomIn = { zoom(by: 1.25) }
         target.zoomOut = { zoom(by: 0.8) }
         target.setTool = { editor?.tool = $0 }
-        target.togglePlayback = { screen.togglePlayback() }
-        target.stop = { screen.playback.stop() }
+        target.togglePlayback = { if isMIDI { editor?.togglePlayback() } else { screen.togglePlayback() } }
+        target.stop = { transport?.stop() }
+        target.toggleLoop = { transport?.loops.toggle() }
         target.selectAudio = {
             if let url = model.document?.url ?? library.audio.first(where: { !$0.isMissing })?.url { gatedSelection.wrappedValue = .audio(url) }
         }
@@ -210,6 +219,7 @@ struct ContentView: View {
     }
 
     private func closeMIDI() {
+        midiEditor?.playback.stop()
         midiEditor?.document.closeUndo()
         midiEditor = nil
         saveCoordinator.editor = nil

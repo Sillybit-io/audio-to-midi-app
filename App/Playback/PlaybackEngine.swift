@@ -18,7 +18,10 @@ final class PlaybackEngine {
     private(set) var isPlaying = false
     private(set) var position = 0.0
     private(set) var lastError: String?
+    /// The end of the material: the slice's length, or the end of the last note. Looping wraps here.
     var duration = 0.0
+    var loops = false
+    var loopStart = 0.0
     /// Playback pauses here while a transcription is still running.
     var limit: Double? { didSet { if let limit, waitingForLimit, position < limit { play() } } }
     var mix = 0.5 { didSet { applyMix() } }
@@ -33,6 +36,7 @@ final class PlaybackEngine {
     @ObservationIgnored private var added = 0
     @ObservationIgnored private var latest: [NoteEvent] = []
     @ObservationIgnored private var syncing = false
+    @ObservationIgnored private var rebuild = false
     @ObservationIgnored private var original: AVAudioPCMBuffer?
     @ObservationIgnored private var originalFormat: AVAudioFormat?
     @ObservationIgnored private var waitingForLimit = false
@@ -60,6 +64,49 @@ final class PlaybackEngine {
 
     nonisolated static func groupKey(_ note: NoteEvent) -> String { note.isDrum ? "drums" : note.instrument }
 
+    /// What the transport does with a measured position.
+    enum Step: Equatable {
+        case keep(Double)
+        /// Jump back to the loop start and keep playing.
+        case wrap(to: Double)
+        /// A transcription is still running: wait at the last finalized note.
+        case hold(at: Double)
+        case finish
+    }
+
+    nonisolated static func step(position: Double, duration: Double, loops: Bool, loopStart: Double, limit: Double?) -> Step {
+        if let limit { return position >= limit ? .hold(at: limit) : .keep(position) }
+        guard duration > 0, position >= duration else { return .keep(position) }
+        return loops ? .wrap(to: min(max(0, loopStart), duration)) : .finish
+    }
+
+    /// Bar and beat at the fixed 120 bpm in 4/4, both counted from 1: two seconds per bar, half a second per beat.
+    nonisolated static func barBeat(seconds: Double) -> (bar: Int, beat: Int) {
+        let clamped = max(0, seconds)
+        let bar = Int(clamped / 2)
+        let beat = min(3, Int((clamped - Double(bar) * 2) / 0.5))
+        return (bar + 1, beat + 1)
+    }
+
+    nonisolated static func barBeatText(seconds: Double) -> String {
+        let value = barBeat(seconds: seconds)
+        return "\(value.bar).\(value.beat)"
+    }
+
+    /// `m:ss.s`
+    nonisolated static func timeText(seconds: Double) -> String {
+        let tenths = Int((max(0, seconds) * 10).rounded(.down))
+        return String(format: "%d:%02d.%d", tenths / 600, tenths / 10 % 60, tenths % 10)
+    }
+
+    /// Where a roll should scroll to keep the playhead in view, or nil when it already is. The playhead is kept in the
+    /// left nine tenths of the viewport; leaving it jumps a page so the view isn't redrawn on every tick.
+    nonisolated static func followOffset(playheadX: CGFloat, offsetX: CGFloat, viewport: CGFloat) -> CGFloat? {
+        guard viewport > 0 else { return nil }
+        if playheadX >= offsetX, playheadX <= offsetX + viewport * 0.9 { return nil }
+        return max(0, playheadX - viewport * 0.1)
+    }
+
     // MARK: Original audio
 
     func setOriginal(samples: [Float], sampleRate: Double) {
@@ -84,6 +131,12 @@ final class PlaybackEngine {
 
     // MARK: Notes
 
+    /// Replaces every note, for a document whose notes can change anywhere (the MIDI editor), not only grow.
+    func replace(notes: [NoteEvent]) {
+        rebuild = true
+        sync(notes: notes)
+    }
+
     func sync(notes: [NoteEvent]) {
         latest = notes
         guard !syncing else { return }
@@ -92,14 +145,15 @@ final class PlaybackEngine {
             while true {
                 let snapshot = latest
                 await apply(snapshot)
-                if latest.count == snapshot.count { break }
+                if latest.count == snapshot.count, !rebuild { break }
             }
             syncing = false
         }
     }
 
     private func apply(_ notes: [NoteEvent]) async {
-        if notes.count < added {
+        if notes.count < added || rebuild {
+            rebuild = false
             for group in groups.values { group.track.clearEvents(in: AVBeatRange(start: 0, length: .greatestFiniteMagnitude)) }
             added = 0
         }
@@ -140,6 +194,12 @@ final class PlaybackEngine {
     func setMuted(_ key: String, _ isMuted: Bool) {
         if isMuted { muted.insert(key) } else { muted.remove(key) }
         groups[key]?.track.isMuted = isMuted
+    }
+
+    /// Silences exactly these groups. Muting only switches a track off; no note is touched.
+    func setSilenced(_ keys: Set<String>) {
+        muted = keys
+        for (key, group) in groups { group.track.isMuted = keys.contains(key) }
     }
 
     // MARK: Transport
@@ -206,10 +266,11 @@ final class PlaybackEngine {
         sequencer.currentPositionInSeconds = 0
     }
 
+    /// Moves the playhead, never before the start or past the end of the material.
     func seek(to seconds: Double) {
         let resume = isPlaying
         if resume { pauseTransport() }
-        position = max(0, seconds)
+        position = max(0, duration > 0 ? min(seconds, duration) : seconds)
         if resume { play() }
     }
 
@@ -219,15 +280,30 @@ final class PlaybackEngine {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(33))
                 guard let self, self.isPlaying else { return }
-                self.position = self.currentPosition
-                if let limit = self.limit, self.position >= limit {
-                    self.pauseTransport()
-                    self.position = limit
-                    self.waitingForLimit = true
-                    return
-                }
-                if self.limit == nil, self.duration > 0, self.position >= self.duration { self.stop(); return }
+                if !self.handleTick(self.currentPosition) { return }
             }
+        }
+    }
+
+    /// Applies the transport's decision for a measured position. Returns false when the ticker should end: the transport
+    /// was paused, restarted from the loop start, or stopped.
+    @discardableResult
+    func handleTick(_ measured: Double) -> Bool {
+        position = measured
+        switch Self.step(position: measured, duration: duration, loops: loops, loopStart: loopStart, limit: limit) {
+        case .keep:
+            return true
+        case .hold(let limit):
+            pauseTransport()
+            position = limit
+            waitingForLimit = true
+            return false
+        case .wrap(let start):
+            seek(to: start)
+            return false
+        case .finish:
+            stop()
+            return false
         }
     }
 

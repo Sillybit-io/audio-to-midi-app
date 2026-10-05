@@ -90,10 +90,15 @@ struct PianoRollView: View {
     var playhead: Double?
     let hidden: Set<String>
     @Binding var pixelsPerSecond: CGFloat
+    /// Scrolls to keep the playhead in view while it moves.
+    var follows = false
+    /// Called with the time under a click on the ruler.
+    var onSeek: ((Double) -> Void)?
     var showsEmptyState = false
 
     @State private var zoomAtStart: CGFloat?
     @State private var offset = CGPoint.zero
+    @State private var scroll = ScrollPosition()
 
     static let lowPitch = 21
     static let highPitch = 108
@@ -111,6 +116,10 @@ struct PianoRollView: View {
                     Token.surfaceSunken.frame(width: Metric.keysW, height: Metric.rulerH)
                     Canvas { context, size in RollDrawing.ruler(context, size, layout) }
                         .frame(height: Metric.rulerH).background(Token.surfaceSunken)
+                        .gesture(SpatialTapGesture().onEnded { onSeek?(layout.seconds(atX: $0.location.x)) })
+                        .help("Click to move the playhead")
+                        .accessibilityLabel("Ruler")
+                        .accessibilityHint("Click to move the playhead")
                 }
                 HStack(spacing: 0) {
                     Canvas { context, size in RollDrawing.keys(context, size, pitches: pitches, yOffset: yOffset) }
@@ -120,6 +129,7 @@ struct PianoRollView: View {
                             Color.clear.frame(width: contentWidth, height: contentHeight)
                         }
                         .defaultScrollAnchor(UnitPoint(x: 0, y: 0.62))
+                        .scrollPosition($scroll)
                         .onScrollGeometryChange(for: CGPoint.self) { $0.contentOffset } action: { _, new in
                             offset = CGPoint(x: max(0, new.x), y: max(0, new.y))
                         }
@@ -139,6 +149,7 @@ struct PianoRollView: View {
                 }
             }
             .background(Token.surface)
+            .onChange(of: playhead) { _, seconds in follow(seconds, viewport: proxy.size.width - Metric.keysW) }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Piano roll")
             .accessibilityValue("\(notes.count) notes")
@@ -158,6 +169,13 @@ struct PianoRollView: View {
         .background(Token.surfaceRaised.opacity(0.92), in: RoundedRectangle(cornerRadius: Metric.rPanel))
         .overlay(RoundedRectangle(cornerRadius: Metric.rPanel).strokeBorder(Token.border))
         .accessibilityElement(children: .combine)
+    }
+
+    private func follow(_ seconds: Double?, viewport: CGFloat) {
+        guard follows, let seconds,
+              let target = PlaybackEngine.followOffset(playheadX: CGFloat(seconds) * pixelsPerSecond, offsetX: offset.x, viewport: viewport)
+        else { return }
+        scroll.scrollTo(point: CGPoint(x: target, y: offset.y))
     }
 
     private func draw(_ context: GraphicsContext, _ size: CGSize, _ layout: PianoRollLayout, xOffset: CGFloat, yOffset: CGFloat) {

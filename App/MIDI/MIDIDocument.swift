@@ -131,7 +131,12 @@ final class MIDIDocument {
     }
 
     func isAudible(_ note: EditorNote) -> Bool {
-        isVisible(note) && !mutedTracks.contains(note.track) && (soloTracks.isEmpty || soloTracks.contains(note.track))
+        isAudible(track: note.track)
+    }
+
+    /// Hidden, muted, or not soloed while another track is: silent. None of these touch the notes.
+    func isAudible(track id: String) -> Bool {
+        !hiddenTracks.contains(id) && !mutedTracks.contains(id) && (soloTracks.isEmpty || soloTracks.contains(id))
     }
 
     func toggleMute(_ track: String) {
