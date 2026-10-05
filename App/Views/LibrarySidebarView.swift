@@ -7,8 +7,8 @@ struct LibrarySidebarView: View {
     let imports: AudioImportStore
     @Binding var selection: LibrarySelection?
     let openAudio: () -> Void
+    @Binding var importingMIDI: Bool
 
-    @State private var importingMIDI = false
     @State private var importFailure: (name: String, message: String)?
 
     var body: some View {

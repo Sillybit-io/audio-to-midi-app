@@ -16,6 +16,8 @@ struct ContentView: View {
     @State private var selection: LibrarySelection?
     @State private var showInspector = false
     @State private var showWelcome = false
+    @State private var showShortcuts = false
+    @State private var importingMIDI = false
     @State private var sidebarRevision = 0
     @State private var midiEditor: MIDIEditorModel?
     @State private var midiFailure: (name: String, message: String)?
@@ -41,7 +43,7 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             LibrarySidebarView(library: library, workingFolder: workingFolder, imports: imports,
-                               selection: gatedSelection, openAudio: { model.isImporting = true })
+                               selection: gatedSelection, openAudio: { model.isImporting = true }, importingMIDI: $importingMIDI)
                 .id(sidebarRevision)
                 .navigationSplitViewColumnWidth(min: Metric.sidebarW - Metric.sp9, ideal: Metric.sidebarW, max: Metric.sidebarW + Metric.sp10)
         } detail: {
@@ -65,6 +67,8 @@ struct ContentView: View {
         }
         .frame(minWidth: Metric.windowMinW, minHeight: Metric.windowMinH)
         .environment(saveCoordinator)
+        .focusedSceneValue(\.commandTarget, commandTarget)
+        .sheet(isPresented: $showShortcuts) { KeyboardShortcutsView() }
         .background(WindowGuard(coordinator: saveCoordinator, edited: saveCoordinator.hasUnsavedChanges))
         .alert(saveFailureTitle, isPresented: Binding(get: { saveCoordinator.saveFailure != nil }, set: { if !$0 { saveCoordinator.dismissFailure() } })) {
             Button("OK") { saveCoordinator.dismissFailure() }
@@ -109,6 +113,69 @@ struct ContentView: View {
             // A declined change leaves the List showing the row that was clicked; rebuilding it makes it show the real selection again.
             saveCoordinator.confirmLeaving(then: { selection = newValue }, cancelled: { sidebarRevision += 1 })
         })
+    }
+
+    /// What the menu bar sees of this window. The closures call the same actions the buttons do.
+    private var commandTarget: AppCommandTarget {
+        let editor = midiEditor
+        let isMIDI = isMIDISelected && editor != nil
+        let isAudio = !isMIDISelected && model.document != nil
+        var target = AppCommandTarget()
+        target.screen = isMIDI ? .midi : isAudio ? .audio : .empty
+        target.canSave = isMIDI && (editor?.document.isDirty ?? false)
+        target.canExport = isAudio && !session.notes.isEmpty
+        target.hasSelection = isMIDI && !(editor?.document.selection.isEmpty ?? true)
+        target.canQuantize = isMIDI && (editor.map { $0.document.snap != .off && !$0.document.notes.isEmpty } ?? false)
+        target.canTranscribe = isAudio && screen.canStart
+        target.isTranscribing = session.isBusy || screen.isPreparing
+        target.canResetSlice = isAudio
+        target.canDetectKey = isAudio && !screen.isDetectingKey
+        target.canPlay = isAudio
+        target.isPlaying = isAudio && screen.playback.isPlaying
+        target.canSelectAudio = model.document != nil || !library.audio.isEmpty
+        target.canSelectMIDI = !library.midi.isEmpty
+        target.hasWorkingFolder = workingFolder.folder != nil
+        target.tool = isMIDI ? editor?.tool : nil
+        target.inspectorShown = showInspector
+
+        target.openAudio = { model.isImporting = true }
+        target.importMIDI = { importingMIDI = true }
+        target.save = { saveCoordinator.saveOpenFile() }
+        target.export = { screen.showExport = true }
+        target.showWorkingFolder = {
+            if let folder = workingFolder.folder { NSWorkspace.shared.activateFileViewerSelecting([folder]) }
+        }
+        target.deleteSelection = { editor?.document.deleteSelection() }
+        target.transposeUp = { editor?.document.transpose(by: 1) }
+        target.transposeDown = { editor?.document.transpose(by: -1) }
+        target.quantize = { editor?.document.quantize() }
+        target.transcribe = { screen.start() }
+        target.cancelTranscription = { screen.cancel() }
+        target.resetSlice = { model.slice.reset() }
+        target.detectKey = { screen.detectKeyFromAudio() }
+        target.toggleInspector = { showInspector.toggle() }
+        target.zoomIn = { zoom(by: 1.25) }
+        target.zoomOut = { zoom(by: 0.8) }
+        target.setTool = { editor?.tool = $0 }
+        target.togglePlayback = { screen.togglePlayback() }
+        target.stop = { screen.playback.stop() }
+        target.selectAudio = {
+            if let url = model.document?.url ?? library.audio.first(where: { !$0.isMissing })?.url { gatedSelection.wrappedValue = .audio(url) }
+        }
+        target.selectMIDI = {
+            if let url = library.midi.first?.url { gatedSelection.wrappedValue = .midi(url) }
+        }
+        target.showWelcome = { showWelcome = true }
+        target.showShortcuts = { showShortcuts = true }
+        return target
+    }
+
+    private func zoom(by factor: CGFloat) {
+        if isMIDISelected, let midiEditor {
+            midiEditor.pixelsPerSecond = min(400, max(30, midiEditor.pixelsPerSecond * factor))
+        } else {
+            screen.pixelsPerSecond = min(400, max(10, screen.pixelsPerSecond * factor))
+        }
     }
 
     private var saveFailureTitle: String {

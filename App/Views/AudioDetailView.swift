@@ -26,6 +26,9 @@ final class AudioScreenModel {
     var hiddenInstruments: Set<String> = []
     var estimateVelocity = true
     var pixelsPerSecond: CGFloat = Metric.ppsDefault
+    var showExport = false
+    private(set) var keyFromAudio: [KeyMatch] = []
+    private(set) var isDetectingKey = false
     private(set) var devices: [EngineDevice] = []
     private(set) var instruments: [EngineInstrument] = []
     private(set) var engine: EngineProcess?
@@ -167,6 +170,30 @@ final class AudioScreenModel {
         playback.setOriginal(samples: document.slice.cut(audio.samples, sampleRate: audio.sampleRate), sampleRate: audio.sampleRate)
     }
 
+    func togglePlayback() {
+        if playback.isPlaying {
+            playback.pause()
+        } else {
+            prepareOriginal()
+            playback.play()
+        }
+    }
+
+    func clearKeyFromAudio() {
+        keyFromAudio = []
+    }
+
+    /// Ranks the keys of the selected slice of the audio itself.
+    func detectKeyFromAudio() {
+        guard !isDetectingKey, let audio = audioForKey() else { return }
+        isDetectingKey = true
+        Task {
+            let result = await Task.detached { KeyDetector.rank(samples: audio.samples, sampleRate: audio.rate) }.value
+            keyFromAudio = result
+            isDetectingKey = false
+        }
+    }
+
     /// Stops a run, a download, or a wait on the first-use alert or the licence sheet.
     func cancel() {
         prepareTask?.cancel()
@@ -279,11 +306,10 @@ struct AudioDetailView: View {
         .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
         .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
         .onChange(of: model.slice) { playback.duration = model.slice.span }
+        .onChange(of: model.document?.url) { screen.clearKeyFromAudio() }
         .toolbar {
             ToolbarItemGroup {
-                Button {
-                    if playback.isPlaying { playback.pause() } else { screen.prepareOriginal(); playback.play() }
-                } label: {
+                Button { screen.togglePlayback() } label: {
                     Label(playback.isPlaying ? "Pause" : "Play", systemImage: playback.isPlaying ? "pause.fill" : "play.fill")
                 }
                 .help(playback.isPlaying ? "Pause" : "Play")
@@ -299,7 +325,7 @@ struct AudioDetailView: View {
             }
             ToolbarItem {
                 ExportView(notes: session.notes, entry: screen.selectedEntry,
-                           slice: model.slice, name: model.document?.name ?? "transcription")
+                           slice: model.slice, name: model.document?.name ?? "transcription", showNotice: $screen.showExport)
             }
         }
     }
@@ -374,16 +400,16 @@ struct AudioFooterView: View {
 
     private var mixControl: some View {
         HStack(spacing: Metric.sp3) {
-            Text("Original").font(.caption)
+            Text("Original").font(.caption).fixedSize()
             Slider(value: Binding(get: { playback.mix }, set: { playback.mix = $0 }))
                 .frame(width: 90).accessibilityLabel("Original and notes mix")
-            Text("Notes").font(.caption)
+            Text("Notes").font(.caption).fixedSize()
         }
     }
 
     private var speedControl: some View {
         HStack(spacing: Metric.sp3) {
-            Text("Speed").font(.caption)
+            Text("Speed").font(.caption).fixedSize()
             Slider(value: Binding(get: { Double(playback.rate) }, set: { playback.rate = Float($0) }), in: 0.5...2)
                 .frame(width: 80).accessibilityLabel("Playback speed")
             Text(String(format: "%.2f×", playback.rate)).font(.caption.monospacedDigit()).frame(width: 40, alignment: .leading)

@@ -9,7 +9,7 @@ extension NSImage {
 struct AboutView: View {
     private static let repository = URL(string: "https://github.com/Sillybit-io/audio-to-midi-app")!
 
-    @State private var tab = "about"
+    @AppStorage("aboutTab") private var tab = "about"
 
     private var version: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.0"

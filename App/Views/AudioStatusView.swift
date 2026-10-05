@@ -25,7 +25,7 @@ struct AudioStatusView: View {
                     chip(name, state: index < current ? .done : index == current ? .active : .pending)
                 }
                 Spacer()
-                Button("Cancel", action: onCancel).keyboardShortcut(".", modifiers: .command)
+                Button("Cancel", action: onCancel)
             }
             HStack(spacing: Metric.sp4) {
                 if let fraction {

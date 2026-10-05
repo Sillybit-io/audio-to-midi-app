@@ -2,9 +2,9 @@ import SwiftUI
 
 struct KeyView: View {
     let notes: [NoteEvent]
-    let audio: () -> (samples: [Float], rate: Double)?
-    @State private var fromAudio: [KeyMatch] = []
-    @State private var busy = false
+    let fromAudio: [KeyMatch]
+    let busy: Bool
+    let detect: () -> Void
 
     private var fromNotes: [KeyMatch] { KeyDetector.rank(notes: notes) }
 
@@ -15,15 +15,7 @@ struct KeyView: View {
                 HStack {
                     Text("Key from audio").bold()
                     Spacer()
-                    Button(busy ? "Analysing…" : "Detect from audio") {
-                        guard let a = audio() else { return }
-                        busy = true
-                        Task {
-                            let result = await Task.detached { KeyDetector.rank(samples: a.samples, sampleRate: a.rate) }.value
-                            fromAudio = result
-                            busy = false
-                        }
-                    }.disabled(busy)
+                    Button(busy ? "Analysing…" : "Detect from audio", action: detect).disabled(busy)
                 }
                 matches(fromAudio)
             }

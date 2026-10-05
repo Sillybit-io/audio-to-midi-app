@@ -88,7 +88,6 @@ struct SillyMIDIToolsApp: App {
     @State private var preferences = AppPreferences()
     @State private var saveCoordinator = MIDISaveCoordinator()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @Environment(\.openWindow) private var openWindow
 
     init() {
         let folder = WorkingFolderStore()
@@ -110,13 +109,8 @@ struct SillyMIDIToolsApp: App {
         }
         .windowResizability(.contentMinSize)
         .commands {
-            CommandGroup(replacing: .appInfo) {
-                Button("About Silly MIDI Tools") { openWindow(id: "about") }
-            }
-            CommandGroup(replacing: .newItem) {
-                Button("Open Audio…") { model.isImporting = true }
-                    .keyboardShortcut("o")
-            }
+            SidebarCommands()
+            AppCommands()
         }
         Window("About Silly MIDI Tools", id: "about") { AboutView().preferredColorScheme(preferences.appearance.colorScheme) }
             .windowResizability(.contentSize)

@@ -7,7 +7,7 @@ struct ExportView: View {
     let slice: AudioSlice
     let name: String
 
-    @State private var showNotice = false
+    @Binding var showNotice: Bool
     @State private var embedNotice = true
     @State private var keyInName = true
     @State private var exporting = false
@@ -37,7 +37,6 @@ struct ExportView: View {
                 .draggable(makeItem(embed: embedNotice))
                 .help("Drag into Finder or a DAW")
             Button("Export…") { showNotice = true }
-                .keyboardShortcut("e")
         }
         .disabled(notes.isEmpty)
         .sheet(isPresented: $showNotice) {

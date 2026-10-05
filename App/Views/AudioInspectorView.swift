@@ -47,7 +47,7 @@ struct AudioInspectorView: View {
             }
             SliceFieldsSection(model: screen.document)
             Section {
-                KeyView(notes: session.notes, audio: screen.audioForKey)
+                KeyView(notes: session.notes, fromAudio: screen.keyFromAudio, busy: screen.isDetectingKey, detect: screen.detectKeyFromAudio)
             } header: {
                 Text("Key")
             } footer: {

@@ -139,6 +139,8 @@ struct MIDIEditorView: View {
         .focused($focused)
         .focusEffectDisabled()
         .onKeyPress { handle($0) }
+        .onCommand(#selector(NSResponder.selectAll(_:))) { document.selectAll() }
+        .onDeleteCommand { document.deleteSelection() }
         .onChange(of: undoManager, initial: true) { _, manager in document.undoManager = manager }
         .toolbar {
             ToolbarItem {
@@ -158,7 +160,6 @@ struct MIDIEditorView: View {
             }
             ToolbarItem {
                 Button { coordinator.save(editor) } label: { Label("Save", systemImage: "square.and.arrow.down") }
-                    .keyboardShortcut("s")
                     .disabled(!document.isDirty).help("Save (\u{2318}S)")
             }
             ToolbarItem {
