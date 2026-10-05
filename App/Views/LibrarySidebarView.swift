@@ -137,12 +137,19 @@ struct LibrarySidebarView: View {
         panel.allowedContentTypes = [.audio]
         panel.canChooseDirectories = false
         panel.message = "Choose the file for \u{201C}\(reference.name)\u{201D}."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try imports.relink(reference, to: url)
-        } catch {
-            failure = ("Could not relink \u{201C}\(reference.name)\u{201D}", error.localizedDescription)
+        let finish: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try imports.relink(reference, to: url)
+            } catch {
+                failure = ("Could not relink \u{201C}\(reference.name)\u{201D}", error.localizedDescription)
+            }
+            library.refresh()
         }
-        library.refresh()
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: finish)
+        } else {
+            panel.begin(completionHandler: finish)
+        }
     }
 }

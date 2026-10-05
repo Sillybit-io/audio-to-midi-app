@@ -69,15 +69,12 @@ final class AudioImportStore {
             return target
         case .reference:
             if let existing = references.first(where: { $0.lastPath == source.path }), let url = resolved(existing) { return url }
-            let bookmark: Data
-            do {
-                bookmark = try codec.makeBookmark(for: source)
-            } catch {
-                throw AudioImportError.referenceFailed(source.lastPathComponent)
-            }
-            references.append(AudioReference(name: source.lastPathComponent, lastPath: source.path, bookmark: bookmark))
+            let bookmark = try makeBookmark(for: source)
+            let reference = AudioReference(name: source.lastPathComponent, lastPath: source.path, bookmark: bookmark)
+            references.append(reference)
             persist()
-            return source
+            // Open it through the bookmark, which keeps access after the panel's grant ends.
+            return resolved(reference) ?? source
         }
     }
 
@@ -96,12 +93,7 @@ final class AudioImportStore {
 
     func relink(_ reference: AudioReference, to url: URL) throws {
         guard let index = references.firstIndex(where: { $0.id == reference.id }) else { return }
-        let bookmark: Data
-        do {
-            bookmark = try codec.makeBookmark(for: url)
-        } catch {
-            throw AudioImportError.referenceFailed(url.lastPathComponent)
-        }
+        let bookmark = try makeBookmark(for: url)
         if let lease = leases.removeValue(forKey: reference.id) { access.stop(lease) }
         references[index].bookmark = bookmark
         references[index].lastPath = url.path
@@ -113,6 +105,18 @@ final class AudioImportStore {
         if let lease = leases.removeValue(forKey: reference.id) { access.stop(lease) }
         references.removeAll { $0.id == reference.id }
         persist()
+    }
+
+    /// A security-scoped bookmark needs access to the file while it is made; a file picked in a panel only has that
+    /// access between start and stop.
+    private func makeBookmark(for url: URL) throws -> Data {
+        let scoped = access.start(url)
+        defer { if scoped { access.stop(url) } }
+        do {
+            return try codec.makeBookmark(for: url)
+        } catch {
+            throw AudioImportError.referenceFailed(url.lastPathComponent)
+        }
     }
 
     private func persist() {

@@ -25,6 +25,21 @@ private final class NoAccess: ScopedAccess {
     func stop(_ url: URL) {}
 }
 
+/// Like the sandbox: a bookmark can only be made for a file the app is currently accessing.
+private final class SandboxAccess: ScopedAccess, BookmarkCodec {
+    var active: [URL] = []
+    struct NoAccess: Error {}
+    func start(_ url: URL) -> Bool { active.append(url); return true }
+    func stop(_ url: URL) { active.removeAll { $0 == url } }
+    func makeBookmark(for url: URL) throws -> Data {
+        guard active.contains(url) else { throw NoAccess() }
+        return Data(url.path.utf8)
+    }
+    func resolve(_ data: Data) throws -> (url: URL, isStale: Bool) {
+        (URL(fileURLWithPath: String(decoding: data, as: UTF8.self)), false)
+    }
+}
+
 @MainActor
 private final class FakeWatcher: FolderWatcher {
     var handlers: [URL: @MainActor () -> Void] = [:]
@@ -131,6 +146,24 @@ struct LibraryStoreTests {
         let entry = try #require(library.audio.first)
         #expect(entry.isReference && !entry.isMissing)
         #expect(entry.url.standardizedFileURL == source.standardizedFileURL)
+    }
+
+    @Test func aPickedFileIsAccessedWhileItsBookmarkIsMade() throws {
+        let folders = try makeFolders()
+        let source = FileManager.default.temporaryDirectory.appending(path: "scratch-picked-\(UUID().uuidString).wav")
+        try touch(source)
+        let sandbox = SandboxAccess()
+        let imports = AudioImportStore(storage: MemoryStore(), codec: sandbox, access: sandbox)
+        let target = try imports.importAudio(from: source, mode: .reference, audioFolder: folders.audio)
+        #expect(target.path == source.path)
+        #expect(imports.references.count == 1)
+        // The panel's access ends; the reference's own lease keeps the file readable.
+        #expect(sandbox.active.map(\.path) == [source.path])
+
+        let replacement = FileManager.default.temporaryDirectory.appending(path: "scratch-picked-\(UUID().uuidString).wav")
+        try touch(replacement)
+        try imports.relink(imports.references[0], to: replacement)
+        #expect(imports.references[0].lastPath == replacement.path)
     }
 
     @Test func missingReferenceIsFlaggedAndRelinkRestoresIt() throws {

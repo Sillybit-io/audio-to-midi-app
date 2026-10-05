@@ -9,7 +9,11 @@ struct AudioOpenFailure: Equatable, Sendable {
     /// Extensions Core Audio decodes; a file with one of these that still fails is probably damaged.
     static let decodableExtensions: Set<String> = ["wav", "wave", "mp3", "flac", "m4a", "aif", "aiff", "aifc", "caf", "aac", "mp4"]
 
-    static func decoding(_ url: URL) -> AudioOpenFailure {
+    static func decoding(_ url: URL, fileManager: FileManager = .default) -> AudioOpenFailure {
+        guard fileManager.fileExists(atPath: url.path) else {
+            return AudioOpenFailure(title: "Could not open \u{201C}\(url.lastPathComponent)\u{201D}",
+                                    message: "The file was moved or deleted. Choose Relink\u{2026} from its menu in the sidebar to find it again.")
+        }
         guard decodableExtensions.contains(url.pathExtension.lowercased()) else {
             return AudioOpenFailure(title: "Could not open audio",
                                     message: "This file can't be decoded. OGG isn't supported. Use WAV, MP3, FLAC, M4A or AIFF.")

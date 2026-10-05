@@ -40,13 +40,22 @@ struct HandoffStringsTests {
         #expect(MIDIEditorView.summary(notes: notes, selection: [], trackName: name, skipped: 3).hasSuffix(" \u{00B7} 3 outside C1\u{2013}B6 skipped"))
     }
 
-    @Test func audioThatCantBeOpenedGetsTheHandoffAlert() {
-        let ogg = AudioOpenFailure.decoding(URL(fileURLWithPath: "/tmp/take.ogg"))
+    @Test func audioThatCantBeOpenedGetsTheHandoffAlert() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "scratch-open-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let oggURL = folder.appending(path: "take.ogg"), wavURL = folder.appending(path: "Take 3.WAV")
+        try Data([1, 2, 3]).write(to: oggURL)
+        try Data([1, 2, 3]).write(to: wavURL)
+        let ogg = AudioOpenFailure.decoding(oggURL)
         #expect(ogg.title == "Could not open audio")
         #expect(ogg.message == "This file can't be decoded. OGG isn't supported. Use WAV, MP3, FLAC, M4A or AIFF.")
-        let wav = AudioOpenFailure.decoding(URL(fileURLWithPath: "/tmp/Take 3.WAV"))
+        let wav = AudioOpenFailure.decoding(wavURL)
         #expect(wav.title == "Could not open \u{201C}Take 3.WAV\u{201D}")
         #expect(wav.message == "The file may be damaged, or it's in a format Core Audio can't read.")
+        let gone = AudioOpenFailure.decoding(folder.appending(path: "gone.wav"))
+        #expect(gone.title == "Could not open \u{201C}gone.wav\u{201D}")
+        #expect(gone.message.hasPrefix("The file was moved or deleted."))
     }
 
     @Test func layoutSizesComeFromTheTokens() {
