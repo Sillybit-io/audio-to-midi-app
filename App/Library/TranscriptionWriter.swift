@@ -144,7 +144,7 @@ final class TranscriptionWriter {
         return .saved(destination)
     }
 
-    private nonisolated static func reason(for error: Error) -> String {
+    nonisolated static func reason(for error: Error) -> String {
         switch (error as? CocoaError)?.code {
         case .fileWriteNoPermission, .fileWriteVolumeReadOnly: "The folder isn\u{2019}t writable."
         case .fileWriteOutOfSpace: "The disk is full."

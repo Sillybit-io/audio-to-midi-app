@@ -10,16 +10,19 @@ struct ContentView: View {
     let library: LibraryStore
     let imports: AudioImportStore
     let preferences: AppPreferences
+    let saveCoordinator: MIDISaveCoordinator
 
     @State private var screen: AudioScreenModel
     @State private var selection: LibrarySelection?
     @State private var showInspector = false
     @State private var showWelcome = false
+    @State private var sidebarRevision = 0
     @State private var midiEditor: MIDIEditorModel?
     @State private var midiFailure: (name: String, message: String)?
 
     init(model: DocumentModel, store: ModelStore, access: AccessCoordinator, session: TranscriptionSession,
-         workingFolder: WorkingFolderStore, library: LibraryStore, imports: AudioImportStore, preferences: AppPreferences) {
+         workingFolder: WorkingFolderStore, library: LibraryStore, imports: AudioImportStore, preferences: AppPreferences,
+         saveCoordinator: MIDISaveCoordinator) {
         self.model = model
         self.store = store
         self.access = access
@@ -28,6 +31,8 @@ struct ContentView: View {
         self.library = library
         self.imports = imports
         self.preferences = preferences
+        self.saveCoordinator = saveCoordinator
+        saveCoordinator.onSaved = { library.refresh() }
         _screen = State(initialValue: AudioScreenModel(document: model, store: store, session: session, access: access, preferences: preferences,
                                                        destination: { workingFolder.midiFolder }, references: { imports.references },
                                                        onSaved: { library.refresh() }))
@@ -36,7 +41,8 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             LibrarySidebarView(library: library, workingFolder: workingFolder, imports: imports,
-                               selection: $selection, openAudio: { model.isImporting = true })
+                               selection: gatedSelection, openAudio: { model.isImporting = true })
+                .id(sidebarRevision)
                 .navigationSplitViewColumnWidth(min: Metric.sidebarW - Metric.sp9, ideal: Metric.sidebarW, max: Metric.sidebarW + Metric.sp10)
         } detail: {
             // A plain trailing pane rather than `.inspector`: with Reduce Transparency on, macOS 26.5 draws the
@@ -58,6 +64,13 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: Metric.windowMinW, minHeight: Metric.windowMinH)
+        .environment(saveCoordinator)
+        .background(WindowGuard(coordinator: saveCoordinator, edited: saveCoordinator.hasUnsavedChanges))
+        .alert(saveFailureTitle, isPresented: Binding(get: { saveCoordinator.saveFailure != nil }, set: { if !$0 { saveCoordinator.dismissFailure() } })) {
+            Button("OK") { saveCoordinator.dismissFailure() }
+        } message: {
+            Text(saveCoordinator.saveFailure?.message ?? "")
+        }
         .preferredColorScheme(preferences.appearance.colorScheme)
         .onChange(of: workingFolder.folder, initial: true) {
             library.attach(audio: workingFolder.audioFolder, midi: workingFolder.midiFolder)
@@ -89,8 +102,25 @@ struct ContentView: View {
         }
     }
 
-    /// Copies or references the audio as the user prefers, then opens it.
+    /// Every way of changing the selection asks first when the open MIDI file has unsaved changes.
+    private var gatedSelection: Binding<LibrarySelection?> {
+        Binding(get: { selection }, set: { newValue in
+            guard newValue != selection else { return }
+            // A declined change leaves the List showing the row that was clicked; rebuilding it makes it show the real selection again.
+            saveCoordinator.confirmLeaving(then: { selection = newValue }, cancelled: { sidebarRevision += 1 })
+        })
+    }
+
+    private var saveFailureTitle: String {
+        "Could not save \u{201C}\(saveCoordinator.saveFailure?.name ?? "")\u{201D}"
+    }
+
     private func openAudio(_ url: URL) {
+        saveCoordinator.confirmLeaving(then: { importAndOpen(url) })
+    }
+
+    /// Copies or references the audio as the user prefers, then opens it.
+    private func importAndOpen(_ url: URL) {
         do {
             let target = try imports.importAudio(from: url, mode: preferences.addAudioMode,
                                                  audioFolder: workingFolder.audioFolder)
@@ -105,6 +135,7 @@ struct ContentView: View {
         closeMIDI()
         do {
             midiEditor = try MIDIEditorModel.load(url)
+            saveCoordinator.editor = midiEditor
             midiFailure = nil
         } catch {
             midiFailure = (url.lastPathComponent, error.localizedDescription)
@@ -114,6 +145,7 @@ struct ContentView: View {
     private func closeMIDI() {
         midiEditor?.document.closeUndo()
         midiEditor = nil
+        saveCoordinator.editor = nil
         midiFailure = nil
     }
 

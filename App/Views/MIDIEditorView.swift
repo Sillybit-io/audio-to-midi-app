@@ -29,12 +29,15 @@ final class MIDIEditorModel {
     let id = UUID()
     let url: URL
     let document: MIDIDocument
-    let provenance: MIDIProvenance?
+    var provenance: MIDIProvenance?
+    /// The file as it was when opened or last saved; a save refuses to overwrite a file that no longer matches.
+    var fingerprint: FileFingerprint?
     var tool: MIDITool = .select
     var pixelsPerSecond: CGFloat = 120
 
-    init(url: URL, imported: ImportedMIDI) {
+    init(url: URL, imported: ImportedMIDI, fingerprint: FileFingerprint? = nil) {
         self.url = url
+        self.fingerprint = fingerprint
         provenance = imported.provenance
         document = MIDIDocument(sourceName: url.lastPathComponent, imported: imported)
     }
@@ -48,7 +51,7 @@ final class MIDIEditorModel {
         } catch {
             throw MIDIImportError.readFailed(url.lastPathComponent)
         }
-        return MIDIEditorModel(url: url, imported: try MIDIImporter.decode(data))
+        return MIDIEditorModel(url: url, imported: try MIDIImporter.decode(data), fingerprint: FileFingerprint.of(url))
     }
 }
 
@@ -57,6 +60,7 @@ final class MIDIEditorModel {
 struct MIDIEditorView: View {
     @Bindable var editor: MIDIEditorModel
     @Environment(\.undoManager) private var undoManager
+    @Environment(MIDISaveCoordinator.self) private var coordinator
     @State private var offset = CGPoint.zero
     @State private var session: Session?
     @State private var preview: [EditorNote]?
@@ -151,6 +155,11 @@ struct MIDIEditorView: View {
                     .disabled(!(document.revision >= 0 && document.canUndo)).help("Undo")
                 Button { document.redo() } label: { Label("Redo", systemImage: "arrow.uturn.forward") }
                     .disabled(!(document.revision >= 0 && document.canRedo)).help("Redo")
+            }
+            ToolbarItem {
+                Button { coordinator.save(editor) } label: { Label("Save", systemImage: "square.and.arrow.down") }
+                    .keyboardShortcut("s")
+                    .disabled(!document.isDirty).help("Save (\u{2318}S)")
             }
             ToolbarItem {
                 Circle().fill(Token.warn).frame(width: Metric.sp4, height: Metric.sp4)
