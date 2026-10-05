@@ -111,6 +111,23 @@ final class MIDIDocument {
         if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
     }
 
+    /// Selects the next (`+1`) or previous (`-1`) visible note in time order, starting from the current selection, or from
+    /// the first or last note when nothing is selected. Stops at the ends. Returns the note now selected.
+    @discardableResult
+    func selectAdjacent(_ direction: Int) -> EditorNote? {
+        let ordered = notes.filter(isVisible).sorted { ($0.start, $0.pitch, $0.id) < ($1.start, $1.pitch, $1.id) }
+        guard !ordered.isEmpty else { return nil }
+        let current = ordered.firstIndex { selection.contains($0.id) }
+        let target: Int
+        if let current {
+            target = min(max(current + (direction > 0 ? 1 : -1), 0), ordered.count - 1)
+        } else {
+            target = direction > 0 ? 0 : ordered.count - 1
+        }
+        selection = [ordered[target].id]
+        return ordered[target]
+    }
+
     func selectAll() {
         selection = Set(notes.filter { !hiddenTracks.contains($0.track) }.map(\.id))
     }

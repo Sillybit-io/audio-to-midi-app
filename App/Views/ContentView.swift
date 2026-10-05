@@ -62,6 +62,7 @@ struct ContentView: View {
                 ToolbarItem {
                     Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                         .help(showInspector ? "Hide Inspector" : "Show Inspector")
+                        .accessibilityValue(showInspector ? "Shown" : "Hidden")
                 }
             }
         }

@@ -86,6 +86,9 @@ struct LibrarySidebarView: View {
             Image(systemName: "pianokeys").foregroundStyle(entry.midiInfo == nil ? Token.warn : Native.fgSecondary)
         }
         .help(([entry.midiInfo?.trackNames.joined(separator: ", ")].compactMap { $0 } + [entry.url.abbreviatedPath]).joined(separator: "\n"))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(entry.name)
+        .accessibilityValue(Self.summary(entry.midiInfo))
     }
 
     static func summary(_ info: MIDIFileInfo?) -> String {
@@ -111,6 +114,8 @@ struct LibrarySidebarView: View {
                 .foregroundStyle(entry.isMissing ? Token.warn : Native.fgSecondary)
         }
         .help(entry.isMissing ? "File not found. Relink\u{2026} to find it again." : entry.url.abbreviatedPath)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(entry.isMissing ? "\(entry.name), file not found" : entry.name)
         .contextMenu {
             if !entry.isMissing {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }

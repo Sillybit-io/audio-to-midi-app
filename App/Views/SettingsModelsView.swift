@@ -65,7 +65,7 @@ struct SettingsModelsView: View {
             if entry.needsDownload {
                 Text(entry.sizeText).font(.caption).foregroundStyle(Native.fgSecondary)
                 Button { pendingDelete = entry } label: { Label("Delete", systemImage: "trash") }
-                    .labelStyle(.iconOnly).help("Delete \(entry.displayName)")
+                    .labelStyle(.iconOnly).help("Delete \(entry.displayName)").accessibilityLabel("Delete \(entry.displayName)")
             } else {
                 Text("Built in").font(.caption).foregroundStyle(Native.fgSecondary)
             }

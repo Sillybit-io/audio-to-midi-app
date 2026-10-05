@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Progress while a run is going (including a first-use download), and the failed panel with Try Again.
 struct AudioStatusView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let panel: AudioScreenModel.RunPanel?
     let startedAt: Date?
     let onCancel: () -> Void
@@ -31,6 +32,8 @@ struct AudioStatusView: View {
                 if let fraction {
                     ProgressView(value: fraction)
                     Text("\(Int((fraction * 100).rounded()))%").font(.caption.monospacedDigit()).frame(width: 36, alignment: .trailing)
+                } else if reduceMotion {
+                    Text("Working\u{2026}").font(.caption).foregroundStyle(Native.fgSecondary).frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     ProgressView().progressViewStyle(.linear)
                 }

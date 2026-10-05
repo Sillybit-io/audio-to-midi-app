@@ -371,6 +371,13 @@ struct MIDIEditorView: View {
             document.selectAll()
             return .handled
         }
+        if press.modifiers.contains(.option), press.key == .leftArrow || press.key == .rightArrow {
+            if let note = document.selectAdjacent(press.key == .rightArrow ? 1 : -1) {
+                let name = MIDIEditorInspectorView.pitchName(note.pitch)
+                AccessibilityNotification.Announcement(String(format: "%@, %.2f seconds, velocity %d", name, note.start, note.velocity)).post()
+            }
+            return .handled
+        }
         switch press.key {
         case .space: editor.togglePlayback()
         case .delete, .deleteForward: document.deleteSelection()

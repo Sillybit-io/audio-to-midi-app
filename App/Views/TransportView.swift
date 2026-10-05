@@ -12,16 +12,21 @@ struct TransportView: View {
                 Label(playback.isPlaying ? "Pause" : "Play", systemImage: playback.isPlaying ? "pause.fill" : "play.fill")
             }
             .help(playback.isPlaying ? "Pause (Space)" : "Play (Space)")
+            .accessibilityLabel(playback.isPlaying ? "Pause" : "Play")
             Button { playback.stop() } label: { Label("Stop", systemImage: "stop.fill") }
                 .help("Stop")
+                .accessibilityLabel("Stop")
             Toggle(isOn: $playback.loops) { Label("Loop", systemImage: "repeat") }
                 .toggleStyle(.button)
                 .help("Loop (L)")
+                .accessibilityLabel("Loop")
                 .accessibilityValue(playback.loops ? "On" : "Off")
             Text("\(PlaybackEngine.timeText(seconds: playback.position)) \u{00B7} \(PlaybackEngine.barBeatText(seconds: playback.position))")
                 .font(.body.monospacedDigit()).foregroundStyle(Native.fgSecondary)
                 .accessibilityLabel("Playback position")
                 .accessibilityValue("\(PlaybackEngine.timeText(seconds: playback.position)), bar \(PlaybackEngine.barBeat(seconds: playback.position).bar) beat \(PlaybackEngine.barBeat(seconds: playback.position).beat)")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Transport")
     }
 }
