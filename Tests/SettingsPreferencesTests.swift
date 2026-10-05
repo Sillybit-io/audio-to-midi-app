@@ -5,9 +5,7 @@ import Testing
 @MainActor
 struct SettingsPreferencesTests {
     private func suite() -> (UserDefaults, () -> Void) {
-        let name = "smt-settings-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
-        return (defaults, { defaults.removePersistentDomain(forName: name) })
+        scratchDefaults("smt-settings")
     }
 
     @Test func freshInstallDefaults() {

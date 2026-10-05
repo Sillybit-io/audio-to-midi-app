@@ -38,9 +38,8 @@ struct FirstUseTranscriptionTests {
     private let installer = FakeInstaller()
 
     @Test func freshPreferencesSelectBasicPitchAndKeepTheChoice() {
-        let suite = "smt-prefs-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let (defaults, cleanup) = scratchDefaults("smt-prefs")
+        defer { cleanup() }
         let preferences = AppPreferences(defaults: defaults)
         #expect(preferences.defaultModelID == "basic-pitch")
         preferences.defaultModelID = "muscriptor-medium"
@@ -123,9 +122,8 @@ struct FirstUseTranscriptionTests {
 
     @Test func screenModelStartsOnBasicPitchAndLabelsAMissingModel() throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: "scratch-models-\(UUID().uuidString)", directoryHint: .isDirectory)
-        let suite = "smt-screen-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let (defaults, cleanup) = scratchDefaults("smt-screen")
+        defer { cleanup() }
         let screen = AudioScreenModel(document: DocumentModel(), store: ModelStore(directory: directory),
                                       session: TranscriptionSession(), access: AccessCoordinator(keychain: KeychainStore(service: "smt-test-\(UUID().uuidString)")),
                                       preferences: AppPreferences(defaults: defaults))

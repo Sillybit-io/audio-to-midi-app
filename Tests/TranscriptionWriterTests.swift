@@ -238,9 +238,8 @@ struct TranscriptionWriterTests {
         for _ in 0..<200 where document.document == nil { try await Task.sleep(for: .milliseconds(50)) }
         #expect(document.document != nil)
 
-        let suite = "smt-writer-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let (defaults, cleanup) = scratchDefaults("smt-writer")
+        defer { cleanup() }
         let refreshed = Counter()
         let session = TranscriptionSession()
         let screen = AudioScreenModel(document: document, store: ModelStore(directory: folder.appending(path: "models")), session: session,
