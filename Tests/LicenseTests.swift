@@ -50,6 +50,12 @@ struct GroupedLicenceTests {
         }
     }
 
+    @Test func codeFenceLinesAreNotShownAsLicenceText() {
+        let bodies = ThirdPartyComponents.sections(in: ThirdPartyComponents.noticesText())
+        #expect(bodies.values.allSatisfy { !$0.contains("```") })
+        #expect(bodies["ONNX Runtime"]?.contains("MIT License") == true)
+    }
+
     @Test func sectionBodiesKeepNestedHeadingsInsideTheirComponent() {
         let notices = "## ggml\nMIT text\n```\n## Not a heading\n```\n## pffft\nBSD text\n"
         let bodies = ThirdPartyComponents.sections(in: notices)

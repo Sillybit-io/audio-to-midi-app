@@ -21,7 +21,10 @@ enum ThirdPartyComponents {
         var inFence = false
         var found: [String] = []
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.hasPrefix("```") { inFence.toggle() }
+            if line.hasPrefix("```") {
+                inFence.toggle()
+                continue
+            }
             if !inFence, line.hasPrefix("## ") { found.append(String(line.dropFirst(3))) }
         }
         return found
@@ -77,13 +80,17 @@ extension ThirdPartyComponents {
         ]),
     ]
 
-    /// The body of each component section, keyed by its `## ` title. Lines inside code fences never start a section.
+    /// The body of each component section, keyed by its `## ` title. Lines inside code fences never start a section,
+    /// and the fence lines themselves are Markdown, not licence text, so they are left out.
     static func sections(in text: String) -> [String: String] {
         var bodies: [String: [Substring]] = [:]
         var current: String?
         var inFence = false
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.hasPrefix("```") { inFence.toggle() }
+            if line.hasPrefix("```") {
+                inFence.toggle()
+                continue
+            }
             if !inFence, line.hasPrefix("## "), names.contains(String(line.dropFirst(3))) {
                 current = String(line.dropFirst(3))
                 bodies[current!] = []

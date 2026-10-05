@@ -213,7 +213,13 @@ struct MIDIEditorView: View {
             ToolbarItem {
                 Picker("Tool", selection: $editor.tool) {
                     ForEach(MIDITool.allCases) { tool in
-                        Label("\(tool.title) (\(tool.key.uppercased()))", systemImage: tool.symbol).tag(tool)
+                        Label {
+                            Text("\(tool.title) (\(tool.key.uppercased()))")
+                        } icon: {
+                            // The segment reads its accessibility name from the image, not the label's text.
+                            Image(systemName: tool.symbol).accessibilityLabel(tool.title)
+                        }
+                        .tag(tool)
                     }
                 }
                 .pickerStyle(.segmented)

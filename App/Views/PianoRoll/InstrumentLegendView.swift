@@ -32,7 +32,8 @@ struct InstrumentLegendView: View {
 
     var body: some View {
         ForEach(counts, id: \.name) { item in
-            let name = item.name.replacingOccurrences(of: "_", with: " ")
+            // One undifferentiated Basic Pitch track is called Notes, as in the handoff.
+            let name = neutral ? "Notes" : item.name.replacingOccurrences(of: "_", with: " ")
             HStack(spacing: Metric.sp3) {
                 Circle().fill(neutral ? InstrumentColor.color(forFamily: "all") : InstrumentColor.color(for: item.name))
                     .frame(width: Metric.sp4, height: Metric.sp4)
