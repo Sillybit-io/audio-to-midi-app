@@ -1,0 +1,36 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation "Menu bar" [ref=e3]:
+      - menubar "Silly MIDI Tools" [ref=e4]:
+        - menuitem "Silly MIDI Tools" [ref=e5]
+        - menuitem "File" [ref=e6]
+        - menuitem "Edit" [ref=e7]
+        - menuitem "Transcribe" [ref=e8]
+        - menuitem "View" [ref=e9]
+        - menuitem "Controls" [ref=e10]
+        - menuitem "Window" [ref=e11]
+        - menuitem "Help" [ref=e12]
+    - generic [ref=e13]: Sun, Oct 4, 07:43 PM
+  - generic [ref=e15]:
+    - banner [ref=e16]:
+      - link "Close About" [ref=e18] [cursor=pointer]:
+        - /url: main-window.html
+        - generic [ref=e19]: Close About
+      - tablist "About sections" [ref=e22]:
+        - tab "About" [selected] [ref=e23]
+        - tab "Licences" [ref=e24]
+        - tab "ONNX Runtime" [ref=e25]
+    - tabpanel "About" [ref=e26]:
+      - generic [ref=e27]:
+        - img "Silly MIDI Tools app icon (proposed)" [ref=e28]
+        - generic [ref=e30]: Proposed icon. The repository doesn’t ship one yet.
+        - heading "Silly MIDI Tools" [level=1] [ref=e31]
+        - generic [ref=e32]: Version 0.1.0
+        - generic [ref=e33]: macOS 26 or later · Apple silicon
+        - paragraph [ref=e34]: Licensed under the Apache License 2.0.
+        - paragraph [ref=e35]: "MuScriptor models are licensed CC BY-NC 4.0: non-commercial use only, including the MIDI they produce. The piano model is CC BY 4.0 and needs credit. Basic Pitch is Apache-2.0. Check each model’s licence before using its output commercially."
+        - generic [ref=e36]:
+          - button "Silly MIDI Tools on GitHub" [ref=e37]
+          - button "Acknowledgements" [ref=e38]
+    - status:
+      - img

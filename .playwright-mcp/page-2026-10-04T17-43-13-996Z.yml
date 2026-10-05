@@ -1,0 +1,299 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation "Menu bar" [ref=e3]:
+      - menubar "Silly MIDI Tools" [ref=e4]:
+        - menuitem "Silly MIDI Tools" [ref=e5]
+        - menuitem "File" [ref=e6]
+        - menuitem "Edit" [ref=e7]
+        - menuitem "Transcribe" [ref=e8]
+        - menuitem "View" [ref=e9]
+        - menuitem "Controls" [ref=e10]
+        - menuitem "Window" [ref=e11]
+        - menuitem "Help" [ref=e12]
+    - generic [ref=e13]: Sun, Oct 4, 07:43 PM
+  - generic [ref=e15]:
+    - complementary "Library" [ref=e16]:
+      - generic [ref=e17]:
+        - link "Silly MIDI Tools" [ref=e23] [cursor=pointer]:
+          - /url: settings.html#general
+          - img [ref=e24]
+          - generic [ref=e26]: Silly MIDI Tools
+        - button "Hide sidebar" [expanded] [ref=e27]:
+          - img [ref=e28]
+          - generic [ref=e30]: Hide sidebar
+      - navigation "Audio and MIDI files" [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - generic [ref=e34]: Audio
+            - generic [ref=e35]: Silly MIDI Tools/Audio
+          - list "Audio Silly MIDI Tools/Audio" [ref=e36]:
+            - listitem [ref=e37]:
+              - link "Piano Take 03.wav 0:48 · Has MIDI Has MIDI" [ref=e38]:
+                - /url: main-window.html?audio=f1
+                - img [ref=e40]
+                - generic [ref=e42]:
+                  - generic [ref=e43]: Piano Take 03.wav
+                  - generic [ref=e44]: 0:48 · Has MIDI
+                - img "Has MIDI" [ref=e46]
+            - listitem [ref=e48]:
+              - link "Band Demo – Verse.aiff 0:36 · Has MIDI Has MIDI" [ref=e49]:
+                - /url: main-window.html?audio=f2
+                - img [ref=e51]
+                - generic [ref=e53]:
+                  - generic [ref=e54]: Band Demo – Verse.aiff
+                  - generic [ref=e55]: 0:36 · Has MIDI
+                - img "Has MIDI" [ref=e57]
+            - listitem [ref=e59]:
+              - link "Humming Idea.m4a 0:22 · Has MIDI Has MIDI" [ref=e60]:
+                - /url: main-window.html?audio=f3
+                - img [ref=e62]
+                - generic [ref=e64]:
+                  - generic [ref=e65]: Humming Idea.m4a
+                  - generic [ref=e66]: 0:22 · Has MIDI
+                - img "Has MIDI" [ref=e68]
+            - listitem [ref=e70]:
+              - link "Lo-fi Loop.mp3 0:16 · Not transcribed" [ref=e71]:
+                - /url: main-window.html?audio=f4
+                - img [ref=e73]
+                - generic [ref=e75]:
+                  - generic [ref=e76]: Lo-fi Loop.mp3
+                  - generic [ref=e77]: 0:16 · Not transcribed
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - generic [ref=e80]: MIDI
+            - generic [ref=e81]: Silly MIDI Tools/MIDI
+          - list "MIDI Silly MIDI Tools/MIDI" [ref=e82]:
+            - listitem [ref=e83]:
+              - button "Humming Idea.mid 24 notes · From audio" [ref=e84]:
+                - img [ref=e86]
+                - generic [ref=e88]:
+                  - generic [ref=e89]: Humming Idea.mid
+                  - generic [ref=e90]: 24 notes · From audio
+            - listitem [ref=e91]:
+              - button "Band Demo – Verse.mid 627 notes · From audio" [ref=e92]:
+                - img [ref=e94]
+                - generic [ref=e96]:
+                  - generic [ref=e97]: Band Demo – Verse.mid
+                  - generic [ref=e98]: 627 notes · From audio
+            - listitem [ref=e99]:
+              - button "Piano Take 03.mid 202 notes · From audio" [ref=e100]:
+                - img [ref=e102]
+                - generic [ref=e104]:
+                  - generic [ref=e105]: Piano Take 03.mid
+                  - generic [ref=e106]: 202 notes · From audio
+            - listitem [ref=e107]:
+              - button "Bassline Sketch.mid 48 notes · Imported" [ref=e108]:
+                - img [ref=e110]
+                - generic [ref=e112]:
+                  - generic [ref=e113]: Bassline Sketch.mid
+                  - generic [ref=e114]: 48 notes · Imported
+      - generic [ref=e115]:
+        - button "Import MIDI file" [ref=e116]:
+          - img [ref=e117]
+          - generic [ref=e119]: Import MIDI file
+        - link "Models" [ref=e120]:
+          - /url: settings.html#models
+          - img [ref=e121]
+          - generic [ref=e123]: Models
+        - generic [ref=e124]: 4 audio · 4 MIDI
+    - generic [ref=e125]:
+      - banner [ref=e126]:
+        - generic [ref=e127]:
+          - heading "Humming Idea.mid" [level=1] [ref=e128]
+          - generic [ref=e129]: 24 notes · 1 tracks · 120 BPM 4/4
+        - radiogroup "Tool" [ref=e130]:
+          - radio "Select" [checked] [ref=e131]:
+            - img [ref=e132]
+            - generic [ref=e134]: Select
+          - radio "Draw" [ref=e135]:
+            - img [ref=e136]
+            - generic [ref=e138]: Draw
+          - radio "Erase" [ref=e139]:
+            - img [ref=e140]
+            - generic [ref=e142]: Erase
+        - group "History" [ref=e143]:
+          - button "Undo" [disabled] [ref=e144]:
+            - img [ref=e145]
+            - generic [ref=e147]: Undo
+          - button "Redo" [disabled] [ref=e148]:
+            - img [ref=e149]
+            - generic [ref=e151]: Redo
+        - group "Transport" [ref=e152]:
+          - button "Play" [ref=e153]:
+            - img [ref=e154]
+            - generic [ref=e156]: Play
+          - button "Stop" [ref=e157]:
+            - img [ref=e158]
+            - generic [ref=e160]: Stop
+          - button "Loop" [ref=e161]:
+            - img [ref=e162]
+            - generic [ref=e164]: Loop
+          - generic [ref=e165]: 0.0 s 1.1
+        - button "Save" [disabled] [ref=e166]:
+          - img [ref=e167]
+          - generic [ref=e169]: Save
+        - generic [ref=e170]:
+          - generic "Drag into Finder or a DAW" [ref=e171]:
+            - img [ref=e172]
+            - generic [ref=e174]: Humming Idea.mid
+          - button "Export…" [ref=e175]:
+            - img [ref=e176]
+            - generic [ref=e178]: Export…
+          - button "Toggle inspector" [pressed] [ref=e179]:
+            - img [ref=e180]
+            - generic [ref=e182]: Toggle inspector
+      - generic [ref=e183]:
+        - region "MIDI editor piano roll" [ref=e184]:
+          - generic [ref=e186]:
+            - generic "Timeline — click to move playhead" [ref=e188]:
+              - generic [ref=e189]: "1"
+              - generic [ref=e190]: "2"
+              - generic [ref=e191]: "3"
+              - generic [ref=e192]: "4"
+              - generic [ref=e193]: "5"
+              - generic [ref=e194]: "6"
+              - generic [ref=e195]: "7"
+              - generic [ref=e196]: "8"
+              - generic [ref=e197]: "9"
+              - generic [ref=e198]: "10"
+              - generic [ref=e199]: "11"
+              - generic [ref=e200]: "12"
+            - generic [ref=e201]:
+              - generic [ref=e213]: C6
+              - generic [ref=e225]: C5
+              - generic [ref=e237]: C4
+              - generic [ref=e249]: C3
+              - generic [ref=e261]: C2
+              - generic [ref=e273]: C1
+            - generic "Notes. Option-Left and Option-Right step through notes, arrow keys move the selection." [ref=e274]:
+              - generic "D♯4 · Notes · vel 122" [ref=e275] [cursor=pointer]
+              - generic "A♯5 · Notes · vel 96" [ref=e276] [cursor=pointer]
+              - generic "C5 · Notes · vel 89" [ref=e277] [cursor=pointer]
+              - generic "G♯5 · Notes · vel 91" [ref=e278] [cursor=pointer]
+              - generic "A♯5 · Notes · vel 93" [ref=e279] [cursor=pointer]
+              - generic "C4 · Notes · vel 87" [ref=e280] [cursor=pointer]
+              - generic "D♯4 · Notes · vel 75" [ref=e281] [cursor=pointer]
+              - generic "D5 · Notes · vel 116" [ref=e282] [cursor=pointer]
+              - generic "G♯4 · Notes · vel 79" [ref=e283] [cursor=pointer]
+              - generic "D♯5 · Notes · vel 98" [ref=e284] [cursor=pointer]
+              - generic "A♯4 · Notes · vel 126" [ref=e285] [cursor=pointer]
+              - generic "G5 · Notes · vel 84" [ref=e286] [cursor=pointer]
+              - generic "G♯4 · Notes · vel 75" [ref=e287] [cursor=pointer]
+              - generic "G4 · Notes · vel 127" [ref=e288] [cursor=pointer]
+              - generic "C4 · Notes · vel 105" [ref=e289] [cursor=pointer]
+              - generic "G♯5 · Notes · vel 72" [ref=e290] [cursor=pointer]
+              - generic "A♯4 · Notes · vel 95" [ref=e291] [cursor=pointer]
+              - generic "D4 · Notes · vel 76" [ref=e292] [cursor=pointer]
+              - generic "C5 · Notes · vel 105" [ref=e293] [cursor=pointer]
+              - generic "G♯4 · Notes · vel 90" [ref=e294] [cursor=pointer]
+              - generic "G♯4 · Notes · vel 87" [ref=e295] [cursor=pointer]
+              - generic "G♯4 · Notes · vel 125" [ref=e296] [cursor=pointer]
+              - generic "D4 · Notes · vel 125" [ref=e297] [cursor=pointer]
+              - generic "G4 · Notes · vel 83" [ref=e298] [cursor=pointer]
+            - generic "Velocity" [ref=e299]: Vel
+            - generic "Velocity lane — drag to set note velocity" [ref=e300]
+          - generic [ref=e301]:
+            - generic [ref=e302]: 24 notes · drag empty space to select, ⌥← ⌥→ to step through notes, D to draw, E to erase
+            - generic [ref=e303]:
+              - generic [ref=e304]: Snap
+              - combobox "Snap" [ref=e306]:
+                - option "1/4 note"
+                - option "1/8 note"
+                - option "1/16 note" [selected]
+                - option "1/32 note"
+                - option "Off"
+            - button "Quantize All" [ref=e307]
+            - generic [ref=e308]:
+              - button "Zoom out" [ref=e309]:
+                - img [ref=e310]
+                - generic [ref=e311]: Zoom out
+              - generic [ref=e312]: Horizontal zoom
+              - slider "Horizontal zoom" [ref=e313]: "1.4"
+              - button "Zoom in" [ref=e314]:
+                - img [ref=e315]
+                - generic [ref=e317]: Zoom in
+        - complementary "Inspector" [ref=e318]:
+          - generic [ref=e319]:
+            - generic [ref=e320]:
+              - heading "File" [level=3] [ref=e321]
+              - generic [ref=e322]:
+                - generic [ref=e323]:
+                  - generic [ref=e324]: Name
+                  - textbox "Name" [ref=e325]: Humming Idea.mid
+                - generic [ref=e326]:
+                  - generic [ref=e327]: Where
+                  - generic [ref=e328]: Silly MIDI Tools/MIDI
+                - generic [ref=e329]:
+                  - generic [ref=e330]: Source
+                  - link "Humming Idea.m4a" [ref=e332] [cursor=pointer]:
+                    - /url: main-window.html?audio=f3
+                - generic [ref=e333]:
+                  - generic [ref=e334]: Made with
+                  - generic [ref=e335]:
+                    - text: Basic Pitch
+                    - generic [ref=e336]:
+                      - img [ref=e337]
+                      - text: Apache-2.0 · Commercial use allowed
+                - generic [ref=e339]:
+                  - generic [ref=e340]: Tempo
+                  - generic [ref=e341]: 120 BPM · 4/4
+              - alert [ref=e342]
+            - generic [ref=e343]:
+              - heading "Selection" [level=3] [ref=e344]
+              - paragraph [ref=e346]: Click a note to select it, ⇧-click to add. Drag empty space to select several. ⌘A selects all.
+            - generic [ref=e347]:
+              - heading "Tracks" [level=3] [ref=e348]
+              - generic [ref=e350]:
+                - generic [ref=e352]: Notes
+                - generic [ref=e353]: "24"
+                - button "M" [ref=e354]
+                - button "S" [ref=e355]
+                - button "Hide Notes" [ref=e356]:
+                  - img [ref=e357]
+                  - generic [ref=e359]: Hide Notes
+              - generic [ref=e361]:
+                - generic [ref=e362]: Draw on
+                - combobox "Draw on" [ref=e364]:
+                  - option "Notes" [selected]
+                  - option "Piano"
+                  - option "Organ"
+                  - option "Chromatic"
+                  - option "Guitar"
+                  - option "Bass"
+                  - option "Drums"
+                  - option "Timpani"
+                  - option "Violin"
+                  - option "Viola"
+                  - option "Cello"
+                  - option "Contrabass"
+                  - option "Harp"
+                  - option "String"
+                  - option "Sax"
+                  - option "Oboe"
+                  - option "Horn e"
+                  - option "English"
+                  - option "Bassoon"
+                  - option "Clarinet"
+                  - option "Flute"
+                  - option "Trumpet"
+                  - option "Trombone"
+                  - option "Tuba"
+                  - option "French"
+                  - option "Brass"
+                  - option "Synth"
+                  - option "Voice"
+                  - option "Orchestra"
+            - generic [ref=e365]:
+              - heading "Key from notes" [level=3] [ref=e366]
+              - list [ref=e369]:
+                - listitem [ref=e370]:
+                  - generic [ref=e371]: A♭ major
+                  - generic [ref=e372]: 85%
+                - listitem [ref=e373]:
+                  - generic [ref=e374]: F minor
+                  - generic [ref=e375]: 85%
+                - listitem [ref=e376]:
+                  - generic [ref=e377]: B♭ dorian
+                  - generic [ref=e378]: 85%
+    - status:
+      - img

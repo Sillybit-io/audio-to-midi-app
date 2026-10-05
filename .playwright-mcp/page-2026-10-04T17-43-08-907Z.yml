@@ -1,0 +1,319 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation "Menu bar" [ref=e3]:
+      - menubar "Silly MIDI Tools" [ref=e4]:
+        - menuitem "Silly MIDI Tools" [ref=e5]
+        - menuitem "File" [ref=e6]
+        - menuitem "Edit" [ref=e7]
+        - menuitem "Transcribe" [ref=e8]
+        - menuitem "View" [ref=e9]
+        - menuitem "Controls" [ref=e10]
+        - menuitem "Window" [ref=e11]
+        - menuitem "Help" [ref=e12]
+    - generic [ref=e13]: Sun, Oct 4, 07:43 PM
+  - generic [ref=e15]:
+    - complementary "Library" [ref=e16]:
+      - generic [ref=e17]:
+        - link "Silly MIDI Tools" [ref=e23] [cursor=pointer]:
+          - /url: settings.html#general
+          - img [ref=e24]
+          - generic [ref=e26]: Silly MIDI Tools
+        - button "Hide sidebar" [expanded] [ref=e27]:
+          - img [ref=e28]
+          - generic [ref=e30]: Hide sidebar
+      - navigation "Audio and MIDI files" [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - generic [ref=e34]: Audio
+            - generic [ref=e35]: Silly MIDI Tools/Audio
+          - list "Audio Silly MIDI Tools/Audio" [ref=e36]:
+            - listitem [ref=e37]:
+              - button "Piano Take 03.wav 0:48 · Piano (ONNX) Has MIDI" [ref=e38]:
+                - img [ref=e40]
+                - generic [ref=e42]:
+                  - generic [ref=e43]: Piano Take 03.wav
+                  - generic [ref=e44]: 0:48 · Piano (ONNX)
+                - img "Has MIDI" [ref=e46]
+            - listitem [ref=e48]:
+              - button "Band Demo – Verse.aiff 0:36 · MuScriptor Medium Has MIDI" [ref=e49]:
+                - img [ref=e51]
+                - generic [ref=e53]:
+                  - generic [ref=e54]: Band Demo – Verse.aiff
+                  - generic [ref=e55]: 0:36 · MuScriptor Medium
+                - img "Has MIDI" [ref=e57]
+            - listitem [ref=e59]:
+              - button "Humming Idea.m4a 0:22 · Basic Pitch Has MIDI" [ref=e60]:
+                - img [ref=e62]
+                - generic [ref=e64]:
+                  - generic [ref=e65]: Humming Idea.m4a
+                  - generic [ref=e66]: 0:22 · Basic Pitch
+                - img "Has MIDI" [ref=e68]
+            - listitem [ref=e70]:
+              - button "Lo-fi Loop.mp3 0:16 · Not transcribed" [ref=e71]:
+                - img [ref=e73]
+                - generic [ref=e75]:
+                  - generic [ref=e76]: Lo-fi Loop.mp3
+                  - generic [ref=e77]: 0:16 · Not transcribed
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - generic [ref=e80]: MIDI
+            - generic [ref=e81]: Silly MIDI Tools/MIDI
+          - list "MIDI Silly MIDI Tools/MIDI" [ref=e82]:
+            - listitem [ref=e83]:
+              - link "Humming Idea.mid 24 notes · From audio" [ref=e84]:
+                - /url: midi-editor.html?midi=m-f3
+                - img [ref=e86]
+                - generic [ref=e88]:
+                  - generic [ref=e89]: Humming Idea.mid
+                  - generic [ref=e90]: 24 notes · From audio
+            - listitem [ref=e91]:
+              - link "Band Demo – Verse.mid 627 notes · From audio" [ref=e92]:
+                - /url: midi-editor.html?midi=m-f2
+                - img [ref=e94]
+                - generic [ref=e96]:
+                  - generic [ref=e97]: Band Demo – Verse.mid
+                  - generic [ref=e98]: 627 notes · From audio
+            - listitem [ref=e99]:
+              - link "Piano Take 03.mid 202 notes · From audio" [ref=e100]:
+                - /url: midi-editor.html?midi=m-f1
+                - img [ref=e102]
+                - generic [ref=e104]:
+                  - generic [ref=e105]: Piano Take 03.mid
+                  - generic [ref=e106]: 202 notes · From audio
+            - listitem [ref=e107]:
+              - link "Bassline Sketch.mid 48 notes · Imported" [ref=e108]:
+                - /url: midi-editor.html?midi=m-import-1
+                - img [ref=e110]
+                - generic [ref=e112]:
+                  - generic [ref=e113]: Bassline Sketch.mid
+                  - generic [ref=e114]: 48 notes · Imported
+      - generic [ref=e115]:
+        - button "Open audio file" [ref=e116]:
+          - img [ref=e117]
+          - generic [ref=e119]: Open audio file
+        - link "Models" [ref=e120]:
+          - /url: settings.html#models
+          - img [ref=e121]
+          - generic [ref=e123]: Models
+        - generic [ref=e124]: 4 audio · 4 MIDI
+    - generic [ref=e125]:
+      - banner [ref=e126]:
+        - generic [ref=e127]:
+          - heading "Lo-fi Loop.mp3" [level=1] [ref=e128]
+          - generic [ref=e129]: 16.0 s · 44.1 kHz
+        - group "Transport" [ref=e130]:
+          - button "Play" [ref=e131]:
+            - img [ref=e132]
+            - generic [ref=e134]: Play
+          - button "Stop" [ref=e135]:
+            - img [ref=e136]
+            - generic [ref=e138]: Stop
+          - button "Loop" [ref=e139]:
+            - img [ref=e140]
+            - generic [ref=e142]: Loop
+          - generic [ref=e143]: 2.0 s 2.1
+        - button "Transcribe" [ref=e144]:
+          - img [ref=e145]
+          - generic [ref=e147]: Transcribe
+        - generic [ref=e148]:
+          - generic "Drag into Finder or a DAW" [ref=e149]:
+            - img [ref=e150]
+            - generic [ref=e152]: MIDI
+          - button "Export…" [disabled] [ref=e153]:
+            - img [ref=e154]
+            - generic [ref=e156]: Export…
+          - button "Toggle inspector" [pressed] [ref=e157]:
+            - img [ref=e158]
+            - generic [ref=e160]: Toggle inspector
+      - generic [ref=e161]:
+        - generic [ref=e162]:
+          - region "Waveform" [ref=e163]:
+            - generic [ref=e164]:
+              - heading "Waveform" [level=2] [ref=e165]
+              - generic [ref=e166]: Selected 10.0 s of 16.0 s
+              - 'generic "Off: exported notes start at zero" [ref=e167]':
+                - switch "Original timeline" [checked] [ref=e169]
+                - text: Original timeline
+              - button "Reset" [ref=e170]
+            - generic [ref=e171]:
+              - generic:
+                - generic: 0:00
+                - generic: 0:02
+                - generic: 0:04
+                - generic: 0:06
+                - generic: 0:08
+                - generic: 0:10
+                - generic: 0:12
+                - generic: 0:14
+              - generic:
+                - img
+              - generic "Drag to move the slice" [ref=e172]
+              - slider "Slice start" [ref=e173]
+              - slider "Slice end" [ref=e174]
+          - region "Piano roll" [ref=e175]:
+            - generic [ref=e177]:
+              - generic "Timeline — click to move playhead" [ref=e179]:
+                - generic [ref=e180]: "1"
+                - generic [ref=e181]: "2"
+                - generic [ref=e182]: "3"
+                - generic [ref=e183]: "4"
+                - generic [ref=e184]: "5"
+                - generic [ref=e185]: "6"
+                - generic [ref=e186]: "7"
+                - generic [ref=e187]: "8"
+              - generic [ref=e188]:
+                - generic [ref=e200]: C6
+                - generic [ref=e212]: C5
+                - generic [ref=e224]: C4
+                - generic [ref=e236]: C3
+                - generic [ref=e248]: C2
+                - generic [ref=e260]: C1
+            - generic:
+              - generic:
+                - generic:
+                  - img
+                - heading "Ready to Transcribe" [level=2]
+                - paragraph: Drag the handles to transcribe only a slice, pick a model, then press Transcribe. Notes appear here as the model works.
+                - paragraph: ↩
+            - generic [ref=e262]:
+              - generic [ref=e263]: No notes yet
+              - generic [ref=e264]:
+                - generic [ref=e265]: Original
+                - slider "Original" [disabled] [ref=e266]: "0.5"
+                - generic [ref=e267]: Notes
+              - generic [ref=e268]:
+                - generic [ref=e269]: Speed
+                - slider "Speed" [ref=e270]: "1"
+                - status [ref=e271]: 1.00×
+              - generic [ref=e272]:
+                - button "Zoom out" [ref=e273]:
+                  - img [ref=e274]
+                  - generic [ref=e275]: Zoom out
+                - generic [ref=e276]: Horizontal zoom
+                - slider "Horizontal zoom" [ref=e277]: "1"
+                - button "Zoom in" [ref=e278]:
+                  - img [ref=e279]
+                  - generic [ref=e281]: Zoom in
+        - complementary "Inspector" [ref=e282]:
+          - generic [ref=e283]:
+            - generic [ref=e284]:
+              - heading "Model" [level=3] [ref=e285]
+              - generic [ref=e286]:
+                - generic [ref=e287]:
+                  - combobox "Model" [ref=e289]:
+                    - option "MuScriptor Small" [selected]
+                    - option "MuScriptor Medium"
+                    - option "MuScriptor Large — 2.74 GB download"
+                    - option "Piano (ONNX)"
+                    - option "Basic Pitch"
+                    - option "Manage Models…"
+                  - generic [ref=e290]:
+                    - img [ref=e291]
+                    - text: CC BY-NC 4.0 · Non-commercial only
+                - generic [ref=e293]:
+                  - generic [ref=e294]: Device
+                  - combobox "Device" [ref=e296]:
+                    - option "Auto" [selected]
+                    - option "Apple GPU"
+                    - option "CPU"
+                - generic [ref=e297]:
+                  - generic [ref=e298]: Threads
+                  - group "Threads" [ref=e299]:
+                    - button "Fewer threads" [ref=e300]:
+                      - img [ref=e301]
+                    - status [ref=e302]: "8"
+                    - button "More threads" [ref=e303]:
+                      - img [ref=e304]
+              - paragraph [ref=e307]: Multi-instrument, drums included. Mirelo and Kyutai; GGUF conversion by Damien Ronssin. Notes appear while it runs.
+            - generic [ref=e308]:
+              - heading "Instruments automatic" [level=3] [ref=e309]:
+                - generic [ref=e310]: Instruments
+                - generic [ref=e311]: automatic
+              - group "Restrict to instruments" [ref=e312]:
+                - generic [ref=e313]:
+                  - generic [ref=e314]: Keys
+                  - generic [ref=e316]:
+                    - button "piano" [ref=e317]
+                    - button "organ" [ref=e318]
+                    - button "chromatic" [ref=e319]
+                - generic [ref=e320]:
+                  - generic [ref=e321]: Guitars
+                  - button "guitar" [ref=e324]
+                - generic [ref=e325]:
+                  - generic [ref=e326]: Bass
+                  - button "bass" [ref=e329]
+                - generic [ref=e330]:
+                  - generic [ref=e331]: Drums
+                  - generic [ref=e333]:
+                    - button "drums" [ref=e334]
+                    - button "timpani" [ref=e335]
+                - generic [ref=e336]:
+                  - generic [ref=e337]: Strings
+                  - generic [ref=e339]:
+                    - button "violin" [ref=e340]
+                    - button "viola" [ref=e341]
+                    - button "cello" [ref=e342]
+                    - button "contrabass" [ref=e343]
+                    - button "harp" [ref=e344]
+                    - button "string" [ref=e345]
+                - generic [ref=e346]:
+                  - generic [ref=e347]: Winds
+                  - generic [ref=e349]:
+                    - button "sax" [ref=e350]
+                    - button "oboe" [ref=e351]
+                    - button "horn e" [ref=e352]
+                    - button "english" [ref=e353]
+                    - button "bassoon" [ref=e354]
+                    - button "clarinet" [ref=e355]
+                    - button "flute" [ref=e356]
+                - generic [ref=e357]:
+                  - generic [ref=e358]: Brass
+                  - generic [ref=e360]:
+                    - button "trumpet" [ref=e361]
+                    - button "trombone" [ref=e362]
+                    - button "tuba" [ref=e363]
+                    - button "french" [ref=e364]
+                    - button "brass" [ref=e365]
+                - generic [ref=e366]:
+                  - generic [ref=e367]: Synth
+                  - button "synth" [ref=e370]
+                - generic [ref=e371]:
+                  - generic [ref=e372]: Voice
+                  - generic [ref=e374]:
+                    - button "voice" [ref=e375]
+                    - button "orchestra" [ref=e376]
+              - paragraph [ref=e377]: Leave all off to let MuScriptor detect instruments automatically.
+            - generic [ref=e378]:
+              - heading "Velocity" [level=3] [ref=e379]
+              - generic [ref=e381]:
+                - generic [ref=e382]:
+                  - text: Estimate note velocity from the audio
+                  - generic [ref=e383]: MuScriptor has none. Reflects relative loudness, not playing force.
+                - switch "Estimate note velocity from the audio MuScriptor has none. Reflects relative loudness, not playing force." [checked] [ref=e385]
+            - generic [ref=e386]:
+              - heading "Slice" [level=3] [ref=e387]
+              - generic [ref=e388]:
+                - generic [ref=e389]:
+                  - generic [ref=e390]: Start
+                  - textbox "Start" [ref=e391]: 0:02.0
+                - generic [ref=e392]:
+                  - generic [ref=e393]: End
+                  - textbox "End" [ref=e394]: 0:12.0
+                - generic [ref=e395]:
+                  - generic [ref=e396]: Length
+                  - generic [ref=e397]: 10.0 s
+              - alert [ref=e398]
+            - generic [ref=e399]:
+              - heading "Key" [level=3] [ref=e400]
+              - generic [ref=e401]:
+                - generic [ref=e402]:
+                  - generic [ref=e404]: Key from notes
+                  - generic [ref=e405]: —
+                - generic [ref=e406]:
+                  - generic [ref=e407]:
+                    - generic [ref=e408]: Key from audio
+                    - button "Detect from audio" [ref=e409]
+                  - generic [ref=e410]: —
+              - paragraph [ref=e411]: Ranks major, minor and five more modes in all twelve keys. Similar modes can score closely.
+    - status:
+      - img

@@ -1,0 +1,90 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation "Menu bar" [ref=e3]:
+      - menubar "Silly MIDI Tools" [ref=e4]:
+        - menuitem "Silly MIDI Tools" [ref=e5]
+        - menuitem "File" [ref=e6]
+        - menuitem "Edit" [ref=e7]
+        - menuitem "Transcribe" [ref=e8]
+        - menuitem "View" [ref=e9]
+        - menuitem "Controls" [ref=e10]
+        - menuitem "Window" [ref=e11]
+        - menuitem "Help" [ref=e12]
+    - generic [ref=e13]: Sun, Oct 4, 07:43 PM
+  - generic [ref=e15]:
+    - banner [ref=e16]:
+      - link "Close Settings" [ref=e18] [cursor=pointer]:
+        - /url: main-window.html
+        - generic [ref=e19]: Close Settings
+      - heading "General" [level=1] [ref=e22]
+      - tablist "Settings sections" [ref=e23]:
+        - tab "General" [selected] [ref=e24]:
+          - img [ref=e25]
+          - text: General
+        - tab "Models" [ref=e27]:
+          - img [ref=e28]
+          - text: Models
+        - tab "Hugging Face" [ref=e30]:
+          - img [ref=e31]
+          - text: Hugging Face
+    - tabpanel "General" [ref=e33]:
+      - generic [ref=e34]:
+        - heading "Working Folder" [level=2] [ref=e35]
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - img [ref=e39]
+            - generic [ref=e41]:
+              - text: Silly MIDI Tools
+              - generic [ref=e42]: ~/Documents/Silly MIDI Tools
+            - button "Show in Finder" [ref=e43]
+            - button "Choose…" [ref=e44]
+          - generic [ref=e45]:
+            - generic [ref=e46]: Audio/ Audio you add or drop on the window
+            - generic [ref=e47]: MIDI/ Transcriptions and your edits, saved automatically
+          - generic [ref=e48]:
+            - generic [ref=e49]: When you add audio
+            - combobox "When you add audio" [ref=e51]:
+              - option "Copy into the Audio folder" [selected]
+              - option "Leave it where it is"
+        - paragraph [ref=e52]:
+          - text: The app keeps access to this folder with a security-scoped bookmark, so it keeps working inside the macOS sandbox.
+          - button "Reset to Default" [disabled] [ref=e53]
+      - generic [ref=e54]:
+        - heading "Appearance" [level=2] [ref=e55]
+        - radiogroup "Appearance" [ref=e58]:
+          - radio "Automatic" [checked] [ref=e59]:
+            - generic [ref=e61]: Automatic
+          - radio "Light" [ref=e62]:
+            - img [ref=e64]
+            - generic [ref=e66]: Light
+          - radio "Dark" [ref=e67]:
+            - img [ref=e69]
+            - generic [ref=e71]: Dark
+      - generic [ref=e72]:
+        - heading "Transcription" [level=2] [ref=e73]
+        - generic [ref=e75]:
+          - generic [ref=e76]: Default model
+          - combobox "Default model" [ref=e78]:
+            - option "MuScriptor Small"
+            - option "MuScriptor Medium" [selected]
+            - option "MuScriptor Large"
+            - option "Piano (ONNX)"
+            - option "Basic Pitch"
+      - generic [ref=e79]:
+        - heading "Playback & Export" [level=2] [ref=e80]
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - generic [ref=e83]:
+              - text: Sound
+              - generic [ref=e84]: Notes play through the macOS General MIDI sound bank.
+            - generic [ref=e85]: General MIDI
+          - generic [ref=e86]:
+            - generic [ref=e87]: Scroll piano roll to follow playhead
+            - switch "Scroll piano roll to follow playhead" [checked] [ref=e89]
+          - generic [ref=e90]:
+            - generic [ref=e91]:
+              - text: MIDI file
+              - generic [ref=e92]: Type 1, one track per instrument. Tempo and meter are fixed for now.
+            - generic [ref=e93]: 120 BPM · 4/4
+    - status:
+      - img

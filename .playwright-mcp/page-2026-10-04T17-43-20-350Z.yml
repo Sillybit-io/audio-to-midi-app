@@ -1,0 +1,116 @@
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - navigation "Menu bar" [ref=e3]:
+      - menubar "Silly MIDI Tools" [ref=e4]:
+        - menuitem "Silly MIDI Tools" [ref=e5]
+        - menuitem "File" [ref=e6]
+        - menuitem "Edit" [ref=e7]
+        - menuitem "Transcribe" [ref=e8]
+        - menuitem "View" [ref=e9]
+        - menuitem "Controls" [ref=e10]
+        - menuitem "Window" [ref=e11]
+        - menuitem "Help" [ref=e12]
+    - generic [ref=e13]: Sun, Oct 4, 07:43 PM
+  - generic [ref=e15]:
+    - complementary "Library" [ref=e16]:
+      - link "Silly MIDI Tools" [ref=e23] [cursor=pointer]:
+        - /url: settings.html#general
+        - img [ref=e24]
+        - generic [ref=e26]: Silly MIDI Tools
+      - navigation "Audio and MIDI files" [ref=e27]:
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - generic [ref=e30]: Audio
+            - generic [ref=e31]: Silly MIDI Tools/Audio
+          - list [ref=e32]:
+            - listitem [ref=e33]: No audio yet
+        - generic [ref=e34]:
+          - generic [ref=e36]: MIDI
+          - list [ref=e37]:
+            - listitem [ref=e38]: Transcriptions appear here
+      - generic [ref=e39]:
+        - button "Add audio file" [ref=e40]:
+          - img [ref=e41]
+          - generic [ref=e43]: Add audio file
+        - link "Settings" [ref=e44]:
+          - /url: settings.html
+          - img [ref=e45]
+          - generic [ref=e47]: Settings
+    - generic [ref=e48]:
+      - banner [ref=e49]:
+        - generic [ref=e50]:
+          - heading "Silly MIDI Tools" [level=1] [ref=e51]
+          - generic [ref=e52]: Audio to MIDI
+        - group "Transport" [ref=e53]:
+          - button "Go to beginning" [disabled] [ref=e54]:
+            - img [ref=e55]
+            - generic [ref=e57]: Go to beginning
+          - button "Play" [disabled] [ref=e58]:
+            - img [ref=e59]
+            - generic [ref=e61]: Play
+          - generic [ref=e62]: 0:00.0
+        - button "Export" [disabled] [ref=e64]:
+          - img [ref=e65]
+          - text: Export
+      - region "Drop an Audio File" [ref=e68]:
+        - generic [ref=e69]:
+          - img [ref=e70]
+          - heading "Drop an Audio File" [level=2] [ref=e72]
+          - paragraph [ref=e73]: "Turn a recording into MIDI: pick a model, watch notes appear on the piano roll, play them back next to the original, and export a Standard MIDI File. WAV, MP3, FLAC, M4A, AIFF and other Core Audio formats work. OGG isn’t supported."
+          - button "Choose File…" [expanded] [ref=e75]
+          - paragraph [ref=e76]: ⌘O
+          - list [ref=e77]:
+            - listitem [ref=e78]:
+              - generic [ref=e79]: "01"
+              - strong [ref=e80]: Open audio
+              - generic [ref=e81]: Drop a file here or press ⌘O. Drag the handles to transcribe only a slice.
+            - listitem [ref=e82]:
+              - generic [ref=e83]: "02"
+              - strong [ref=e84]: Pick a model
+              - generic [ref=e85]: MuScriptor for many instruments and drums, the piano model for piano, Basic Pitch for quick pitched audio.
+            - listitem [ref=e86]:
+              - generic [ref=e87]: "03"
+              - strong [ref=e88]: Play & export
+              - generic [ref=e89]: Mix the original and the notes, change speed, then save a Type 1 .mid.
+          - paragraph [ref=e90]:
+            - img [ref=e91]
+            - text: Files are saved in
+            - generic [ref=e93]: ~/Documents/Silly MIDI Tools/
+            - link "Change…" [ref=e94]:
+              - /url: settings.html#general
+          - generic [ref=e95]:
+            - img [ref=e96]
+            - generic [ref=e98]:
+              - text: "Basic Pitch works right away. Other models download the first time you use them: the piano model (154 MB) straight away, MuScriptor once you add a Hugging Face token."
+              - link "Manage Models…" [ref=e99]:
+                - /url: settings.html#models
+    - dialog "Welcome to Silly MIDI Tools" [ref=e101]:
+      - img [ref=e102]
+      - heading "Welcome to Silly MIDI Tools" [level=2] [ref=e104]
+      - paragraph [ref=e105]: Turn recordings into MIDI, right on your Mac.
+      - list [ref=e106]:
+        - listitem [ref=e107]:
+          - img [ref=e108]
+          - generic [ref=e110]:
+            - strong [ref=e111]: Drop audio, pick a slice
+            - text: Drag the handles to transcribe only the part you need.
+        - listitem [ref=e112]:
+          - img [ref=e113]
+          - generic [ref=e115]:
+            - strong [ref=e116]: Choose a model
+            - text: MuScriptor for bands and drums, the piano model for piano, Basic Pitch for quick results.
+        - listitem [ref=e117]:
+          - img [ref=e118]
+          - generic [ref=e120]:
+            - strong [ref=e121]: Fix and export
+            - text: Tidy notes in the MIDI editor, then export a Type 1 MIDI file.
+      - generic [ref=e122]:
+        - img [ref=e123]
+        - generic [ref=e125]:
+          - text: Your files will be saved in
+          - generic [ref=e126]: ~/Documents/Silly MIDI Tools/
+        - link "Change…" [ref=e127]:
+          - /url: settings.html#general
+      - button "Continue" [active] [ref=e129]
+    - status:
+      - img

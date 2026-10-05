@@ -1,0 +1,176 @@
+- main [ref=e2]:
+  - link "← All screens" [ref=e3] [cursor=pointer]:
+    - /url: index.html
+  - generic [ref=e4]:
+    - 'img "Silly MIDI Tools app icon: white waveform bars on a deep navy rounded square, turning into four coloured MIDI notes that climb to the right" [ref=e5]'
+    - generic [ref=e6]:
+      - paragraph [ref=e7]: App icon · macOS 26
+      - heading "Sound in, notes out." [level=1] [ref=e8]
+      - paragraph [ref=e9]: The waveform on the left turns into piano-roll notes that climb to the right, which is exactly what the app does. The four notes use the app’s instrument colours (piano, strings, guitar, voice), so the icon matches the piano roll you see after a transcription. A deep navy base keeps the colours bright in the Dock in both light and dark mode.
+  - heading "Appearances" [level=2] [ref=e10]
+  - generic [ref=e11]:
+    - generic [ref=e12]:
+      - img "Default appearance" [ref=e13]
+      - strong [ref=e14]: Default
+      - generic [ref=e15]: Light mode Dock and Finder
+    - generic [ref=e16]:
+      - img "Dark appearance" [ref=e17]
+      - strong [ref=e18]: Dark
+      - generic [ref=e19]: Deeper base so it doesn’t glow on a dark Dock
+    - generic [ref=e20]:
+      - img "Tinted and clear appearance" [ref=e21]
+      - strong [ref=e22]: Tinted / Clear
+      - generic [ref=e23]: Single-colour glyph. macOS applies the user’s tint
+  - heading "Sizes" [level=2] [ref=e24]
+  - generic [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - img "16 pt" [ref=e28]
+        - text: 16 pt
+      - generic [ref=e29]:
+        - img "32 pt" [ref=e30]
+        - text: 32 pt
+      - generic [ref=e31]:
+        - img "64 pt" [ref=e32]
+        - text: 64 pt
+      - generic [ref=e33]:
+        - img "128 pt" [ref=e34]
+        - text: 128 pt
+      - generic [ref=e35]:
+        - img "256 pt" [ref=e36]
+        - text: 256 pt
+    - paragraph [ref=e37]:
+      - text: 16 pt and 16 pt @2x use a simplified master (
+      - code [ref=e38]: AppIcon-small.svg
+      - text: "): two thick bars and two notes, so the shape still reads in a Finder list. 32 pt @2x and up use the full artwork."
+  - heading "In context" [level=2] [ref=e39]
+  - generic [ref=e40]:
+    - generic [ref=e41]:
+      - generic [ref=e42]: Silly MIDI Tools
+      - img "Silly MIDI Tools in the Dock" [ref=e46]
+    - generic [ref=e49]:
+      - generic [ref=e50]:
+        - generic [ref=e51]: Applications
+        - generic [ref=e52]: Kind
+      - generic [ref=e53]:
+        - generic [ref=e55]: Other app
+        - generic [ref=e56]: Application
+      - generic [ref=e57]:
+        - generic [ref=e58]: SillyMIDITools
+        - generic [ref=e59]: Application
+      - generic [ref=e60]:
+        - generic [ref=e62]: Other app
+        - generic [ref=e63]: Application
+  - heading "Construction" [level=2] [ref=e64]
+  - generic [ref=e65]:
+    - generic "Icon over the macOS icon grid" [ref=e66]:
+      - img [ref=e67]
+    - table [ref=e71]:
+      - rowgroup [ref=e72]:
+        - row "Spec Value" [ref=e73]:
+          - columnheader "Spec" [ref=e74]
+          - columnheader "Value" [ref=e75]
+      - rowgroup [ref=e76]:
+        - row "Canvas 1024 × 1024 px" [ref=e77]:
+          - cell "Canvas" [ref=e78]
+          - cell "1024 × 1024 px" [ref=e79]
+        - row "Shape 824 × 824 rounded square at 100,100, corner radius 185 (macOS icon grid)" [ref=e80]:
+          - cell "Shape" [ref=e81]
+          - cell "824 × 824 rounded square at 100,100, corner radius 185 (macOS icon grid)" [ref=e82]
+        - row "Artwork area Waveform 200–496, notes 532–842 horizontally; vertically centred on 512" [ref=e83]:
+          - cell "Artwork area" [ref=e84]
+          - cell "Waveform 200–496, notes 532–842 horizontally; vertically centred on 512" [ref=e85]
+        - 'row "Background #212E45 → #0C1323 (dark appearance: #131B29 → #04070F)" [ref=e86]':
+          - cell "Background" [ref=e87]
+          - 'cell "#212E45 → #0C1323 (dark appearance: #131B29 → #04070F)" [ref=e88]':
+            - code [ref=e90]: "#212E45"
+            - text: →
+            - code [ref=e92]: "#0C1323"
+            - text: "(dark appearance:"
+            - code [ref=e93]: "#131B29"
+            - text: →
+            - code [ref=e94]: "#04070F"
+            - text: )
+        - 'row "Waveform #E7EBF3, 5 bars, 40 px wide, round caps" [ref=e95]':
+          - cell "Waveform" [ref=e96]
+          - cell "#E7EBF3, 5 bars, 40 px wide, round caps" [ref=e97]:
+            - code [ref=e99]: "#E7EBF3"
+            - text: ", 5 bars, 40 px wide, round caps"
+        - 'row "Notes piano #1C7DEE · strings #00A166 · guitar #E57600 · voice #E64887, all 72 px tall and pill-shaped" [ref=e100]':
+          - cell "Notes" [ref=e101]
+          - 'cell "piano #1C7DEE · strings #00A166 · guitar #E57600 · voice #E64887, all 72 px tall and pill-shaped" [ref=e102]':
+            - text: piano
+            - code [ref=e104]: "#1C7DEE"
+            - text: ·
+            - text: strings
+            - code [ref=e106]: "#00A166"
+            - text: ·
+            - text: guitar
+            - code [ref=e108]: "#E57600"
+            - text: ·
+            - text: voice
+            - code [ref=e110]: "#E64887"
+            - text: ", all 72 px tall and pill-shaped"
+        - row "Depth Top sheen, light rim and a soft drop shadow under the artwork. In Icon Composer, drop these and let Liquid Glass add them" [ref=e111]:
+          - cell "Depth" [ref=e112]
+          - cell "Top sheen, light rim and a soft drop shadow under the artwork. In Icon Composer, drop these and let Liquid Glass add them" [ref=e113]
+  - heading "Files" [level=2] [ref=e114]
+  - generic [ref=e115]:
+    - table [ref=e116]:
+      - rowgroup [ref=e117]:
+        - row "File Use" [ref=e118]:
+          - columnheader "File" [ref=e119]
+          - columnheader "Use" [ref=e120]
+      - rowgroup [ref=e121]:
+        - row "app-icon/AppIcon.appiconset/ Drop into Assets.xcassets. All ten macOS sizes plus Contents.json. Set it as the target’s App Icon." [ref=e122]:
+          - cell "app-icon/AppIcon.appiconset/" [ref=e123]:
+            - code [ref=e124]: app-icon/AppIcon.appiconset/
+          - cell "Drop into Assets.xcassets. All ten macOS sizes plus Contents.json. Set it as the target’s App Icon." [ref=e125]:
+            - text: Drop into
+            - code [ref=e126]: Assets.xcassets
+            - text: . All ten macOS sizes plus
+            - code [ref=e127]: Contents.json
+            - text: . Set it as the target’s App Icon.
+        - row "app-icon/layers/1-background.svg · 2-waveform.svg · 3-notes.svg Unmasked, full-bleed layers for Icon Composer (macOS 26 Liquid Glass .icon). Put waveform and notes in separate groups so they get their own glass depth." [ref=e128]:
+          - cell "app-icon/layers/1-background.svg · 2-waveform.svg · 3-notes.svg" [ref=e129]:
+            - code [ref=e130]: app-icon/layers/1-background.svg · 2-waveform.svg · 3-notes.svg
+          - cell "Unmasked, full-bleed layers for Icon Composer (macOS 26 Liquid Glass .icon). Put waveform and notes in separate groups so they get their own glass depth." [ref=e131]:
+            - text: Unmasked, full-bleed layers for
+            - strong [ref=e132]: Icon Composer
+            - text: (macOS 26 Liquid Glass
+            - code [ref=e133]: .icon
+            - text: ). Put waveform and notes in separate groups so they get their own glass depth.
+        - row "app-icon/AppIcon.svg · AppIcon-dark.svg · AppIcon-tinted.svg 1024 masters for each appearance (vector)." [ref=e134]:
+          - cell "app-icon/AppIcon.svg · AppIcon-dark.svg · AppIcon-tinted.svg" [ref=e135]:
+            - code [ref=e136]: app-icon/AppIcon.svg · AppIcon-dark.svg · AppIcon-tinted.svg
+          - cell "1024 masters for each appearance (vector)." [ref=e137]
+        - row "app-icon/AppIcon-small.svg Simplified master for 16 and 32 px." [ref=e138]:
+          - cell "app-icon/AppIcon-small.svg" [ref=e139]:
+            - code [ref=e140]: app-icon/AppIcon-small.svg
+          - cell "Simplified master for 16 and 32 px." [ref=e141]
+        - row "app-icon/AppIcon-*-1024.png Flattened 1024 PNG previews (marketing, README, GitHub social preview)." [ref=e142]:
+          - cell "app-icon/AppIcon-*-1024.png" [ref=e143]:
+            - code [ref=e144]: app-icon/AppIcon-*-1024.png
+          - cell "Flattened 1024 PNG previews (marketing, README, GitHub social preview)." [ref=e145]
+    - heading "Adding it in Xcode 26" [level=3] [ref=e146]
+    - list [ref=e147]:
+      - listitem [ref=e148]:
+        - text: "Fastest: copy"
+        - code [ref=e149]: AppIcon.appiconset
+        - text: into
+        - code [ref=e150]: App/Assets.xcassets/
+        - text: (create the catalogue if the repo doesn’t have one) and point
+        - code [ref=e151]: ASSETCATALOG_COMPILER_APPICON_NAME
+        - text: at
+        - code [ref=e152]: AppIcon
+        - text: in
+        - code [ref=e153]: project.yml
+        - text: ", since the project is generated with xcodegen."
+      - listitem [ref=e154]:
+        - text: "Liquid Glass: open Icon Composer, add the three layer SVGs, set the Dark background to"
+        - code [ref=e155]: "#131B29 → #04070F"
+        - text: ", save"
+        - code [ref=e156]: AppIcon.icon
+        - text: into
+        - code [ref=e157]: App/
+        - text: and reference it the same way.

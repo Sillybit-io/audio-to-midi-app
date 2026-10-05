@@ -7,6 +7,12 @@
       "skillPath": "skills/ai-health/ai-audit/SKILL.md",
       "computedHash": "440e9b2bd10bf831d66a59624ce6f047abbff72ac89a5ae66e9c67b1dd345874"
     },
+    "ai-copywriter": {
+      "source": "mikiarlo3/ai-copywriter",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "5f9cf4087189562ef313b9f76862069b8d553aa0f0561beb288b2ae6defba6f2"
+    },
     "ai-review": {
       "source": "Sillybit-io/silly-skills",
       "sourceType": "github",
