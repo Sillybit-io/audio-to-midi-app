@@ -10,8 +10,8 @@ struct AudioStatusView: View {
 
     var body: some View {
         switch panel {
-        case .running(let steps, let current, let fraction)?:
-            running(steps, current, fraction).padding(.vertical, Metric.sp4)
+        case .running(let title, let steps, let current, let fraction)?:
+            running(title, steps, current, fraction).padding(.vertical, Metric.sp4)
         case .failed(let title, let message)?:
             failed(title, message).padding(.vertical, Metric.sp4)
         case nil:
@@ -19,8 +19,9 @@ struct AudioStatusView: View {
         }
     }
 
-    private func running(_ steps: [String], _ current: Int, _ fraction: Double?) -> some View {
+    private func running(_ title: String, _ steps: [String], _ current: Int, _ fraction: Double?) -> some View {
         VStack(alignment: .leading, spacing: Metric.sp4) {
+            Text(title).font(.headline)
             HStack(spacing: Metric.sp3) {
                 ForEach(Array(steps.enumerated()), id: \.offset) { index, name in
                     chip(name, state: index < current ? .done : index == current ? .active : .pending)
@@ -31,7 +32,7 @@ struct AudioStatusView: View {
             HStack(spacing: Metric.sp4) {
                 if let fraction {
                     ProgressView(value: fraction)
-                    Text("\(Int((fraction * 100).rounded()))%").font(.caption.monospacedDigit()).frame(width: 36, alignment: .trailing)
+                    Text("\(Int((fraction * 100).rounded()))%").font(.caption.monospacedDigit()).frame(width: Metric.readoutW, alignment: .trailing)
                 } else if reduceMotion {
                     Text("Working\u{2026}").font(.caption).foregroundStyle(Native.fgSecondary).frame(maxWidth: .infinity, alignment: .leading)
                 } else {

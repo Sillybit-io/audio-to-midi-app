@@ -20,6 +20,41 @@ enum MIDISaveError: LocalizedError, Equatable {
     }
 }
 
+enum MIDIRenameError: LocalizedError, Equatable {
+    case invalidName
+    case cannotRename(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidName: "Use a name that isn\u{2019}t empty and has no \u{201C}/\u{201D} or \u{201C}:\u{201D}."
+        case .cannotRename(let reason): "Couldn\u{2019}t rename the file. \(reason)"
+        }
+    }
+}
+
+enum MIDIFileName {
+    /// Renames the file where it is, keeping its extension. A name that is taken gets a number, as in “Take 2”.
+    static func rename(_ url: URL, to proposed: String, fileManager: FileManager = .default) throws -> URL {
+        let ext = url.pathExtension
+        var name = proposed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !ext.isEmpty, name.lowercased().hasSuffix(".\(ext.lowercased())") { name = String(name.dropLast(ext.count + 1)) }
+        guard !name.isEmpty, !name.contains("/"), !name.contains(":"), !name.hasPrefix(".") else { throw MIDIRenameError.invalidName }
+        let current = url.deletingPathExtension().lastPathComponent
+        guard name != current else { return url }
+        let folder = url.deletingLastPathComponent()
+        // A change of case only is the same file on a case-insensitive volume, so it isn't a clash.
+        let destination = name.lowercased() == current.lowercased()
+            ? folder.appending(path: "\(name).\(ext)", directoryHint: .notDirectory)
+            : LibraryNaming.uniqueURL(base: name, ext: ext, in: folder, fileManager: fileManager)
+        do {
+            try fileManager.moveItem(at: url, to: destination)
+        } catch {
+            throw MIDIRenameError.cannotRename(TranscriptionWriter.reason(for: error))
+        }
+        return destination
+    }
+}
+
 /// Size and modification date, to notice that a file was replaced behind the editor's back.
 struct FileFingerprint: Equatable, Sendable {
     var size: Int

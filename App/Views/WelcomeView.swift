@@ -12,8 +12,6 @@ struct WelcomeView: View {
     let workingFolder: WorkingFolderStore
     let onFinish: () -> Void
 
-    @State private var picking = false
-
     var body: some View {
         VStack(spacing: Metric.sp5) {
             Image(nsImage: .appIcon)
@@ -35,7 +33,7 @@ struct WelcomeView: View {
                         .font(.body.monospaced()).textSelection(.enabled)
                 }
                 Spacer()
-                Button("Change…") { picking = true }
+                Button("Change…") { choose() }
             }
             .padding(Metric.sp4)
             .background(Token.surfaceSunken, in: RoundedRectangle(cornerRadius: Metric.rRow))
@@ -43,7 +41,7 @@ struct WelcomeView: View {
                 Text(message).font(.caption).foregroundStyle(Token.warn).frame(maxWidth: .infinity, alignment: .leading)
             }
             Button("Continue") {
-                if workingFolder.isResolved { onFinish() } else { picking = true }
+                if workingFolder.isResolved { onFinish() } else { choose() }
             }
             .keyboardShortcut(.defaultAction)
             .buttonStyle(.borderedProminent).controlSize(.large)
@@ -51,12 +49,12 @@ struct WelcomeView: View {
         }
         .padding(Metric.sp8)
         .frame(width: Metric.sheetW + Metric.sp9)
-        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
-            if workingFolder.handlePick(result) { onFinish() }
+    }
+
+    private func choose() {
+        workingFolder.choose(using: SystemFolderPanel(), startingIn: WorkingFolderStore.suggestedFolder.deletingLastPathComponent()) { adopted in
+            if adopted { onFinish() }
         }
-        .fileDialogDefaultDirectory(WorkingFolderStore.suggestedFolder.deletingLastPathComponent())
-        .fileDialogMessage("Choose or create the folder where Silly MIDI Tools keeps your audio and MIDI files.")
-        .fileDialogConfirmationLabel("Choose")
     }
 
     private func step(_ symbol: String, _ title: String, _ detail: String) -> some View {

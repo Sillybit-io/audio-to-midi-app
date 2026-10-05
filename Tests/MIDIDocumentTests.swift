@@ -363,3 +363,51 @@ struct MIDIDocumentTests {
         #expect(!document.isDirty)
     }
 }
+
+@MainActor
+struct MIDIDocumentTrackAndTimingTests {
+    private func document(undo: UndoManager) -> MIDIDocument {
+        let document = MIDIDocument(sourceName: "t.mid", tracks: [MIDITrack(id: "piano", name: "piano", program: 0, isDrums: false)],
+                                    notes: [EditorNote(id: 1, track: "piano", pitch: 60, start: 1, duration: 0.5, velocity: 90)])
+        undo.groupsByEvent = false
+        document.undoManager = undo
+        return document
+    }
+
+    @Test func typedStartAndLengthAreKeptUnsnappedAndUndoable() {
+        let undo = UndoManager()
+        let document = document(undo: undo)
+        #expect(document.setTiming(1, start: 1.237))
+        #expect(document.setTiming(1, duration: 0.333))
+        #expect(document.notes[0].start == 1.237 && document.notes[0].duration == 0.333)
+        #expect(document.setTiming(1, start: -4, duration: 0))
+        #expect(document.notes[0].start == 0 && document.notes[0].duration == MIDIEditing.minimumDuration)
+        #expect(!document.setTiming(1, start: 0))
+        #expect(!document.setTiming(1, start: .nan))
+        #expect(!document.setTiming(99, start: 2))
+        document.undo()
+        #expect(document.notes[0].start == 1.237 && document.notes[0].duration == 0.333)
+    }
+
+    @Test func drawingOnANewInstrumentAddsItsTrackInTheSameUndoStep() throws {
+        let undo = UndoManager()
+        let document = document(undo: undo)
+        #expect(MIDITrack.classes.contains("violin") && MIDITrack.newTrack(forClass: "theremin") == nil)
+        document.drawTrackID = "violin"
+        let id = try #require(document.draw(at: 2, pitch: 67))
+        #expect(document.tracks.map(\.id) == ["piano", "violin"])
+        #expect(document.tracks[1].program == 40 && !document.tracks[1].isDrums)
+        #expect(document.notes.first { $0.id == id }?.track == "violin")
+        #expect(MIDIImporter.instrument(program: document.tracks[1].program, channel: 0) == "violin")
+
+        document.undo()
+        #expect(document.tracks.map(\.id) == ["piano"] && document.notes.count == 1)
+        document.redo()
+        #expect(document.tracks.map(\.id) == ["piano", "violin"] && document.notes.count == 2)
+
+        document.drawTrackID = "drums"
+        _ = try #require(document.draw(at: 3, pitch: 36))
+        #expect(document.tracks.last?.isDrums == true)
+        #expect(document.noteEvents.last { $0.pitch == 36 }?.isDrum == true)
+    }
+}

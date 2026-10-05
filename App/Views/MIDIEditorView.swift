@@ -27,13 +27,14 @@ enum MIDITool: String, CaseIterable, Identifiable {
 @MainActor @Observable
 final class MIDIEditorModel {
     let id = UUID()
-    let url: URL
+    private(set) var url: URL
     let document: MIDIDocument
     var provenance: MIDIProvenance?
     /// The file as it was when opened or last saved; a save refuses to overwrite a file that no longer matches.
     var fingerprint: FileFingerprint?
     var tool: MIDITool = .select
-    var pixelsPerSecond: CGFloat = 120
+    var pixelsPerSecond: CGFloat = Metric.ppsEditor
+    var showExport = false
     let playback = PlaybackEngine()
 
     init(url: URL, imported: ImportedMIDI, fingerprint: FileFingerprint? = nil) {
@@ -44,6 +45,37 @@ final class MIDIEditorModel {
     }
 
     var name: String { url.deletingPathExtension().lastPathComponent }
+
+    /// Notes from Basic Pitch are one undifferentiated track, drawn in the neutral colour and called Notes.
+    var isSingleTrackTranscription: Bool { provenance?.modelID == AppPreferences.fallbackModelID }
+
+    private func isUndifferentiated(_ track: String) -> Bool {
+        isSingleTrackTranscription && track == document.tracks.first?.id
+    }
+
+    func colour(forTrack track: String) -> Color {
+        isUndifferentiated(track) ? InstrumentColor.color(forFamily: "all") : InstrumentColor.color(for: track)
+    }
+
+    func displayName(ofTrack track: String) -> String {
+        if isUndifferentiated(track) { return "Notes" }
+        let name = document.tracks.first { $0.id == track }?.name ?? track.replacingOccurrences(of: "_", with: " ")
+        return name.prefix(1).uppercased() + name.dropFirst()
+    }
+
+    /// The notes as a slice that starts at zero and ends after the last note, for exporting the edited file.
+    var exportSlice: AudioSlice {
+        AudioSlice(duration: max(AudioSlice.step, document.notes.map(\.end).max() ?? 0))
+    }
+
+    /// Renames the file on disk. The document, its edits and its undo steps stay as they are.
+    @discardableResult
+    func rename(to name: String) throws -> URL {
+        let renamed = try MIDIFileName.rename(url, to: name)
+        url = renamed
+        fingerprint = FileFingerprint.of(renamed)
+        return renamed
+    }
 
     /// The playback groups to switch off: every track that isn't audible. Matches `PlaybackEngine.groupKey`.
     var silencedGroups: Set<String> {
@@ -154,7 +186,7 @@ struct MIDIEditorView: View {
                 HStack(spacing: 0) {
                     Text("Vel").font(.caption).foregroundStyle(Native.fgSecondary)
                         .frame(width: Metric.keysW, height: Metric.velH).background(Token.surfaceSunken)
-                    MIDIVelocityLaneView(document: document, layout: layout)
+                    MIDIVelocityLaneView(document: document, layout: layout, colour: editor.colour(forTrack:))
                 }
                 Divider()
                 MIDIEditorFooterView(editor: editor, document: document)
@@ -194,8 +226,15 @@ struct MIDIEditorView: View {
                     .disabled(!(document.revision >= 0 && document.canRedo)).help("Redo")
             }
             ToolbarItem {
-                Button { coordinator.save(editor) } label: { Label("Save", systemImage: "square.and.arrow.down") }
-                    .disabled(!document.isDirty).help("Save (\u{2318}S)")
+                Button { coordinator.save(editor) } label: {
+                    CapsuleActionLabel(title: "Save", systemImage: "square.and.arrow.down", isPrimary: document.isDirty, isEnabled: document.isDirty)
+                }
+                .buttonStyle(.plain)
+                .disabled(!document.isDirty).help("Save (\u{2318}S)")
+            }
+            ToolbarItem {
+                ExportView(notes: document.noteEvents, entry: editor.provenance?.modelID.flatMap { id in ModelCatalog.entries.first { $0.id == id } },
+                           slice: editor.exportSlice, name: editor.name, showNotice: $editor.showExport)
             }
             ToolbarItem {
                 Circle().fill(Token.warn).frame(width: Metric.sp4, height: Metric.sp4)
@@ -224,7 +263,7 @@ struct MIDIEditorView: View {
             let rect = MIDIEditing.rect(of: note, in: layout)
             guard rect.maxX >= 0, rect.minX <= size.width, rect.maxY >= top, rect.minY <= bottom else { continue }
             let level = 0.4 + 0.6 * Double(note.velocity) / 127
-            let color = InstrumentColor.color(for: note.track).opacity(document.isAudible(note) ? level : 0.3)
+            let color = editor.colour(forTrack: note.track).opacity(document.isAudible(note) ? level : 0.3)
             RollDrawing.note(context, rect: rect, color: color, selected: document.selection.contains(note.id))
         }
         if let playhead { RollDrawing.line(context, x: layout.x(seconds: playhead), top: top, bottom: bottom, color: Token.playhead) }
@@ -234,7 +273,7 @@ struct MIDIEditorView: View {
             let length = MIDIEditing.drawLength(dragSeconds: dragSeconds(session), grid: document.snap)
             let ghost = EditorNote(id: -1, track: document.drawTrackID, pitch: pitch, start: MIDIEditing.snapFloor(time, to: document.snap),
                                    duration: length, velocity: MIDIEditing.defaultVelocity)
-            RollDrawing.note(context, rect: MIDIEditing.rect(of: ghost, in: layout), color: InstrumentColor.color(for: ghost.track).opacity(0.7), selected: true)
+            RollDrawing.note(context, rect: MIDIEditing.rect(of: ghost, in: layout), color: editor.colour(forTrack: ghost.track).opacity(0.7), selected: true)
         case .marquee where session.moved:
             let box = CGRect(x: min(session.startGrid.x, session.currentGrid.x), y: min(session.startGrid.y, session.currentGrid.y),
                              width: abs(session.currentGrid.x - session.startGrid.x), height: abs(session.currentGrid.y - session.startGrid.y))
@@ -298,7 +337,7 @@ struct MIDIEditorView: View {
     private func update(to location: CGPoint, _ layout: PianoRollLayout) {
         guard var session else { return }
         session.currentGrid = gridPoint(location)
-        session.moved = session.moved || abs(location.x - session.start.x) >= 3 || abs(location.y - session.start.y) >= 3
+        session.moved = session.moved || abs(location.x - session.start.x) >= Metric.dragSlop || abs(location.y - session.start.y) >= Metric.dragSlop
         let seconds = dragSeconds(session)
         switch session.mode {
         case .none, .draw:
@@ -448,23 +487,36 @@ private struct MIDIEditorFooterView: View {
         HStack(spacing: Metric.sp3) {
             Text("Speed").font(.caption).fixedSize()
             Slider(value: Binding(get: { Double(editor.playback.rate) }, set: { editor.playback.rate = Float($0) }), in: 0.5...2)
-                .frame(width: 80).accessibilityLabel("Playback speed")
-            Text(String(format: "%.2f\u{00D7}", editor.playback.rate)).font(.caption.monospacedDigit()).frame(width: 40, alignment: .leading)
+                .frame(width: Metric.sliderW).accessibilityLabel("Playback speed")
+            Text(String(format: "%.2f\u{00D7}", editor.playback.rate)).font(.caption.monospacedDigit()).frame(width: Metric.readoutW, alignment: .leading)
         }
     }
 
     private var zoomControl: some View {
         HStack(spacing: Metric.sp3) {
             Image(systemName: "minus").font(.caption)
-            Slider(value: $editor.pixelsPerSecond, in: 30...400).frame(width: 80).accessibilityLabel("Zoom")
+            Slider(value: $editor.pixelsPerSecond, in: Metric.ppsEditorMin...Metric.ppsMax).frame(width: Metric.sliderW).accessibilityLabel("Zoom")
             Image(systemName: "plus").font(.caption)
         }
     }
 
     private var summary: String {
-        var parts = ["\(document.notes.count) \(document.notes.count == 1 ? "note" : "notes")"]
-        if !document.selection.isEmpty { parts.append("\(document.selection.count) selected") }
-        if document.skippedNotes > 0 { parts.append("\(document.skippedNotes) outside C1\u{2013}B6 skipped") }
-        return parts.joined(separator: " \u{00B7} ")
+        MIDIEditorView.summary(notes: document.notes, selection: document.selection, trackName: editor.displayName(ofTrack:),
+                     skipped: document.skippedNotes)
+    }
+}
+
+extension MIDIEditorView {
+    /// The footer line, in the prototype's wording.
+    static func summary(notes: [EditorNote], selection: Set<Int>, trackName: (String) -> String, skipped: Int) -> String {
+        let selected = notes.filter { selection.contains($0.id) }
+        if selected.count == 1, let note = selected.first {
+            return "\(MIDIEditorInspectorView.pitchName(note.pitch)) \u{00B7} \(trackName(note.track)) \u{00B7} "
+                + String(format: "%.2f s", note.start) + " \u{2014} 1 of \(notes.count) selected"
+        }
+        if !selected.isEmpty { return "\(selected.count) of \(notes.count) notes selected" }
+        var text = "\(notes.count) \(notes.count == 1 ? "note" : "notes") \u{00B7} drag empty space to select, \u{2325}\u{2190} \u{2325}\u{2192} to step through notes, D to draw, E to erase"
+        if skipped > 0 { text += " \u{00B7} \(skipped) outside C1\u{2013}B6 skipped" }
+        return text
     }
 }

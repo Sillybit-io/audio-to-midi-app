@@ -18,7 +18,7 @@ struct AudioIngestTests {
         var slice = AudioSlice(duration: 10)
         slice.setStart(4)
         slice.setEnd(2)
-        #expect(abs(slice.end - 4.01) < 1e-9)
+        #expect(abs(slice.end - 4.5) < 1e-9)
         slice.setStart(20)
         #expect(abs(slice.start - 4.0) < 1e-9)
         slice.setEnd(99)

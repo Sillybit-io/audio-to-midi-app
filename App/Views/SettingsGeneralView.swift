@@ -5,8 +5,6 @@ struct SettingsGeneralView: View {
     let workingFolder: WorkingFolderStore
     @Bindable var preferences: AppPreferences
 
-    @State private var picking = false
-    @State private var pickInDefaultLocation = false
 
     var body: some View {
         Form {
@@ -61,21 +59,14 @@ struct SettingsGeneralView: View {
             }
         }
         .formStyle(.grouped)
-        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
-            workingFolder.handlePick(result)
-        }
-        .fileDialogDefaultDirectory(defaultDirectory)
-        .fileDialogMessage("Choose or create the folder where Silly MIDI Tools keeps your audio and MIDI files.")
-        .fileDialogConfirmationLabel("Choose")
     }
 
-    private var defaultDirectory: URL {
-        if !pickInDefaultLocation, let folder = workingFolder.folder { return folder.deletingLastPathComponent() }
+    private func directory(inDefaultLocation: Bool) -> URL {
+        if !inDefaultLocation, let folder = workingFolder.folder { return folder.deletingLastPathComponent() }
         return WorkingFolderStore.suggestedFolder.deletingLastPathComponent()
     }
 
     private func pick(inDefaultLocation: Bool) {
-        pickInDefaultLocation = inDefaultLocation
-        picking = true
+        workingFolder.choose(using: SystemFolderPanel(), startingIn: directory(inDefaultLocation: inDefaultLocation))
     }
 }

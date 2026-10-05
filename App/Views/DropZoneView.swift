@@ -9,7 +9,7 @@ struct DropZoneView: View {
 
     var body: some View {
         VStack(spacing: Metric.sp6) {
-            Image(systemName: "waveform.badge.plus").font(.system(size: 48)).accessibilityHidden(true)
+            Image(systemName: "waveform.badge.plus").font(.system(size: Metric.dropSymbol)).accessibilityHidden(true)
             Text("Drop an Audio File").font(.title2.bold())
             Text("Turn a recording into MIDI: pick a model, watch notes appear on the piano roll, play them back next to the original, and export a Standard MIDI File. WAV, MP3, FLAC, M4A, AIFF and other Core Audio formats work. OGG isn\u{2019}t supported.")
                 .multilineTextAlignment(.center).foregroundStyle(Native.fgSecondary)
@@ -34,7 +34,7 @@ struct DropZoneView: View {
         .background(targeted ? Token.accentSoft : .clear)
         .overlay {
             RoundedRectangle(cornerRadius: Metric.rSheet)
-                .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
+                .strokeBorder(style: StrokeStyle(lineWidth: Metric.sp1, dash: [Metric.sp4]))
                 .foregroundStyle(targeted ? Token.accent : Native.border)
                 .padding(Metric.sp8)
         }

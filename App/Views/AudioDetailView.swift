@@ -5,8 +5,20 @@ import SwiftUI
 final class AudioScreenModel {
     /// What the status panel shows above the roll.
     enum RunPanel: Equatable {
-        case running(steps: [String], current: Int, fraction: Double?)
+        case running(title: String, steps: [String], current: Int, fraction: Double?)
         case failed(title: String, message: String)
+    }
+
+    /// What the last run used, for the result summary and to notice that the settings changed since.
+    struct RunRecord: Equatable {
+        var modelID: String
+        var modelName: String
+        var start: Double
+        var end: Double
+        var instruments: Set<String>
+        var estimatesVelocity: Bool
+        /// Whole seconds from pressing Transcribe to the end, download included.
+        var took: Int?
     }
 
     let document: DocumentModel
@@ -24,6 +36,8 @@ final class AudioScreenModel {
     var threads = max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
     var chosenInstruments: Set<String> = []
     var hiddenInstruments: Set<String> = []
+    /// Muting affects playback only; hiding takes notes out of the roll and playback.
+    var mutedInstruments: Set<String> = []
     var estimateVelocity = true
     var pixelsPerSecond: CGFloat = Metric.ppsDefault
     var showExport = false
@@ -35,6 +49,7 @@ final class AudioScreenModel {
     private(set) var engineProblem: String?
     private(set) var startedAt: Date?
     private(set) var downloadFailure: (entry: ModelEntry, message: String)?
+    private(set) var ran: RunRecord?
     @ObservationIgnored private var includesDownload: ModelEntry?
     @ObservationIgnored private var prepareTask: Task<Void, Never>?
     /// The run in flight; it is consumed by the first terminal state, so a run is saved once.
@@ -73,6 +88,12 @@ final class AudioScreenModel {
     }
 
     func sessionStateChanged() {
+        switch session.state {
+        case .done, .cancelled, .failed:
+            if ran?.took == nil, let startedAt { ran?.took = Int(Date().timeIntervalSince(startedAt).rounded()) }
+        case .idle, .loading, .running, .refining:
+            break
+        }
         guard let run else { return }
         switch session.state {
         case .done, .cancelled:
@@ -97,6 +118,55 @@ final class AudioScreenModel {
 
     var presentInstruments: [String] {
         Array(Set(session.notes.map(\.instrument))).sorted()
+    }
+
+    /// Each instrument in the result with its note count, in name order.
+    var instrumentCounts: [(name: String, count: Int)] {
+        Dictionary(grouping: session.notes, by: \.instrument).map { ($0.key, $0.value.count) }.sorted { $0.name < $1.name }
+    }
+
+    /// Playback groups to switch off for muted or hidden instruments. No note is changed.
+    var silencedGroups: Set<String> {
+        let off = mutedInstruments.union(hiddenInstruments)
+        return Set(session.notes.filter { off.contains($0.instrument) }.map(PlaybackEngine.groupKey))
+    }
+
+    /// Basic Pitch reports one undifferentiated track, which the handoff draws in the neutral colour.
+    var usesNeutralColour: Bool { (ran?.modelID ?? selectedModel) == AppPreferences.fallbackModelID }
+
+    /// The model, slice, instruments or velocity setting differ from the run that produced the notes on screen.
+    var settingsChanged: Bool {
+        guard let ran else { return false }
+        if ran.modelID != selectedModel || ran.start != document.slice.start || ran.end != document.slice.end { return true }
+        guard selectedEntry?.engine == .muscriptor else { return false }
+        return ran.instruments != chosenInstruments || ran.estimatesVelocity != estimateVelocity
+    }
+
+    var summary: String {
+        Self.summary(state: session.state, noteCount: session.notes.count, instrumentCount: Set(session.notes.map(\.instrument)).count,
+                     ran: ran, changed: settingsChanged)
+    }
+
+    /// The footer's run summary, in the handoff's wording.
+    static func summary(state: TranscriptionSession.State, noteCount: Int, instrumentCount: Int, ran: RunRecord?, changed: Bool) -> String {
+        let range = ran.map { String(format: "%.1f\u{2013}%.1f s", $0.start, $0.end) } ?? ""
+        switch state {
+        case .loading, .running, .refining:
+            guard let ran else { return "Transcribing\u{2026}" }
+            return "Transcribing \(range) with \(ran.modelName)\u{2026}"
+        case .idle, .done, .cancelled, .failed:
+            guard noteCount > 0, let ran else { return "No notes yet" }
+            var text: String
+            if case .done = state {
+                text = "Done \u{2014} \(noteCount) notes \u{00B7} "
+            } else {
+                text = "Cancelled \u{2014} partial notes kept \u{00B7} "
+            }
+            text += "\(instrumentCount) \(instrumentCount == 1 ? "instrument" : "instruments") \u{00B7} \(range) \u{00B7} \(ran.modelName)"
+            if let took = ran.took { text += " \u{00B7} \(took) s" }
+            if changed { text += " \u{00B7} Changed \u{2014} transcribe again to apply" }
+            return text
+        }
     }
 
     var isPreparing: Bool { prepareTask != nil }
@@ -131,18 +201,27 @@ final class AudioScreenModel {
         if estimateVelocity, selectedEntry?.engine == .muscriptor { steps.append("Estimate velocity") }
         if isPreparing, let entry = includesDownload {
             switch store.state(for: entry) {
-            case .downloading(let value): return .running(steps: steps, current: 0, fraction: value)
-            case .verifying: return .running(steps: steps, current: 1, fraction: nil)
-            default: return .running(steps: steps, current: 0, fraction: nil)
+            case .downloading(let value):
+                return .running(title: Self.downloadTitle(entry, fraction: value), steps: steps, current: 0, fraction: value)
+            case .verifying: return .running(title: "Verifying download (SHA-256)", steps: steps, current: 1, fraction: nil)
+            default: return .running(title: Self.downloadTitle(entry, fraction: 0), steps: steps, current: 0, fraction: nil)
             }
         }
         switch session.state {
-        case .loading(let value): return .running(steps: steps, current: offset, fraction: value)
-        case .running: return .running(steps: steps, current: offset + 1, fraction: session.progress)
-        case .refining: return .running(steps: steps, current: offset + 2, fraction: nil)
+        case .loading(let value): return .running(title: "Loading model", steps: steps, current: offset, fraction: value)
+        case .running:
+            let title = session.progress > 0.15 ? session.eta.map { "About \(Int($0.rounded(.up))) s left" } ?? "Transcribing" : "Transcribing"
+            return .running(title: title, steps: steps, current: offset + 1, fraction: session.progress)
+        case .refining: return .running(title: "Estimating velocity", steps: steps, current: offset + 2, fraction: nil)
         case .failed(let message): return .failed(title: "Transcription failed", message: message)
         default: return nil
         }
+    }
+
+    /// `Downloading {model} · {n} of {size}`, with n in the size's unit like the prototype (\u{201C}42 of 209 MB\u{201D}).
+    static func downloadTitle(_ entry: ModelEntry, fraction: Double) -> String {
+        let megabytes = Double(entry.byteSize) / 1_000_000
+        return "Downloading \(entry.displayName) \u{00B7} \(Int((min(max(fraction, 0), 1) * megabytes).rounded())) of \(entry.sizeText)"
     }
 
     func loadEngineInfo() async {
@@ -236,6 +315,8 @@ final class AudioScreenModel {
         guard let audio = document.document else { return }
         run = TranscriptionWriter.Run(source: audio.url, sourceID: TranscriptionWriter.sourceIdentifier(for: audio.url, references: references()),
                                       title: audio.name, modelID: entry.id, notice: entry.exportNotice, slice: document.slice)
+        ran = RunRecord(modelID: entry.id, modelName: entry.displayName, start: document.slice.start, end: document.slice.end,
+                        instruments: chosenInstruments, estimatesVelocity: estimateVelocity, took: nil)
         writer.reset()
         let samples = document.slice.cut(audio.samples, sampleRate: audio.sampleRate)
         let rate = audio.sampleRate
@@ -275,6 +356,8 @@ final class AudioScreenModel {
 struct AudioDetailView: View {
     @Bindable var screen: AudioScreenModel
     let onOpenAudio: (URL) -> Void
+    /// Opens a saved transcription in the MIDI editor.
+    var onEditMIDI: (URL) -> Void = { _ in }
     @Environment(AppPreferences.self) private var preferences
     @FocusState private var focused: Bool
 
@@ -287,17 +370,18 @@ struct AudioDetailView: View {
             if let problem = screen.engineProblem {
                 Text(problem).foregroundStyle(Native.danger).padding(Metric.sp4)
             }
-            WaveformSliceView(model: model)
+            WaveformSliceView(model: model, onSeek: screen.seek)
             AudioStatusView(panel: screen.runPanel, startedAt: screen.startedAt,
                             onCancel: screen.cancel, onRetry: screen.start)
                 .padding(.horizontal, Metric.sp6)
             PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
                           playhead: playback.position, hidden: screen.hiddenInstruments,
                           pixelsPerSecond: $screen.pixelsPerSecond, follows: preferences.followPlayhead, onSeek: screen.seek,
+                          neutralColour: screen.usesNeutralColour,
                           showsEmptyState: session.notes.isEmpty && session.state == .idle && !screen.isPreparing)
                 .onTapGesture { focused = true }
             Divider()
-            AudioFooterView(screen: screen)
+            AudioFooterView(screen: screen, onEditMIDI: onEditMIDI)
         }
         .dropDestination(for: URL.self) { urls, _ in
             guard let url = urls.first else { return false }
@@ -330,6 +414,7 @@ struct AudioDetailView: View {
         .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
         .onChange(of: model.slice) { playback.duration = model.slice.span }
         .onChange(of: model.document?.url) { screen.clearKeyFromAudio() }
+        .onChange(of: screen.silencedGroups, initial: true) { _, groups in playback.setSilenced(groups) }
         .toolbar {
             ToolbarItem {
                 TransportView(playback: playback, toggle: screen.togglePlayback)
@@ -360,6 +445,7 @@ struct AudioDetailView: View {
 
 struct AudioFooterView: View {
     @Bindable var screen: AudioScreenModel
+    let onEditMIDI: (URL) -> Void
 
     private var playback: PlaybackEngine { screen.playback }
 
@@ -388,7 +474,12 @@ struct AudioFooterView: View {
 
     private var summaryText: some View {
         VStack(alignment: .leading, spacing: Metric.sp1) {
-            Text(summary).font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+            HStack(spacing: Metric.sp3) {
+                Text(screen.summary).font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+                if let url = savedURL, !screen.session.isBusy {
+                    Button("Edit MIDI") { onEditMIDI(url) }.buttonStyle(.link).font(.caption).fixedSize()
+                }
+            }
             saveLine
             if let message = playback.lastError { Text(message).font(.caption).foregroundStyle(Native.danger) }
         }
@@ -417,7 +508,7 @@ struct AudioFooterView: View {
         HStack(spacing: Metric.sp3) {
             Text("Original").font(.caption).fixedSize()
             Slider(value: Binding(get: { playback.mix }, set: { playback.mix = $0 }))
-                .frame(width: 90).accessibilityLabel("Original and notes mix")
+                .frame(width: Metric.mixSliderW).accessibilityLabel("Original and notes mix")
             Text("Notes").font(.caption).fixedSize()
         }
     }
@@ -426,28 +517,25 @@ struct AudioFooterView: View {
         HStack(spacing: Metric.sp3) {
             Text("Speed").font(.caption).fixedSize()
             Slider(value: Binding(get: { Double(playback.rate) }, set: { playback.rate = Float($0) }), in: 0.5...2)
-                .frame(width: 80).accessibilityLabel("Playback speed")
-            Text(String(format: "%.2f×", playback.rate)).font(.caption.monospacedDigit()).frame(width: 40, alignment: .leading)
+                .frame(width: Metric.sliderW).accessibilityLabel("Playback speed")
+            Text(String(format: "%.2f×", playback.rate)).font(.caption.monospacedDigit()).frame(width: Metric.readoutW, alignment: .leading)
         }
     }
 
     private var zoomControl: some View {
         HStack(spacing: Metric.sp3) {
             Image(systemName: "minus").font(.caption)
-            Slider(value: Binding(get: { Double(screen.pixelsPerSecond) }, set: { screen.pixelsPerSecond = CGFloat($0) }), in: 10...400)
-                .frame(width: 80).accessibilityLabel("Zoom")
+            Slider(value: Binding(get: { Double(screen.pixelsPerSecond) }, set: { screen.pixelsPerSecond = CGFloat($0) }), in: Double(Metric.ppsMin)...Double(Metric.ppsMax))
+                .frame(width: Metric.sliderW).accessibilityLabel("Zoom")
             Image(systemName: "plus").font(.caption)
         }
     }
 
-    private var summary: String {
-        let count = screen.session.notes.count
-        switch screen.session.state {
-        case .idle: return count == 0 ? "No notes yet" : "\(count) notes"
-        case .loading, .running, .refining: return "Transcribing… \(count) notes so far"
-        case .done(let total): return "Done — \(total) notes"
-        case .cancelled: return "Cancelled — partial notes kept · \(count) notes"
-        case .failed: return "Transcription failed"
+    /// The file the last run was saved to (or left in place), for the Edit MIDI link.
+    private var savedURL: URL? {
+        switch screen.writer.status {
+        case .saved(let url, _), .keptPrevious(let url): url
+        case .idle, .empty, .failed: nil
         }
     }
 }

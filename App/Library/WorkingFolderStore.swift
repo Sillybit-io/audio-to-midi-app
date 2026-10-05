@@ -1,5 +1,38 @@
+import AppKit
 import Foundation
 import Observation
+
+/// Asks the user for a folder. The app's grant to the working folder comes from this choice.
+@MainActor
+protocol FolderPanel {
+    func chooseFolder(startingIn directory: URL, message: String, completion: @escaping (Result<URL, Error>) -> Void)
+}
+
+/// `NSOpenPanel` for one directory, with New Folder, shown as a sheet on the window in front.
+struct SystemFolderPanel: FolderPanel {
+    func chooseFolder(startingIn directory: URL, message: String, completion: @escaping (Result<URL, Error>) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = directory
+        panel.message = message
+        panel.prompt = "Choose"
+        let finish: (NSApplication.ModalResponse) -> Void = { response in
+            if response == .OK, let url = panel.url {
+                completion(.success(url))
+            } else {
+                completion(.failure(CocoaError(.userCancelled)))
+            }
+        }
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: finish)
+        } else {
+            panel.begin(completionHandler: finish)
+        }
+    }
+}
 
 enum WorkingFolderError: LocalizedError, Equatable {
     case cannotPrepare(folder: String, reason: String)
@@ -86,6 +119,15 @@ final class WorkingFolderStore {
         swapLease(to: started ? url : nil)
         folder = url
         errorMessage = nil
+    }
+
+    static let panelMessage = "Choose or create the folder where Silly MIDI Tools keeps your audio and MIDI files."
+
+    /// Shows the folder panel and adopts the folder chosen in it. `completion` gets whether a folder was adopted.
+    func choose(using panel: any FolderPanel, startingIn directory: URL, completion: @escaping (Bool) -> Void = { _ in }) {
+        panel.chooseFolder(startingIn: directory, message: Self.panelMessage) { [weak self] result in
+            completion(self?.handlePick(result) ?? false)
+        }
     }
 
     /// Handles the folder picker's result. Cancelling or a folder that can't be prepared keeps the current folder.

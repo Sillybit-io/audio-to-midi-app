@@ -22,22 +22,37 @@ extension InstrumentColor {
     }
 }
 
+/// One row per instrument in a result: swatch, name, note count, mute and hide.
+/// Muting silences playback only; hiding also takes the notes out of the roll.
 struct InstrumentLegendView: View {
-    let instruments: [String]
+    let counts: [(name: String, count: Int)]
+    var neutral = false
+    @Binding var muted: Set<String>
     @Binding var hidden: Set<String>
 
     var body: some View {
-        HStack {
-            ForEach(instruments, id: \.self) { name in
-                Toggle(isOn: Binding(get: { !hidden.contains(name) },
-                                     set: { if $0 { hidden.remove(name) } else { hidden.insert(name) } })) {
-                    HStack(spacing: Metric.sp2) {
-                        Circle().fill(InstrumentColor.color(for: name)).frame(width: Metric.sp4, height: Metric.sp4)
-                        Text(name.replacingOccurrences(of: "_", with: " "))
-                    }
+        ForEach(counts, id: \.name) { item in
+            let name = item.name.replacingOccurrences(of: "_", with: " ")
+            HStack(spacing: Metric.sp3) {
+                Circle().fill(neutral ? InstrumentColor.color(forFamily: "all") : InstrumentColor.color(for: item.name))
+                    .frame(width: Metric.sp4, height: Metric.sp4)
+                    .accessibilityHidden(true)
+                Text(name).lineLimit(1)
+                Spacer(minLength: Metric.sp2)
+                Text("\(item.count)").font(.caption.monospacedDigit()).foregroundStyle(Native.fgSecondary)
+                    .accessibilityLabel("\(item.count) notes")
+                Toggle("M", isOn: member(item.name, of: $muted))
+                    .toggleStyle(.button).controlSize(.small).help("Mute \(name)").accessibilityLabel("Mute \(name)")
+                Toggle(isOn: member(item.name, of: $hidden)) {
+                    Image(systemName: hidden.contains(item.name) ? "eye.slash" : "eye")
                 }
-                .toggleStyle(.checkbox).font(.caption)
+                .toggleStyle(.button).controlSize(.small).help("Hide \(name)").accessibilityLabel("Hide \(name)")
             }
         }
+    }
+
+    private func member(_ name: String, of set: Binding<Set<String>>) -> Binding<Bool> {
+        Binding(get: { set.wrappedValue.contains(name) },
+                set: { if $0 { set.wrappedValue.insert(name) } else { set.wrappedValue.remove(name) } })
     }
 }

@@ -40,7 +40,7 @@ struct ExportView: View {
         }
         .disabled(notes.isEmpty)
         .sheet(isPresented: $showNotice) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: Metric.sp5) {
                 Text("Export MIDI").font(.title3.bold())
                 Text(notice.isEmpty ? "No licence notice for this model." : notice)
                 Toggle("Embed this notice in the MIDI file", isOn: $embedNotice)
@@ -55,7 +55,7 @@ struct ExportView: View {
                     }.buttonStyle(.borderedProminent)
                 }
             }
-            .padding(20).frame(width: 440)
+            .padding(Metric.sp7).frame(width: Metric.sheetW)
         }
         .fileExporter(isPresented: $exporting, item: item, contentTypes: [.midi], defaultFilename: fileName) { _ in
             MIDIExportItem.clearTemporaryFiles()

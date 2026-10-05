@@ -11,7 +11,7 @@ struct LicenseTextView: NSViewRepresentable {
         view.isEditable = false
         view.isSelectable = true
         view.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        view.textContainerInset = NSSize(width: 8, height: 8)
+        view.textContainerInset = NSSize(width: Metric.sp4, height: Metric.sp4)
         view.string = text
         return scroll
     }

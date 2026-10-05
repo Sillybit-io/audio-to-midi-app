@@ -4,11 +4,12 @@ import SwiftUI
 struct MIDIVelocityLaneView: View {
     let document: MIDIDocument
     let layout: PianoRollLayout
+    var colour: (String) -> Color = { InstrumentColor.color(for: $0) }
 
     @State private var stroke: [Int: Int] = [:]
     @State private var last: CGPoint?
 
-    private static let reach: CGFloat = 5
+    private static let reach = Metric.velReach
 
     var body: some View {
         Canvas { context, size in
@@ -38,13 +39,13 @@ struct MIDIVelocityLaneView: View {
             let x = layout.x(seconds: note.start)
             guard x >= -Self.reach, x <= size.width + Self.reach else { continue }
             let velocity = stroke[note.id] ?? note.velocity
-            let height = max(2, usable * CGFloat(velocity) / 127)
-            let bar = CGRect(x: x - 1.5, y: size.height - height, width: 3, height: height)
+            let height = max(Metric.velBarMinH, usable * CGFloat(velocity) / 127)
+            let bar = CGRect(x: x - Metric.velBarW / 2, y: size.height - height, width: Metric.velBarW, height: height)
             let selected = document.selection.contains(note.id)
-            let color = InstrumentColor.color(for: note.track).opacity(selected ? 1 : 0.6)
-            context.fill(Path(roundedRect: bar, cornerRadius: 1.5), with: .color(color))
+            let color = colour(note.track).opacity(selected ? 1 : 0.6)
+            context.fill(Path(roundedRect: bar, cornerRadius: Metric.velBarW / 2), with: .color(color))
             if selected {
-                context.fill(Path(ellipseIn: CGRect(x: x - 3, y: bar.minY - 3, width: 6, height: 6)), with: .color(color))
+                context.fill(Path(ellipseIn: CGRect(x: x - Metric.velDot / 2, y: bar.minY - Metric.velDot / 2, width: Metric.velDot, height: Metric.velDot)), with: .color(color))
             }
         }
     }

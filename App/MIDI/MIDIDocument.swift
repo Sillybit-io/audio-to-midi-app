@@ -17,6 +17,19 @@ struct MIDITrack: Identifiable, Equatable, Sendable {
     var name: String
     var program: Int
     var isDrums: Bool
+
+    /// Every instrument class a new track can be drawn on: the MuScriptor classes, grouped by family.
+    static let classes: [String] = InstrumentFamily.all.flatMap(\.keys)
+
+    /// A new, empty track for an instrument class, with the General MIDI program that maps back to it on import.
+    static func newTrack(forClass id: String) -> MIDITrack? {
+        guard classes.contains(id) else { return nil }
+        let programs = ["piano": 0, "chromatic": 8, "organ": 16, "guitar": 24, "bass": 32, "violin": 40, "viola": 41, "cello": 42,
+                        "contrabass": 43, "harp": 46, "timpani": 47, "string": 48, "voice": 52, "orchestra": 55, "trumpet": 56,
+                        "trombone": 57, "tuba": 58, "french": 60, "brass": 61, "sax": 64, "oboe": 68, "english": 69,
+                        "horn_e": 69, "bassoon": 70, "clarinet": 71, "flute": 73, "synth": 80]
+        return MIDITrack(id: id, name: id.replacingOccurrences(of: "_", with: " "), program: programs[id] ?? 0, isDrums: id == "drums")
+    }
 }
 
 /// What a saved file needs to keep from the file it came from. The editor grid itself is always 120 BPM in 4/4.
@@ -180,16 +193,25 @@ final class MIDIDocument {
 
     // MARK: Edits
 
-    /// Draws a note on the draw track and selects it. Returns its id, or nil when the draw is rejected.
+    /// Draws a note on the draw track and selects it. The draw track may be a new instrument class; its track is created
+    /// with the first note, in the same undo step. Returns the note's id, or nil when the draw is rejected.
     @discardableResult
     func draw(at time: Double, pitch: Int, length: Double? = nil) -> Int? {
-        guard tracks.contains(where: { $0.id == drawTrackID }), !hiddenTracks.contains(drawTrackID),
+        let existing = tracks.contains { $0.id == drawTrackID }
+        let added = existing ? nil : MIDITrack.newTrack(forClass: drawTrackID)
+        guard existing || added != nil, !hiddenTracks.contains(drawTrackID),
               let note = MIDIEditing.draw(at: time, pitch: pitch, track: drawTrackID, id: nextID, grid: snap, length: length)
         else { return nil }
         nextID += 1
-        commit(notes + [note], named: "Draw Note")
+        commit(notes + [note], tracks: added.map { tracks + [$0] }, named: "Draw Note")
         selection = [note.id]
         return note.id
+    }
+
+    /// Types a note's start (seconds) and length (seconds); nil leaves that value as it is.
+    @discardableResult
+    func setTiming(_ id: Int, start: Double? = nil, duration: Double? = nil) -> Bool {
+        commit(MIDIEditing.setTiming(notes, id: id, start: start, duration: duration), named: "Change Timing")
     }
 
     @discardableResult
@@ -259,17 +281,27 @@ final class MIDIDocument {
 
     // MARK: Undo
 
+    /// The part of the document an edit changes and undo restores.
+    private struct State: Equatable, Sendable {
+        var tracks: [MIDITrack]
+        var notes: [EditorNote]
+    }
+
     @discardableResult
-    private func commit(_ edited: [EditorNote]?, named name: String) -> Bool {
-        guard let edited, edited != notes else { return false }
-        replace(notes, with: edited, named: name)
+    private func commit(_ edited: [EditorNote]?, tracks newTracks: [MIDITrack]? = nil, named name: String) -> Bool {
+        guard let edited else { return false }
+        let new = State(tracks: newTracks ?? tracks, notes: edited)
+        let old = State(tracks: tracks, notes: notes)
+        guard new != old else { return false }
+        replace(old, with: new, named: name)
         return true
     }
 
     /// Swaps in `new` and registers the swap back, so undo and redo are the same operation run in opposite directions.
-    private func replace(_ old: [EditorNote], with new: [EditorNote], named name: String) {
-        notes = new
-        selection.formIntersection(Set(new.map(\.id)))
+    private func replace(_ old: State, with new: State, named name: String) {
+        tracks = new.tracks
+        notes = new.notes
+        selection.formIntersection(Set(new.notes.map(\.id)))
         isEdited = true
         revision += 1
         guard let undoManager else { return }

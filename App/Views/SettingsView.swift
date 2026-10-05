@@ -21,7 +21,7 @@ struct SettingsView: View {
                 .tag("huggingface")
         }
         .frame(width: Metric.settingsW)
-        .frame(minHeight: 520)
+        .frame(minHeight: Metric.settingsMinH)
         .preferredColorScheme(preferences.appearance.colorScheme)
     }
 }

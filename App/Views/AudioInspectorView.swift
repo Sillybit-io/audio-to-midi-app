@@ -55,7 +55,8 @@ struct AudioInspectorView: View {
             }
             if !screen.presentInstruments.isEmpty {
                 Section("Instruments in Result") {
-                    InstrumentLegendView(instruments: screen.presentInstruments, hidden: $screen.hiddenInstruments)
+                    InstrumentLegendView(counts: screen.instrumentCounts, neutral: screen.usesNeutralColour,
+                                         muted: $screen.mutedInstruments, hidden: $screen.hiddenInstruments)
                 }
             }
         }
@@ -85,14 +86,16 @@ struct AudioInspectorView: View {
                     LicenseBadge(entry: entry)
                 }
                 if entry.engine == .pianoOnnx {
-                    Text("Piano only. Other instruments in the recording are ignored.").font(.caption).foregroundStyle(Native.fgSecondary)
+                    Text("Piano only. On other instruments it still reports piano notes.").font(.caption).foregroundStyle(Native.fgSecondary)
                 }
             }
-            Picker("Device", selection: $screen.deviceIndex) {
-                Text("Auto").tag(Int?.none)
-                ForEach(screen.devices, id: \.index) { Text("\($0.name) (\($0.backend))").tag(Optional($0.index)) }
+            if entry?.engine == .muscriptor {
+                Picker("Device", selection: $screen.deviceIndex) {
+                    Text("Auto").tag(Int?.none)
+                    ForEach(screen.devices, id: \.index) { Text("\($0.name) (\($0.backend))").tag(Optional($0.index)) }
+                }
+                Stepper("Threads \(screen.threads)", value: $screen.threads, in: 1...32)
             }
-            Stepper("Threads \(screen.threads)", value: $screen.threads, in: 1...32)
             if let entry {
                 Text(entry.attribution).font(.caption).foregroundStyle(Native.fgSecondary)
             }
@@ -116,17 +119,17 @@ private struct SliceFieldsSection: View {
     @State private var endText = ""
     @State private var error: String?
 
-    private static let minimumLength = 0.5
+    private static let minimumLength = AudioSlice.minimumSpan
 
     var body: some View {
         Section {
             LabeledContent("Start") {
                 TextField("Start", text: $startText).labelsHidden().multilineTextAlignment(.trailing)
-                    .monospacedDigit().frame(width: 80).onSubmit(commit).accessibilityLabel("Slice start")
+                    .monospacedDigit().frame(width: Metric.fieldW).onSubmit(commit).accessibilityLabel("Slice start")
             }
             LabeledContent("End") {
                 TextField("End", text: $endText).labelsHidden().multilineTextAlignment(.trailing)
-                    .monospacedDigit().frame(width: 80).onSubmit(commit).accessibilityLabel("Slice end")
+                    .monospacedDigit().frame(width: Metric.fieldW).onSubmit(commit).accessibilityLabel("Slice end")
             }
             LabeledContent("Length", value: Self.format(model.slice.span))
         } header: {
@@ -152,7 +155,7 @@ private struct SliceFieldsSection: View {
         if start < 0 || end > model.slice.duration + 0.05 {
             error = "Times must be between 0:00.0 and \(Self.format(model.slice.duration))."
         } else if end - start < Self.minimumLength {
-            error = "The slice must be at least \(Self.minimumLength.formatted()) s long."
+            error = "The slice must be at least 0.5 s long."
         } else {
             model.slice.setEnd(end)
             model.slice.setStart(start)

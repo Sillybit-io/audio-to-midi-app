@@ -2,6 +2,13 @@ import SwiftUI
 
 struct MIDIEditorInspectorView: View {
     let editor: MIDIEditorModel
+    /// Renames the file on disk; throws a message to show under the field.
+    var rename: (String) throws -> Void = { _ in }
+    /// Opens the audio this file was transcribed from, when it can still be found.
+    var openSource: (() -> Void)?
+
+    @State private var name = ""
+    @State private var renameError: String?
 
     private var document: MIDIDocument { editor.document }
 
@@ -34,13 +41,26 @@ struct MIDIEditorInspectorView: View {
     }
 
     private var fileSection: some View {
-        Section("File") {
-            LabeledContent("Name", value: editor.name)
+        Section {
+            LabeledContent("Name") {
+                TextField("Name", text: $name)
+                    .labelsHidden().multilineTextAlignment(.trailing)
+                    .onSubmit(commitName)
+                    .accessibilityLabel("File name")
+                    .onAppear { name = editor.url.lastPathComponent }
+                    .onChange(of: editor.url) { name = editor.url.lastPathComponent }
+            }
             LabeledContent("Where") {
                 Text(editor.url.deletingLastPathComponent().abbreviatedPath).font(.caption.monospaced())
                     .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
             }
-            LabeledContent("Source", value: sourceText)
+            LabeledContent("Source") {
+                if let openSource {
+                    Button(sourceText, action: openSource).buttonStyle(.link).help("Open the audio this file was made from")
+                } else {
+                    Text(sourceText)
+                }
+            }
             if let model {
                 LabeledContent("Made with") {
                     HStack(spacing: Metric.sp3) {
@@ -50,6 +70,20 @@ struct MIDIEditorInspectorView: View {
                 }
             }
             LabeledContent("Tempo", value: "120 BPM \u{00B7} 4/4")
+        } header: {
+            Text("File")
+        } footer: {
+            if let renameError { Text(renameError).foregroundStyle(Native.danger) }
+        }
+    }
+
+    private func commitName() {
+        do {
+            try rename(name)
+            renameError = nil
+        } catch {
+            renameError = error.localizedDescription
+            name = editor.url.lastPathComponent
         }
     }
 
@@ -60,11 +94,19 @@ struct MIDIEditorInspectorView: View {
         return Section("Selection") {
             if let note = selected.first, selected.count == 1 {
                 LabeledContent("Note", value: Self.pitchName(note.pitch))
-                LabeledContent("Start", value: String(format: "%.3f s", note.start))
-                LabeledContent("Length", value: String(format: "%.0f ms", note.duration * 1000))
+                LabeledContent("Start (s)") {
+                    TextField("Start", value: Binding(get: { note.start }, set: { document.setTiming(note.id, start: $0) }),
+                              format: .number.precision(.fractionLength(3)))
+                        .labelsHidden().multilineTextAlignment(.trailing).frame(width: Metric.fieldW).accessibilityLabel("Start, seconds")
+                }
+                LabeledContent("Length (ms)") {
+                    TextField("Length", value: Binding(get: { (note.duration * 1000).rounded() }, set: { document.setTiming(note.id, duration: $0 / 1000) }),
+                              format: .number.precision(.fractionLength(0)))
+                        .labelsHidden().multilineTextAlignment(.trailing).frame(width: Metric.fieldW).accessibilityLabel("Length, milliseconds")
+                }
                 LabeledContent("Velocity") {
                     TextField("Velocity", value: Binding(get: { note.velocity }, set: { document.setVelocity($0, for: [note.id]) }), format: .number)
-                        .labelsHidden().multilineTextAlignment(.trailing).frame(width: 56).accessibilityLabel("Velocity, 1 to 127")
+                        .labelsHidden().multilineTextAlignment(.trailing).frame(width: Metric.fieldW).accessibilityLabel("Velocity, 1 to 127")
                 }
             } else if selected.isEmpty {
                 Text("Click a note to select it, \u{21E7}-click to add more, or drag a box around several.")
@@ -91,21 +133,29 @@ struct MIDIEditorInspectorView: View {
     private var tracksSection: some View {
         Section("Tracks") {
             ForEach(document.tracks) { track in
+                let name = editor.displayName(ofTrack: track.id)
                 HStack(spacing: Metric.sp3) {
-                    Circle().fill(InstrumentColor.color(for: track.id)).frame(width: Metric.sp4, height: Metric.sp4)
-                    Text(track.name).lineLimit(1)
+                    Circle().fill(editor.colour(forTrack: track.id)).frame(width: Metric.sp4, height: Metric.sp4).accessibilityHidden(true)
+                    Text(name).lineLimit(1)
                     Spacer(minLength: Metric.sp2)
                     Text("\(document.notes.filter { $0.track == track.id }.count)").font(.caption).foregroundStyle(Native.fgSecondary)
-                    flag("M", "Mute \(track.name)", on: document.mutedTracks.contains(track.id)) { document.toggleMute(track.id) }
-                    flag("S", "Solo \(track.name)", on: document.soloTracks.contains(track.id)) { document.toggleSolo(track.id) }
+                    flag("M", "Mute \(name)", on: document.mutedTracks.contains(track.id)) { document.toggleMute(track.id) }
+                    flag("S", "Solo \(name)", on: document.soloTracks.contains(track.id)) { document.toggleSolo(track.id) }
                     Toggle(isOn: Binding(get: { document.hiddenTracks.contains(track.id) }, set: { _ in document.toggleHidden(track.id) })) {
                         Image(systemName: document.hiddenTracks.contains(track.id) ? "eye.slash" : "eye")
                     }
-                    .toggleStyle(.button).controlSize(.small).help("Hide \(track.name)").accessibilityLabel("Hide \(track.name)")
+                    .toggleStyle(.button).controlSize(.small).help("Hide \(name)").accessibilityLabel("Hide \(name)")
                 }
             }
             Picker("Draw on", selection: Binding(get: { document.drawTrackID }, set: { document.drawTrackID = $0 })) {
-                ForEach(document.tracks) { Text($0.name).tag($0.id) }
+                Section("Tracks") {
+                    ForEach(document.tracks) { Text(editor.displayName(ofTrack: $0.id)).tag($0.id) }
+                }
+                Section("New track") {
+                    ForEach(MIDITrack.classes.filter { id in !document.tracks.contains { $0.id == id } }, id: \.self) { id in
+                        Text(editor.displayName(ofTrack: id)).tag(id)
+                    }
+                }
             }
         }
     }

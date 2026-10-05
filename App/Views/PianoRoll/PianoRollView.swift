@@ -72,14 +72,14 @@ enum RollDrawing {
     static func note(_ context: GraphicsContext, rect: CGRect, color: Color, selected: Bool = false) {
         let path = Path(roundedRect: rect, cornerRadius: Metric.rNote)
         context.fill(path, with: .color(color))
-        context.stroke(path, with: .color(selected ? Token.fg : Token.noteEdge), lineWidth: selected ? 1.5 : Metric.hairline)
+        context.stroke(path, with: .color(selected ? Token.fg : Token.noteEdge), lineWidth: selected ? Metric.strongLine : Metric.hairline)
     }
 
     static func line(_ context: GraphicsContext, x: CGFloat, top: CGFloat, bottom: CGFloat, color: Color) {
         var path = Path()
         path.move(to: CGPoint(x: x, y: top))
         path.addLine(to: CGPoint(x: x, y: bottom))
-        context.stroke(path, with: .color(color), lineWidth: 1.5)
+        context.stroke(path, with: .color(color), lineWidth: Metric.strongLine)
     }
 }
 
@@ -94,6 +94,8 @@ struct PianoRollView: View {
     var follows = false
     /// Called with the time under a click on the ruler.
     var onSeek: ((Double) -> Void)?
+    /// Draws every note in the neutral colour (one undifferentiated track).
+    var neutralColour = false
     var showsEmptyState = false
 
     @State private var zoomAtStart: CGFloat?
@@ -142,7 +144,7 @@ struct PianoRollView: View {
                         .gesture(MagnifyGesture().onChanged { value in
                             let base = zoomAtStart ?? pixelsPerSecond
                             zoomAtStart = base
-                            pixelsPerSecond = min(1000, max(10, base * value.magnification))
+                            pixelsPerSecond = min(Metric.ppsMax, max(Metric.ppsMin, base * value.magnification))
                         }.onEnded { _ in zoomAtStart = nil })
                         if showsEmptyState { emptyState }
                     }
@@ -185,7 +187,8 @@ struct PianoRollView: View {
         RollDrawing.grid(context, size, layout, pitches: pitches, top: top, bottom: bottom)
         let visible = layout.visibleNotes(notes, from: layout.seconds(atX: 0), to: layout.seconds(atX: size.width))
         for note in visible where !hidden.contains(note.instrument) && pitches.contains(note.pitch) {
-            RollDrawing.note(context, rect: layout.rect(for: note), color: InstrumentColor.color(for: note.instrument))
+            let colour = neutralColour ? InstrumentColor.color(forFamily: "all") : InstrumentColor.color(for: note.instrument)
+            RollDrawing.note(context, rect: layout.rect(for: note), color: colour)
         }
         if finalizedThrough > 0 { RollDrawing.line(context, x: layout.x(seconds: finalizedThrough), top: top, bottom: bottom, color: Native.fgSecondary) }
         if let playhead { RollDrawing.line(context, x: layout.x(seconds: playhead), top: top, bottom: bottom, color: Token.playhead) }

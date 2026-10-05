@@ -27,10 +27,10 @@ struct LicenseSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metric.sp5) {
             HStack { Text(request.entry.displayName).font(.title2.bold()); LicenseBadge(entry: request.entry) }
             ScrollView { Text(text).font(.system(.caption, design: .monospaced)).textSelection(.enabled) }
-                .frame(height: 200).border(.separator)
+                .frame(height: Metric.licenceTextH).border(.separator)
             Toggle("I will use this model and its MIDI output for non-commercial purposes only.", isOn: $nonCommercial)
             Toggle("I hold the rights to the audio I transcribe.", isOn: $ownsAudio)
             Toggle("The model and its output are provided as is; Mirelo and Kyutai are not liable.", isOn: $asIs)
@@ -51,6 +51,6 @@ struct LicenseSheet: View {
                     .disabled(request.decision != .allowed || !(nonCommercial && ownsAudio && asIs))
             }
         }
-        .padding(20).frame(width: 560)
+        .padding(Metric.sp7).frame(width: Metric.licenceSheetW)
     }
 }

@@ -45,6 +45,6 @@ struct KeyboardShortcutsView: View {
             }
         }
         .padding(Metric.sp8)
-        .frame(width: Metric.sheetW + Metric.sp10, height: 460)
+        .frame(width: Metric.sheetW + Metric.sp10, height: Metric.aboutH)
     }
 }

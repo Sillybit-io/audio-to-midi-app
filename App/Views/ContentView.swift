@@ -86,7 +86,8 @@ struct ContentView: View {
             if case .audio(let url) = new, url != model.document?.url { model.open(url) }
             if case .midi(let url) = new {
                 screen.playback.stop()
-                loadMIDI(url)
+                // Already open, for example just renamed: keep the edits and their undo steps.
+                if midiEditor?.url != url { loadMIDI(url) }
             } else {
                 closeMIDI()
             }
@@ -101,15 +102,15 @@ struct ContentView: View {
         .fileImporter(isPresented: $model.isImporting, allowedContentTypes: [.audio]) { result in
             switch result {
             case .success(let url): openAudio(url)
-            case .failure(let error): model.errorMessage = error.localizedDescription
+            case .failure(let error): model.failure = .other(error)
             }
         }
-        .alert("Could not open audio", isPresented: Binding(
-            get: { model.errorMessage != nil },
-            set: { if !$0 { model.errorMessage = nil } })) {
-            Button("OK") { model.errorMessage = nil }
+        .alert(model.failure?.title ?? "", isPresented: Binding(
+            get: { model.failure != nil },
+            set: { if !$0 { model.failure = nil } })) {
+            Button("OK") { model.failure = nil }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(model.failure?.message ?? "")
         }
     }
 
@@ -130,7 +131,7 @@ struct ContentView: View {
         var target = AppCommandTarget()
         target.screen = isMIDI ? .midi : isAudio ? .audio : .empty
         target.canSave = isMIDI && (editor?.document.isDirty ?? false)
-        target.canExport = isAudio && !session.notes.isEmpty
+        target.canExport = isAudio ? !session.notes.isEmpty : isMIDI && !(editor?.document.notes.isEmpty ?? true)
         target.hasSelection = isMIDI && !(editor?.document.selection.isEmpty ?? true)
         target.canQuantize = isMIDI && (editor.map { $0.document.snap != .off && !$0.document.notes.isEmpty } ?? false)
         target.canTranscribe = isAudio && screen.canStart
@@ -150,7 +151,7 @@ struct ContentView: View {
         target.openAudio = { model.isImporting = true }
         target.importMIDI = { importingMIDI = true }
         target.save = { saveCoordinator.saveOpenFile() }
-        target.export = { screen.showExport = true }
+        target.export = { if isMIDI { editor?.showExport = true } else { screen.showExport = true } }
         target.showWorkingFolder = {
             if let folder = workingFolder.folder { NSWorkspace.shared.activateFileViewerSelecting([folder]) }
         }
@@ -182,9 +183,9 @@ struct ContentView: View {
 
     private func zoom(by factor: CGFloat) {
         if isMIDISelected, let midiEditor {
-            midiEditor.pixelsPerSecond = min(400, max(30, midiEditor.pixelsPerSecond * factor))
+            midiEditor.pixelsPerSecond = min(Metric.ppsMax, max(Metric.ppsEditorMin, midiEditor.pixelsPerSecond * factor))
         } else {
-            screen.pixelsPerSecond = min(400, max(10, screen.pixelsPerSecond * factor))
+            screen.pixelsPerSecond = min(Metric.ppsMax, max(Metric.ppsMin, screen.pixelsPerSecond * factor))
         }
     }
 
@@ -204,7 +205,7 @@ struct ContentView: View {
             library.refresh()
             model.open(target)
         } catch {
-            model.errorMessage = error.localizedDescription
+            model.failure = .other(error)
         }
     }
 
@@ -217,6 +218,25 @@ struct ContentView: View {
         } catch {
             midiFailure = (url.lastPathComponent, error.localizedDescription)
         }
+    }
+
+    /// Renames the open file on disk and keeps it open and selected under its new name.
+    private func renameMIDI(_ editor: MIDIEditorModel, to name: String) throws {
+        let renamed = try editor.rename(to: name)
+        selection = .midi(renamed)
+        library.refresh()
+    }
+
+    /// The audio an open MIDI file was transcribed from, when it can still be found.
+    private func sourceAudio(of editor: MIDIEditorModel) -> URL? {
+        guard let source = editor.provenance?.source else { return nil }
+        if source.hasPrefix("reference:") {
+            guard let id = UUID(uuidString: String(source.dropFirst("reference:".count))),
+                  let reference = imports.references.first(where: { $0.id == id }) else { return nil }
+            return imports.resolved(reference)
+        }
+        guard let url = URL(string: source), url.isFileURL, FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
     }
 
     private func closeMIDI() {
@@ -241,7 +261,7 @@ struct ContentView: View {
             DropZoneView(onOpen: openAudio, onChooseFile: { model.isImporting = true },
                          folderPath: workingFolder.folder.map { $0.abbreviatedPath + "/" })
         } else {
-            AudioDetailView(screen: screen, onOpenAudio: openAudio)
+            AudioDetailView(screen: screen, onOpenAudio: openAudio, onEditMIDI: { gatedSelection.wrappedValue = .midi($0) })
         }
     }
 
@@ -249,7 +269,8 @@ struct ContentView: View {
         Group {
             if isMIDISelected {
                 if let midiEditor {
-                    MIDIEditorInspectorView(editor: midiEditor)
+                    MIDIEditorInspectorView(editor: midiEditor, rename: { try renameMIDI(midiEditor, to: $0) },
+                                            openSource: sourceAudio(of: midiEditor).map { url in { gatedSelection.wrappedValue = .audio(url) } })
                 } else {
                     ContentUnavailableView("No MIDI File", systemImage: "pianokeys")
                 }
@@ -266,19 +287,23 @@ struct ContentView: View {
     }
 
     private var title: String {
-        if case .midi(let url) = selection { return url.deletingPathExtension().lastPathComponent }
+        if case .midi(let url) = selection { return midiEditor?.url.lastPathComponent ?? url.lastPathComponent }
         return model.document?.name ?? "Silly MIDI Tools"
     }
 
     private var subtitle: String {
         if case .midi = selection {
             guard let editor = midiEditor else { return "" }
-            let count = editor.document.notes.count
-            let origin = editor.provenance.map { $0.edited ? "Edited" : "From audio" } ?? "Imported"
-            return "\(count) \(count == 1 ? "note" : "notes") \u{00B7} \(origin)"
+            return Self.editorSubtitle(notes: editor.document.notes.count, tracks: editor.document.tracks.count, dirty: editor.document.isDirty)
         }
         guard let document = model.document else { return "" }
         return String(format: "%.1f s · %@", document.duration, sampleRateText(document.sampleRate))
+    }
+
+    /// `{n} notes · {k} tracks · 120 BPM 4/4`, plus ` · Edited` while there are unsaved changes.
+    static func editorSubtitle(notes: Int, tracks: Int, dirty: Bool) -> String {
+        "\(notes) \(notes == 1 ? "note" : "notes") \u{00B7} \(tracks) \(tracks == 1 ? "track" : "tracks") \u{00B7} 120 BPM 4/4"
+            + (dirty ? " \u{00B7} Edited" : "")
     }
 
     private func sampleRateText(_ rate: Double) -> String {

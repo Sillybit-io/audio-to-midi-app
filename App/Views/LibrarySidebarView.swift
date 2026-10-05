@@ -97,7 +97,7 @@ struct LibrarySidebarView: View {
             Text(title)
             Spacer()
             if let name = workingFolder.folder?.lastPathComponent {
-                Text(name).font(.caption2).lineLimit(1).truncationMode(.middle).help(folder?.abbreviatedPath ?? "")
+                Text("\(name)/\(title)").font(.caption2).lineLimit(1).truncationMode(.head).help(folder?.abbreviatedPath ?? "")
             }
         }
     }

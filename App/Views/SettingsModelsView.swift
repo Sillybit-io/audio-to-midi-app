@@ -56,7 +56,7 @@ struct SettingsModelsView: View {
             Button("Download \(entry.sizeText)") { Task { await store.install(entry) } }
         case .downloading(let value):
             HStack {
-                ProgressView(value: value).frame(width: 90)
+                ProgressView(value: value).frame(width: Metric.sliderW)
                 Text("\(Int((value * 100).rounded()))%").font(.caption.monospacedDigit())
             }
         case .verifying:

@@ -40,6 +40,17 @@ private final class CountingAccess: ScopedAccess {
 }
 
 @MainActor
+private final class FakePanel: FolderPanel {
+    var result: Result<URL, Error>
+    var asked: [(directory: URL, message: String)] = []
+    init(_ result: Result<URL, Error>) { self.result = result }
+    func chooseFolder(startingIn directory: URL, message: String, completion: @escaping (Result<URL, Error>) -> Void) {
+        asked.append((directory, message))
+        completion(result)
+    }
+}
+
+@MainActor
 struct WorkingFolderTests {
     private let storage = MemoryBookmarks()
     private let codec = PathCodec()
@@ -67,6 +78,21 @@ struct WorkingFolderTests {
         #expect(store.audioFolder?.lastPathComponent == "Audio")
         #expect(store.midiFolder?.lastPathComponent == "MIDI")
         #expect(storage.values[WorkingFolderStore.bookmarkKey] == Data(folder.path.utf8))
+    }
+
+    @Test func thePanelIsAskedAtTheSuggestedPlaceAndItsChoiceAdopted() throws {
+        let folder = try tempFolder()
+        let store = store()
+        let panel = FakePanel(.success(folder))
+        var adopted: Bool?
+        store.choose(using: panel, startingIn: WorkingFolderStore.suggestedFolder.deletingLastPathComponent()) { adopted = $0 }
+        #expect(adopted == true && store.folder == folder)
+        #expect(panel.asked.first?.directory.lastPathComponent == "Documents")
+        #expect(panel.asked.first?.message == WorkingFolderStore.panelMessage)
+
+        panel.result = .failure(CocoaError(.userCancelled))
+        store.choose(using: panel, startingIn: folder) { adopted = $0 }
+        #expect(adopted == false && store.folder == folder && store.errorMessage == nil)
     }
 
     @Test func cancelledPanelChangesNothing() throws {

@@ -22,7 +22,7 @@ struct AboutView: View {
             LicenseTextView(text: ThirdPartyComponents.onnxRuntimeNoticesText())
                 .tabItem { Text("ONNX Runtime") }.tag("onnx")
         }
-        .frame(width: Metric.settingsW, height: 460)
+        .frame(width: Metric.settingsW, height: Metric.aboutH)
     }
 
     private var about: some View {

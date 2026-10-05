@@ -273,6 +273,24 @@ struct MIDISaveTests {
         #expect(!window.isDocumentEdited)
     }
 
+    @Test func renamingMovesTheFileAndKeepsTheEdits() throws {
+        let fixture = try Fixture()
+        fixture.edit()
+        let renamed = try fixture.editor.rename(to: "Better Take")
+        #expect(renamed.lastPathComponent == "Better Take.mid")
+        #expect(fixture.editor.url == renamed && fixture.editor.document.isDirty)
+        #expect(try listing(fixture.folder) == ["Better Take.mid"])
+        #expect(fixture.coordinator.saveOpenFile())
+        #expect(MIDIImporter.info(at: renamed)?.provenance?.edited == true)
+
+        try Data([0]).write(to: fixture.folder.appending(path: "Taken.mid"))
+        #expect(try fixture.editor.rename(to: "Taken.mid").lastPathComponent == "Taken 2.mid")
+        #expect(try fixture.editor.rename(to: "taken 2").lastPathComponent == "taken 2.mid")
+        #expect(throws: MIDIRenameError.invalidName) { try fixture.editor.rename(to: "  ") }
+        #expect(throws: MIDIRenameError.invalidName) { try fixture.editor.rename(to: "a/b") }
+        #expect(try listing(fixture.folder) == ["Taken.mid", "taken 2.mid"])
+    }
+
     @Test func noOpenFileMeansNothingToProtect() {
         let coordinator = MIDISaveCoordinator()
         var proceeded = false

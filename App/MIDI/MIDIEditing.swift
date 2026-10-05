@@ -151,6 +151,25 @@ enum MIDIEditing {
         return changed ? result : nil
     }
 
+    /// Sets one note's start and length to typed values. Neither is snapped; the start can't go below zero and the
+    /// length can't go below the shortest note.
+    static func setTiming(_ notes: [EditorNote], id: Int, start: Double?, duration: Double?) -> [EditorNote]? {
+        guard let index = notes.firstIndex(where: { $0.id == id }) else { return nil }
+        var note = notes[index]
+        if let start {
+            guard start.isFinite else { return nil }
+            note.start = max(0, start)
+        }
+        if let duration {
+            guard duration.isFinite else { return nil }
+            note.duration = max(minimumDuration, duration)
+        }
+        guard note != notes[index] else { return nil }
+        var result = notes
+        result[index] = note
+        return result
+    }
+
     /// Gives each listed note its own velocity, for a paint stroke that changes value along the way.
     static func setVelocities(_ notes: [EditorNote], values: [Int: Int]) -> [EditorNote]? {
         var changed = false
