@@ -16,9 +16,55 @@ Requirements: macOS 26 or later on a Mac with Apple silicon (M1 or newer). Relea
    ```
 
    Or open the app, then go to System Settings, Privacy & Security, and choose **Open Anyway**. On recent macOS versions, right-click and Open no longer works for unsigned apps.
-3. Open the app and drop an audio file onto the window, or press Command-O. WAV, MP3, FLAC, M4A, AIFF and anything else Core Audio decodes are supported.
-4. Choose a model. Basic Pitch works straight away. The other models download on first use (see Models).
-5. Press **Transcribe**.
+3. On first launch the Welcome sheet asks where to keep your files. Press **Continue** and choose a folder, or create one (the suggestion is `Silly MIDI Tools` in your Documents folder). The app is sandboxed, so it can only use a folder you have picked. See Working folder.
+4. Drop an audio file onto the window, or press Command-O. WAV, MP3, FLAC, M4A, AIFF and anything else Core Audio decodes are supported.
+5. Choose a model in the inspector. Basic Pitch is selected for you and works straight away. The other models download on first use (see Models).
+6. Press **Transcribe**. The result is saved in your working folder as a MIDI file, and you can open it in the editor.
+
+## Working folder
+
+The app keeps everything in one folder you choose, with two subfolders it creates:
+
+- `Audio/` holds the audio you add.
+- `MIDI/` holds every transcription and every edit, saved automatically.
+
+The sidebar lists both folders and updates when files appear or disappear, including changes made in Finder. The folder is remembered across launches with a security-scoped bookmark. If you cancel the folder panel, nothing is chosen and the Welcome sheet stays until you pick a folder.
+
+**Adding audio.** In Settings, General, **When you add audio** decides what happens to a file you open or drop:
+
+- **Copy into the Audio folder** (the default) copies it. The original is not touched.
+- **Leave it where it is** keeps a bookmark to the file. If it is later moved or deleted, its sidebar row shows a warning; use the row's context menu, **Relink…**, to point it at the file again, or **Remove from Library**.
+
+**Changing the folder** (Settings, General, **Choose…** or **Reset to Default…**) only changes where the app looks. It does not move or delete any file in the old folder.
+
+## Transcriptions, editing and import
+
+- **Auto-save.** When a run finishes, or when you cancel one that already found notes, the result is written to `MIDI/{audio name}.mid`. The file remembers its source audio and model, so the next run of the same audio replaces it in place.
+- **Your edits are never overwritten.** A file you have edited is left alone: a new transcription of the same audio is saved next to it as `{name} 2.mid`. A cancelled run never replaces an earlier complete result, and a file that is not this audio's output is never touched.
+- **MIDI editor.** Select a `.mid` file in the sidebar. It has Select, Draw and Erase tools, click, Shift-click and box selection, snapped move and resize, a velocity lane, a snap grid (1/4 to 1/32 note, or off), Quantize, transpose, nudge, and Undo and Redo. Notes live between C1 and B6. Each track can be muted, soloed or hidden without changing a note.
+- **Save and unsaved changes.** Command-S saves the file in place and marks it as edited. Switching files, closing the window or quitting asks whether to save, discard or cancel. A save that fails keeps your edits and says why. A save refuses to overwrite a file that changed on disk after you opened it.
+- **Import.** **Import MIDI…** (Shift-Command-O) copies a Standard MIDI File (type 0 or 1, with the usual ticks-per-beat timing) into `MIDI/` byte for byte. A file that is not valid MIDI, is damaged, or uses SMPTE or type 2 timing is refused and nothing is written. Notes outside C1 to B6 are skipped and counted.
+- **Playback.** Play, Stop and Loop work on both screens, and the position shows time and bar.beat. Space plays and pauses, L toggles Loop, and clicking the ruler moves the playhead. Settings can make the roll follow the playhead.
+
+## Keyboard shortcuts
+
+Help, **Keyboard Shortcuts** (Command-/) lists them all. The main ones:
+
+| Keys | Action |
+| --- | --- |
+| Command-O, Shift-Command-O | Open audio, import MIDI |
+| Command-S | Save the MIDI file |
+| Command-E | Export MIDI (from a transcription) |
+| Command-1, Command-2 | Audio, MIDI editor |
+| Option-Command-I | Show or hide the inspector |
+| Command-+, Command-- | Zoom |
+| Space, L | Play or pause, Loop |
+| V, D, E | Select, Draw, Erase (MIDI editor) |
+| Up and Down arrows | Transpose by a semitone (Shift: an octave) |
+| Left and Right arrows | Nudge by one snap step |
+| Option-Left, Option-Right | Previous and next note |
+| Q | Quantize the selection, or everything |
+| Left and Right on a slice handle | Move it 0.1 s (Shift: 1 s); Home and End go to its limits |
 
 ## Features
 
@@ -27,7 +73,7 @@ Requirements: macOS 26 or later on a Mac with Apple silicon (M1 or newer). Relea
 - **Streaming piano roll.** Notes appear while a MuScriptor run is still going, coloured by instrument. Show or hide instruments with the legend. Cancel keeps the notes found so far.
 - **Instruments, device and threads.** For MuScriptor you can restrict the transcription to chosen instruments, pick the compute device (Auto, a GPU, or CPU) and set the thread count.
 - **Note velocity.** The piano model predicts velocity itself. For MuScriptor, which has none, a toggle (on by default) estimates velocity from the audio's loudness at each onset. Basic Pitch notes use the amplitude it reports.
-- **Playback.** Play the notes through the built-in General MIDI sound bank, next to the original audio. Mix between the two with one slider, change the speed from 0.5x to 2x, and mute single instruments.
+- **Playback.** Play the notes through the built-in General MIDI sound bank, next to the original audio. Mix between the two with one slider, change the speed from 0.5x to 2x, and loop the slice. Playback needs an audio output device.
 - **Key and scale detection.** Ranks major, minor, dorian, phrygian, lydian, mixolydian and locrian in all twelve keys, from the transcribed notes, or from the audio file with the Detect from audio button.
 - **MIDI export.** Type 1 Standard MIDI File with one track per instrument. Drag the MIDI chip into Finder or a DAW, or use Export (Command-E). The export sheet can embed the model's licence notice in the file and add the detected key to the file name, for example `Song - Eb minor.mid`.
 - **Licences in the app.** The About window lists every third-party component and its licence text.
@@ -40,9 +86,11 @@ Requirements: macOS 26 or later on a Mac with Apple silicon (M1 or newer). Relea
 | Piano (ONNX) (Kong et al., ONNX conversion by LanOss) | CC BY 4.0 | 154 MB | Piano only. Commercial use allowed with credit |
 | Basic Pitch (Spotify) | Apache-2.0 | Built in | Commercial use allowed |
 
-Downloads are pinned to a fixed revision and checked against a SHA-256 before use. Models are stored in the app's sandbox container under Application Support, and the picker can reveal or delete them.
+Basic Pitch is selected on a fresh install. Pick another model in the inspector and the button reads **Download & Transcribe**; the download happens when you press it, then the run starts. A failed or offline download shows a message with **Try Again**, and nothing is changed.
 
-MuScriptor weights are gated on Hugging Face. You need a Hugging Face account, you must accept the terms on the model page, and you paste a read token into Settings before the first download. The piano model is not gated.
+Downloads are pinned to a fixed revision and checked against a SHA-256 before use. Models are stored in the app's sandbox container under Application Support. Settings, Models shows each model's licence, lets you download or delete it, and can reveal the folder. **Manage Models…** in the model picker opens it.
+
+MuScriptor weights are gated on Hugging Face. The first time you use one, an alert tells you its size and takes you to the licence sheet. You need a Hugging Face account, you must accept the terms on the model page, and you paste a read token (Settings, Hugging Face, or in the sheet) before the download starts. The piano model is not gated.
 
 ## Build from source
 
@@ -56,7 +104,9 @@ xcodegen generate
 xcodebuild -project SillyMIDITools.xcodeproj -scheme SillyMIDITools -destination 'platform=macOS' build CODE_SIGN_IDENTITY=-
 ```
 
-Builds are for the host architecture only and are ad-hoc signed. To run the tests, replace `build` with `test`; the end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads.
+The Xcode project is generated from `project.yml` and is not checked in, so run `xcodegen generate` after cloning and after editing `project.yml`. Builds are for the host architecture only and are ad-hoc signed.
+
+To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, as the CI workflow does: the tests that create real security-scoped bookmarks need the app's entitlements, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) leaves out. The end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads.
 
 ## Known limits
 
@@ -65,7 +115,9 @@ Builds are for the host architecture only and are ad-hoc signed. To run the test
 - Velocity estimated for MuScriptor is relative loudness, not a measurement of how hard a note was played.
 - Key detection ranks likely keys; modes that share most of their notes (for example dorian and natural minor) can be close.
 - OGG files are not decoded.
-- Export uses a fixed 120 bpm, 4/4 grid.
+- Export and the editor use a fixed 120 bpm, 4/4 grid. Tempo and time signature can't be edited. Importing a file converts its tempo changes into real time, and saving an edited file writes it back at 120 bpm.
+- Saving from the editor writes notes, velocities and track instruments only. Pitch bends, controllers such as sustain, and lyrics in a file you edit are not kept.
+- Importing type 2 and SMPTE-timed MIDI files is not supported.
 
 ## Licence
 
