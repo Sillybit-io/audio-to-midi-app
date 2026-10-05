@@ -1,0 +1,146 @@
+name: Release
+
+# Run it by hand from the Actions tab, on main. The version is the app's
+# CFBundleShortVersionString in project.yml. The job refuses to run if that
+# version is already tagged or if CI has not passed on the commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: Create a draft release to review before publishing
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: macos-26
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Require main
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Releases are made from main, not $GITHUB_REF. Pick main in Run workflow."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Read the version
+        run: |
+          version=$(sed -nE 's/^ *CFBundleShortVersionString: *"?([0-9]+\.[0-9]+\.[0-9]+)"?.*$/\1/p' project.yml)
+          if [[ $(printf '%s\n' "$version" | grep -c .) -ne 1 ]]; then
+            echo "::error::Expected one CFBundleShortVersionString in project.yml, found: '$version'"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Refuse to reuse a version
+        run: |
+          if git ls-remote --tags origin "refs/tags/v$VERSION" | grep -q . || gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "::error::v$VERSION already exists. Raise CFBundleShortVersionString and CFBundleVersion in project.yml, push, and run this again."
+            exit 1
+          fi
+
+      - name: Require a passing CI run on this commit
+        run: |
+          passed=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --status success --json databaseId --jq length)
+          if [[ "$passed" -eq 0 ]]; then
+            echo "::error::CI has not passed on $GITHUB_SHA. Wait for it on the Actions tab, then run this again."
+            exit 1
+          fi
+
+      - name: Install tools
+        run: brew install xcodegen ninja
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Build the engine sidecar
+        run: scripts/build-engine.sh
+
+      - name: Build the release app
+        run: >
+          xcodebuild build
+          -project SillyMIDITools.xcodeproj
+          -scheme SillyMIDITools
+          -configuration Release
+          -destination 'platform=macOS'
+          -derivedDataPath build/DerivedData
+          CODE_SIGN_IDENTITY=-
+
+      - name: Check the app
+        run: |
+          app=build/DerivedData/Build/Products/Release/SillyMIDITools.app
+          built=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
+          if [[ "$built" != "$VERSION" ]]; then
+            echo "::error::The app says $built but project.yml says $VERSION."
+            exit 1
+          fi
+          for binary in SillyMIDITools sillymidi-engine; do
+            archs=$(lipo -archs "$app/Contents/MacOS/$binary")
+            if [[ "$archs" != "arm64" ]]; then
+              echo "::error::$binary is built for '$archs', expected arm64."
+              exit 1
+            fi
+          done
+          codesign --verify --deep --strict --verbose=2 "$app"
+
+      - name: Zip the app
+        run: |
+          zip="SillyMIDITools-$VERSION-macOS-arm64.zip"
+          ditto -c -k --keepParent build/DerivedData/Build/Products/Release/SillyMIDITools.app "$zip"
+          shasum -a 256 "$zip" > "$zip.sha256"
+          check=$(mktemp -d)
+          ditto -x -k "$zip" "$check"
+          codesign --verify --deep --strict "$check/SillyMIDITools.app"
+          echo "ZIP=$zip" >> "$GITHUB_ENV"
+          echo "SHA256=$(cut -d' ' -f1 "$zip.sha256")" >> "$GITHUB_ENV"
+
+      - name: Write the release notes
+        run: |
+          notes=".github/release/notes/$VERSION.md"
+          {
+            if [[ -f "$notes" ]]; then
+              cat "$notes"
+            else
+              echo "::warning::No $notes; listing commit subjects instead." >&2
+              prev=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+              echo "Early, unsigned build of Silly MIDI Tools: a native macOS app that turns audio into MIDI."
+              echo
+              echo "## Changes"
+              echo
+              if [[ -n "$prev" ]]; then
+                git log --no-merges --pretty='- %s' "$prev..HEAD"
+              else
+                git log --no-merges --pretty='- %s'
+              fi
+            fi
+            echo
+            sed -e "s/__VERSION__/$VERSION/g" -e "s/__SHA256__/$SHA256/g" .github/release/install.md
+          } > release-notes.md
+
+      - name: Tag the commit and create the release
+        env:
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          draft=""
+          if [[ "$DRAFT" == "true" ]]; then draft="--draft"; fi
+          gh release create "v$VERSION" "$ZIP" "$ZIP.sha256" \
+            --target "$GITHUB_SHA" \
+            --title "Silly MIDI Tools $VERSION" \
+            --notes-file release-notes.md \
+            $draft

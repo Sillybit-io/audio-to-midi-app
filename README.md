@@ -108,6 +108,15 @@ The Xcode project is generated from `project.yml` and is not checked in, so run 
 
 To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, as the CI workflow does: the tests that create real security-scoped bookmarks need the app's entitlements, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) leaves out. The end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads.
 
+## Releasing
+
+1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `project.yml`.
+2. Write the release notes in `.github/release/notes/<version>.md`. Without that file the release lists commit subjects instead. The install steps and the zip's SHA-256 are added for you.
+3. Push to `main` and wait for CI to pass.
+4. On GitHub, open Actions, Release, **Run workflow** on `main`. Tick **draft** to review the release before it goes public.
+
+The workflow builds the Apple silicon app on a runner, checks its version, architecture and signature, tags the commit `v<version>`, and attaches `SillyMIDITools-<version>-macOS-arm64.zip` and its `.sha256` to the release. It refuses to run if the version is already tagged or CI hasn't passed on the commit.
+
 ## Known limits
 
 - Release builds are Apple silicon only, and are not notarized.
