@@ -36,8 +36,12 @@ struct ExportView: View {
                 .background(.quaternary, in: Capsule())
                 .draggable(makeItem(embed: embedNotice))
                 .help("Drag into Finder or a DAW")
+                .accessibilityLabel("MIDI file, drag into Finder or a DAW")
             Button("Export…") { showNotice = true }
+                .accessibilityLabel("Export MIDI\u{2026}")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("MIDI export")
         .disabled(notes.isEmpty)
         .sheet(isPresented: $showNotice) {
             VStack(alignment: .leading, spacing: Metric.sp5) {
@@ -57,7 +61,7 @@ struct ExportView: View {
             }
             .padding(Metric.sp7).frame(width: Metric.sheetW)
         }
-        .fileExporter(isPresented: $exporting, item: item, contentTypes: [.midi], defaultFilename: fileName) { _ in
+        .fileExporter(isPresented: $exporting, item: item, contentTypes: [.midi], defaultFilename: "\(fileName).mid") { _ in
             MIDIExportItem.clearTemporaryFiles()
         } onCancellation: {
             MIDIExportItem.clearTemporaryFiles()

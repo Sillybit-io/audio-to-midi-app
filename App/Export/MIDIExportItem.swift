@@ -25,5 +25,7 @@ struct MIDIExportItem: Transferable, Sendable {
         FileRepresentation(exportedContentType: .midi) { item in
             SentTransferredFile(try item.writeTemporaryFile(), allowAccessingOriginalFile: false)
         }
+        // Without a suggested name the save dialog's file wrapper gets a nil name, which throws in AppKit.
+        .suggestedFileName { "\($0.name).mid" }
     }
 }
