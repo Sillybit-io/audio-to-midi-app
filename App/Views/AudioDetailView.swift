@@ -49,6 +49,8 @@ final class AudioScreenModel {
     private(set) var engineProblem: String?
     private(set) var startedAt: Date?
     private(set) var downloadFailure: (entry: ModelEntry, message: String)?
+    /// The failed panel was dismissed; it stays hidden until the next run.
+    private(set) var failureDismissed = false
     private(set) var ran: RunRecord?
     @ObservationIgnored private var includesDownload: ModelEntry?
     @ObservationIgnored private var prepareTask: Task<Void, Never>?
@@ -213,7 +215,7 @@ final class AudioScreenModel {
             let title = session.progress > 0.15 ? session.eta.map { "About \(Int($0.rounded(.up))) s left" } ?? "Transcribing" : "Transcribing"
             return .running(title: title, steps: steps, current: offset + 1, fraction: session.progress)
         case .refining: return .running(title: "Estimating velocity", steps: steps, current: offset + 2, fraction: nil)
-        case .failed(let message): return .failed(title: "Transcription failed", message: message)
+        case .failed(let message): return failureDismissed ? nil : .failed(title: "Transcription failed", message: message)
         default: return nil
         }
     }
@@ -280,6 +282,7 @@ final class AudioScreenModel {
         startedAt = nil
         includesDownload = nil
         downloadFailure = nil
+        failureDismissed = false
         hiddenInstruments = []
         mutedInstruments = []
         writer.reset()
@@ -298,6 +301,12 @@ final class AudioScreenModel {
         }
     }
 
+    /// Hides the failed panel and the library row's warning until the next run. The notes on screen stay.
+    func dismissFailure() {
+        downloadFailure = nil
+        failureDismissed = true
+    }
+
     /// Stops a run, a download, or a wait on the first-use alert or the licence sheet.
     func cancel() {
         prepareTask?.cancel()
@@ -310,6 +319,7 @@ final class AudioScreenModel {
     func start() {
         guard canStart, let entry = selectedEntry else { return }
         downloadFailure = nil
+        failureDismissed = false
         startedAt = Date()
         if store.state(for: entry) == .installed {
             includesDownload = nil
@@ -391,7 +401,7 @@ struct AudioDetailView: View {
             }
             WaveformSliceView(model: model, onSeek: screen.seek)
             AudioStatusView(panel: screen.runPanel, startedAt: screen.startedAt,
-                            onCancel: screen.cancel, onRetry: screen.start)
+                            onCancel: screen.cancel, onRetry: screen.start, onDismiss: screen.dismissFailure)
                 .padding(.horizontal, Metric.sp6)
             PianoRollView(notes: session.notes, duration: model.slice.span, finalizedThrough: session.finalizedThrough,
                           playhead: playback.position, hidden: screen.hiddenInstruments,

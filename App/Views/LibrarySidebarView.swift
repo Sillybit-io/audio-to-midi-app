@@ -109,7 +109,7 @@ struct LibrarySidebarView: View {
         Label {
             VStack(alignment: .leading, spacing: Metric.sp1) {
                 Text(entry.name)
-                if failed { Text("Download failed \u{00B7} Try again").font(.caption).foregroundStyle(Token.warn) }
+                if failed { Text("Download failed \u{00B7} Try again").font(.caption).foregroundStyle(.secondary) }
             }
         } icon: {
             Image(systemName: entry.isMissing || failed ? "exclamationmark.triangle" : "waveform")
@@ -117,7 +117,7 @@ struct LibrarySidebarView: View {
         }
         .help(entry.isMissing ? "File not found. Relink\u{2026} to find it again." : entry.url.abbreviatedPath)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.isMissing ? "\(entry.name), file not found" : entry.name)
+        .accessibilityLabel(entry.isMissing ? "\(entry.name), file not found" : failed ? "\(entry.name), download failed" : entry.name)
         .contextMenu {
             if !entry.isMissing {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }

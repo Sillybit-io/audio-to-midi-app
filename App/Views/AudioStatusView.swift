@@ -7,6 +7,7 @@ struct AudioStatusView: View {
     let startedAt: Date?
     let onCancel: () -> Void
     let onRetry: () -> Void
+    var onDismiss: () -> Void = {}
 
     var body: some View {
         switch panel {
@@ -62,6 +63,8 @@ struct AudioStatusView: View {
             }
             Spacer()
             Button("Try Again", action: onRetry)
+            Button(action: onDismiss) { Image(systemName: "xmark") }
+                .buttonStyle(.borderless).help("Dismiss").accessibilityLabel("Dismiss")
         }
         .padding(Metric.sp5)
         .background(Token.surfaceRaised, in: RoundedRectangle(cornerRadius: Metric.rRow))
