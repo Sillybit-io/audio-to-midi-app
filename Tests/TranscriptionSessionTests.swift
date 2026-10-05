@@ -88,6 +88,26 @@ struct TranscriptionSessionTests {
         #expect(session.notes.count == 1)
     }
 
+    @Test func clearForgetsTheResultForTheNextFile() async {
+        let session = TranscriptionSession()
+        session.start { AsyncThrowingStream { c in
+            c.yield(.update(progress: 1, finalizedThrough: 3, notes: [Self.note(60)]))
+            c.yield(.done(noteCount: 1))
+            c.finish()
+        } }
+        await settle(session)
+        #expect(session.state == .done(1))
+        session.clear()
+        #expect(session.state == .idle && session.notes.isEmpty && session.progress == 0 && session.finalizedThrough == 0)
+
+        session.start { AsyncThrowingStream { c in c.yield(.update(progress: 0.2, finalizedThrough: 1, notes: [Self.note(62)])) } }
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(session.isBusy)
+        session.clear()
+        try? await Task.sleep(for: .milliseconds(100))
+        #expect(session.state == .idle && session.notes.isEmpty)
+    }
+
     @Test func secondStartWhileBusyIsIgnored() async {
         let session = TranscriptionSession()
         session.start { AsyncThrowingStream { _ in } }

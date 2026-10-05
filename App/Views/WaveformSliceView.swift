@@ -45,13 +45,16 @@ struct WaveformSliceView: View {
         var moved = false
     }
 
-    static func selectionText(_ slice: AudioSlice) -> String {
+    nonisolated static func selectionText(_ slice: AudioSlice) -> String {
         String(format: "Selected %.1f s of %.1f s", slice.span, slice.duration)
     }
 
-    /// Ruler tick spacing in seconds for a file of this length.
-    static func tickStep(duration: Double) -> Double {
-        duration <= 20 ? 2 : duration <= 60 ? 5 : duration <= 180 ? 15 : 30
+    /// Ruler tick spacing in seconds: the smallest round step that keeps the `m:ss` labels apart at this width.
+    nonisolated static func tickStep(duration: Double, width: CGFloat) -> Double {
+        let steps: [Double] = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600]
+        let minimumGap = Double(Metric.sp10)
+        let perSecond = Double(max(width, 1)) / max(duration, AudioSlice.step)
+        return steps.first { $0 * perSecond >= minimumGap } ?? steps[steps.count - 1]
     }
 
     var body: some View {
@@ -102,7 +105,7 @@ struct WaveformSliceView: View {
     private func drawRuler(_ context: GraphicsContext, _ size: CGSize) {
         let duration = model.slice.duration
         guard duration > 0 else { return }
-        let step = Self.tickStep(duration: duration)
+        let step = Self.tickStep(duration: duration, width: size.width)
         var seconds = 0.0
         while seconds < duration - step * 0.4 {
             let x = size.width * seconds / duration

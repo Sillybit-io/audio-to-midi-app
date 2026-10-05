@@ -82,6 +82,19 @@ final class TranscriptionSession {
         state = .cancelled
     }
 
+    /// Forgets the last result, for when a different audio file is opened. A run still going is stopped.
+    func clear() {
+        task?.cancel()
+        task = nil
+        doneCount = nil
+        notes = []
+        finalizedThrough = 0
+        progress = 0
+        eta = nil
+        last = nil
+        state = .idle
+    }
+
     private func finishRun() async {
         guard isBusy else { return }
         guard let count = doneCount else {

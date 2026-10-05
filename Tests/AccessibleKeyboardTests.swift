@@ -140,9 +140,11 @@ struct SliceGestureTests {
         var slice = AudioSlice(duration: 16)
         slice.select(from: 2, to: 12)
         #expect(WaveformSliceView.selectionText(slice) == "Selected 10.0 s of 16.0 s")
-        #expect(WaveformSliceView.tickStep(duration: 16) == 2)
-        #expect(WaveformSliceView.tickStep(duration: 45) == 5)
-        #expect(WaveformSliceView.tickStep(duration: 150) == 15)
-        #expect(WaveformSliceView.tickStep(duration: 600) == 30)
+        #expect(WaveformSliceView.tickStep(duration: 16, width: 640) == 2)
+        #expect(WaveformSliceView.tickStep(duration: 3, width: 640) == 1)
+        #expect(WaveformSliceView.tickStep(duration: 150, width: 640) == 15)
+        // A 20-minute file in the same width: labels at least 48 pt apart, so every 2 minutes, not every 30 s.
+        #expect(WaveformSliceView.tickStep(duration: 1200, width: 640) == 120)
+        #expect(WaveformSliceView.tickStep(duration: 1200, width: 1000) == 60)
     }
 }

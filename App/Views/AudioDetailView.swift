@@ -268,6 +268,25 @@ final class AudioScreenModel {
         keyFromAudio = []
     }
 
+    /// Another audio file is open, so the notes, summary and save line on screen belonged to the last one.
+    /// A run still going is cancelled first and its partial notes are saved for the file it was transcribing.
+    func documentChanged() {
+        if session.isBusy || prepareTask != nil {
+            cancel()
+            sessionStateChanged()
+        }
+        run = nil
+        ran = nil
+        startedAt = nil
+        includesDownload = nil
+        downloadFailure = nil
+        hiddenInstruments = []
+        mutedInstruments = []
+        writer.reset()
+        session.clear()
+        clearKeyFromAudio()
+    }
+
     /// Ranks the keys of the selected slice of the audio itself.
     func detectKeyFromAudio() {
         guard !isDetectingKey, let audio = audioForKey() else { return }
@@ -413,7 +432,7 @@ struct AudioDetailView: View {
         .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
         .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
         .onChange(of: model.slice) { playback.duration = model.slice.span }
-        .onChange(of: model.document?.url) { screen.clearKeyFromAudio() }
+        .onChange(of: model.document?.url) { screen.documentChanged() }
         .onChange(of: screen.silencedGroups, initial: true) { _, groups in playback.setSilenced(groups) }
         .toolbar {
             ToolbarItem {
