@@ -50,7 +50,7 @@ struct SettingsPreferencesTests {
     }
 
     private func installedStore() throws -> (ModelStore, ModelEntry, URL) {
-        let directory = FileManager.default.temporaryDirectory.appending(path: "smt-models-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let directory = FileManager.default.temporaryDirectory.appending(path: "scratch-models-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let entry = ModelCatalog.entries.first { $0.id == "muscriptor-small" }!
         let file = directory.appending(path: entry.fileName)

@@ -78,7 +78,7 @@ private struct NoWatcher: FolderWatcher {
 }
 
 private func scratchFolder() throws -> URL {
-    let url = FileManager.default.temporaryDirectory.appending(path: "smt-midi-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let url = FileManager.default.temporaryDirectory.appending(path: "scratch-midi-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }

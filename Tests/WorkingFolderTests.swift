@@ -1,6 +1,13 @@
 import Foundation
+import Security
 import Testing
 @testable import SillyMIDITools
+
+/// Real security-scoped bookmarks need the app-scope entitlement, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) doesn't carry.
+private let canMakeScopedBookmarks: Bool = {
+    guard let task = SecTaskCreateFromSelf(nil) else { return false }
+    return SecTaskCopyValueForEntitlement(task, "com.apple.security.files.bookmarks.app-scope" as CFString, nil) as? Bool == true
+}()
 
 private final class MemoryBookmarks: BookmarkStorage {
     var values: [String: Data] = [:]
@@ -43,7 +50,7 @@ struct WorkingFolderTests {
     }
 
     private func tempFolder(_ name: String = "grant") throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appending(path: "smt-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let url = FileManager.default.temporaryDirectory.appending(path: "scratch-\(UUID().uuidString)", directoryHint: .isDirectory)
             .appending(path: name, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
@@ -158,7 +165,8 @@ struct WorkingFolderTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: new.appending(path: "Audio").path).isEmpty)
     }
 
-    @Test func systemCodecRoundTripsAFolderBookmark() throws {
+    @Test(.enabled(if: canMakeScopedBookmarks, "needs the app-scope bookmark entitlement; run with CODE_SIGN_IDENTITY=-"))
+    func systemCodecRoundTripsAFolderBookmark() throws {
         let folder = try tempFolder()
         let codec = SystemBookmarkCodec()
         let data = try codec.makeBookmark(for: folder)

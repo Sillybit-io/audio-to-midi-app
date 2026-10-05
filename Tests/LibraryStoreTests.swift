@@ -59,7 +59,7 @@ struct LibraryStoreTests {
     }
 
     private func makeFolders(_ name: String = "wf") throws -> (audio: URL, midi: URL) {
-        let root = FileManager.default.temporaryDirectory.appending(path: "smt-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let root = FileManager.default.temporaryDirectory.appending(path: "scratch-\(UUID().uuidString)", directoryHint: .isDirectory)
             .appending(path: name, directoryHint: .isDirectory)
         let audio = root.appending(path: "Audio", directoryHint: .isDirectory)
         let midi = root.appending(path: "MIDI", directoryHint: .isDirectory)
@@ -99,7 +99,7 @@ struct LibraryStoreTests {
 
     @Test func copyImportKeepsTheOriginalAndNumbersCollisions() throws {
         let folders = try makeFolders()
-        let source = FileManager.default.temporaryDirectory.appending(path: "smt-src-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let source = FileManager.default.temporaryDirectory.appending(path: "scratch-src-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
         let original = source.appending(path: "take.wav")
         try touch(original, [1, 2, 3])
@@ -117,7 +117,7 @@ struct LibraryStoreTests {
 
     @Test func referenceSurvivesASimulatedRelaunch() throws {
         let folders = try makeFolders()
-        let source = FileManager.default.temporaryDirectory.appending(path: "smt-ref-\(UUID().uuidString).wav")
+        let source = FileManager.default.temporaryDirectory.appending(path: "scratch-ref-\(UUID().uuidString).wav")
         try touch(source)
         let first = imports()
         let target = try first.importAudio(from: source, mode: .reference, audioFolder: folders.audio)
@@ -137,7 +137,7 @@ struct LibraryStoreTests {
         let folders = try makeFolders()
         let keep = folders.audio.appending(path: "keep.wav")
         try touch(keep)
-        let gone = FileManager.default.temporaryDirectory.appending(path: "smt-gone-\(UUID().uuidString).wav")
+        let gone = FileManager.default.temporaryDirectory.appending(path: "scratch-gone-\(UUID().uuidString).wav")
         try touch(gone)
         let imports = imports()
         _ = try imports.importAudio(from: gone, mode: .reference, audioFolder: folders.audio)
@@ -150,7 +150,7 @@ struct LibraryStoreTests {
         #expect(broken.isMissing)
         #expect(library.audio.first { $0.fileName == "keep.wav" }?.isMissing == false)
 
-        let replacement = FileManager.default.temporaryDirectory.appending(path: "smt-new-\(UUID().uuidString).wav")
+        let replacement = FileManager.default.temporaryDirectory.appending(path: "scratch-new-\(UUID().uuidString).wav")
         try touch(replacement)
         let reference = try #require(imports.references.first)
         try imports.relink(reference, to: replacement)
@@ -182,11 +182,11 @@ struct LibraryStoreTests {
     @Test func failedCopyOrBookmarkRecordsNothing() throws {
         let folders = try makeFolders()
         let imports = imports()
-        let missing = FileManager.default.temporaryDirectory.appending(path: "smt-nothing-\(UUID().uuidString).wav")
+        let missing = FileManager.default.temporaryDirectory.appending(path: "scratch-nothing-\(UUID().uuidString).wav")
         #expect(throws: AudioImportError.self) { try imports.importAudio(from: missing, mode: .copy, audioFolder: folders.audio) }
         #expect(try FileManager.default.contentsOfDirectory(atPath: folders.audio.path).isEmpty)
 
-        let real = FileManager.default.temporaryDirectory.appending(path: "smt-real-\(UUID().uuidString).wav")
+        let real = FileManager.default.temporaryDirectory.appending(path: "scratch-real-\(UUID().uuidString).wav")
         try touch(real)
         codec.failsToMake = true
         #expect(throws: AudioImportError.self) { try imports.importAudio(from: real, mode: .reference, audioFolder: folders.audio) }

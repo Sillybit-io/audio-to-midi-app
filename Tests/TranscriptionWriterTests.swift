@@ -18,9 +18,12 @@ private func makeRun(_ name: String = "synthetic", model: String? = "basic-pitch
 }
 
 private func scratchFolder() throws -> URL {
-    let url = FileManager.default.temporaryDirectory.appending(path: "smt-writer-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let url = FileManager.default.temporaryDirectory.appending(path: "scratch-writer-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    return url
+    // Directory listings return /private/var/... for a /var/... temporary directory when the app isn't sandboxed, so compare real paths.
+    var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+    guard realpath(url.path, &buffer) != nil else { return url }
+    return URL(fileURLWithPath: String(cString: buffer), isDirectory: true)
 }
 
 private func listing(_ folder: URL) throws -> [String] {

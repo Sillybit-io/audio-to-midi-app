@@ -9,7 +9,7 @@ struct LibrarySidebarView: View {
     let openAudio: () -> Void
     @Binding var importingMIDI: Bool
 
-    @State private var importFailure: (name: String, message: String)?
+    @State private var failure: (title: String, message: String)?
 
     var body: some View {
         List(selection: $selection) {
@@ -45,25 +45,21 @@ struct LibrarySidebarView: View {
         .fileImporter(isPresented: $importingMIDI, allowedContentTypes: [.midi]) { result in
             importMIDI(result)
         }
-        .alert(importFailureTitle, isPresented: Binding(
-            get: { importFailure != nil }, set: { if !$0 { importFailure = nil } })) {
-            Button("OK") { importFailure = nil }
+        .alert(failure?.title ?? "", isPresented: Binding(
+            get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button("OK") { failure = nil }
         } message: {
-            Text(importFailure?.message ?? "")
+            Text(failure?.message ?? "")
         }
-    }
-
-    private var importFailureTitle: String {
-        "Could not import \u{201C}\(importFailure?.name ?? "")\u{201D}"
     }
 
     private func importMIDI(_ result: Result<URL, Error>) {
         switch result {
         case .failure(let error):
-            if (error as? CocoaError)?.code != .userCancelled { importFailure = ("the file", error.localizedDescription) }
+            if (error as? CocoaError)?.code != .userCancelled { failure = ("Could not import the file", error.localizedDescription) }
         case .success(let url):
             guard let folder = workingFolder.midiFolder else {
-                importFailure = (url.lastPathComponent, "Choose a working folder first.")
+                failure = ("Could not import \u{201C}\(url.lastPathComponent)\u{201D}", "Choose a working folder first.")
                 return
             }
             do {
@@ -71,7 +67,7 @@ struct LibrarySidebarView: View {
                 library.refresh()
                 selection = .midi(destination)
             } catch {
-                importFailure = (url.lastPathComponent, error.localizedDescription)
+                failure = ("Could not import \u{201C}\(url.lastPathComponent)\u{201D}", error.localizedDescription)
             }
         }
     }
@@ -136,7 +132,11 @@ struct LibrarySidebarView: View {
         panel.canChooseDirectories = false
         panel.message = "Choose the file for \u{201C}\(reference.name)\u{201D}."
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        try? imports.relink(reference, to: url)
+        do {
+            try imports.relink(reference, to: url)
+        } catch {
+            failure = ("Could not relink \u{201C}\(reference.name)\u{201D}", error.localizedDescription)
+        }
         library.refresh()
     }
 }

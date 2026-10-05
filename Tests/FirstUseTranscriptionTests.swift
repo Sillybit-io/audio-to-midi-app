@@ -122,7 +122,7 @@ struct FirstUseTranscriptionTests {
     }
 
     @Test func screenModelStartsOnBasicPitchAndLabelsAMissingModel() throws {
-        let directory = FileManager.default.temporaryDirectory.appending(path: "smt-models-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let directory = FileManager.default.temporaryDirectory.appending(path: "scratch-models-\(UUID().uuidString)", directoryHint: .isDirectory)
         let suite = "smt-screen-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }

@@ -9,7 +9,7 @@ private func note(_ onset: Double, _ pitch: Int, velocity: Int = 90) -> NoteEven
 }
 
 private func scratchFolder() throws -> URL {
-    let url = FileManager.default.temporaryDirectory.appending(path: "smt-save-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let url = FileManager.default.temporaryDirectory.appending(path: "scratch-save-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }
