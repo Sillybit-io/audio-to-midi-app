@@ -43,7 +43,8 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             LibrarySidebarView(library: library, workingFolder: workingFolder, imports: imports,
-                               selection: gatedSelection, openAudio: { model.isImporting = true }, importingMIDI: $importingMIDI)
+                               selection: gatedSelection, openAudio: { model.isImporting = true }, importingMIDI: $importingMIDI,
+                               failedDownload: screen.downloadFailure == nil ? nil : model.document?.url)
                 .id(sidebarRevision)
                 .navigationSplitViewColumnWidth(min: Metric.sidebarW - Metric.sp9, ideal: Metric.sidebarW, max: Metric.sidebarW + Metric.sp10)
         } detail: {

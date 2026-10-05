@@ -52,13 +52,23 @@ struct MIDIVelocityLaneView: View {
 
     /// Notes whose start lies between the previous and current pointer positions take the value interpolated along the stroke.
     private func paint(from a: CGPoint, to b: CGPoint) {
-        let low = min(a.x, b.x) - Self.reach, high = max(a.x, b.x) + Self.reach
-        for note in document.notes where document.isVisible(note) {
+        stroke.merge(Self.stroke(from: a, to: b, notes: document.notes, layout: layout, selection: document.selection,
+                                 hiddenTracks: document.hiddenTracks)) { _, new in new }
+    }
+
+    /// The velocities a stroke segment sets: visible notes whose start lies under it, only selected ones when there is a
+    /// selection, each taking the height interpolated along the segment.
+    static func stroke(from a: CGPoint, to b: CGPoint, notes: [EditorNote], layout: PianoRollLayout, selection: Set<Int>,
+                       hiddenTracks: Set<String>) -> [Int: Int] {
+        let low = min(a.x, b.x) - reach, high = max(a.x, b.x) + reach
+        var values: [Int: Int] = [:]
+        for note in notes where !hiddenTracks.contains(note.track) && (selection.isEmpty || selection.contains(note.id)) {
             let x = layout.x(seconds: note.start)
             guard x >= low, x <= high else { continue }
             let t = b.x == a.x ? 1 : min(1, max(0, (x - a.x) / (b.x - a.x)))
             let y = a.y + (b.y - a.y) * t
-            stroke[note.id] = MIDIEditing.clampedVelocity(Int(((1 - y / Metric.velH) * 127).rounded()))
+            values[note.id] = MIDIEditing.clampedVelocity(Int(((1 - y / Metric.velH) * 127).rounded()))
         }
+        return values
     }
 }

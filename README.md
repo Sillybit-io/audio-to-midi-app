@@ -41,7 +41,7 @@ The sidebar lists both folders and updates when files appear or disappear, inclu
 
 - **Auto-save.** When a run finishes, or when you cancel one that already found notes, the result is written to `MIDI/{audio name}.mid`. The file remembers its source audio and model, so the next run of the same audio replaces it in place.
 - **Your edits are never overwritten.** A file you have edited is left alone: a new transcription of the same audio is saved next to it as `{name} 2.mid`. A cancelled run never replaces an earlier complete result, and a file that is not this audio's output is never touched.
-- **MIDI editor.** Select a `.mid` file in the sidebar. It has Select, Draw and Erase tools, click, Shift-click and box selection, snapped move and resize, a velocity lane, a snap grid (1/4 to 1/32 note, or off), Quantize, transpose, nudge, and Undo and Redo. Notes live between C1 and B6. Each track can be muted, soloed or hidden without changing a note.
+- **MIDI editor.** Select a `.mid` file in the sidebar. It has Select, Draw and Erase tools, click, Shift-click and box selection, snapped move and resize, a velocity lane, a snap grid (1/4 to 1/32 note, or off), Quantize, transpose, nudge, and Undo and Redo. Notes live between C1 and B6. Each track can be muted, soloed or hidden without changing a note. The inspector lets you type a note's start, length and velocity, rename the file (the name stays unique in the folder), and draw on a new instrument track picked from **Draw on**. With notes selected, the velocity lane only changes those.
 - **Save and unsaved changes.** Command-S saves the file in place and marks it as edited. Switching files, closing the window or quitting asks whether to save, discard or cancel. A save that fails keeps your edits and says why. A save refuses to overwrite a file that changed on disk after you opened it.
 - **Import.** **Import MIDI…** (Shift-Command-O) copies a Standard MIDI File (type 0 or 1, with the usual ticks-per-beat timing) into `MIDI/` byte for byte. A file that is not valid MIDI, is damaged, or uses SMPTE or type 2 timing is refused and nothing is written. Notes outside C1 to B6 are skipped and counted.
 - **Playback.** Play, Stop and Loop work on both screens, and the position shows time and bar.beat. Space plays and pauses, L toggles Loop, and clicking the ruler moves the playhead. Settings can make the roll follow the playhead.
@@ -54,7 +54,7 @@ Help, **Keyboard Shortcuts** (Command-/) lists them all. The main ones:
 | --- | --- |
 | Command-O, Shift-Command-O | Open audio, import MIDI |
 | Command-S | Save the MIDI file |
-| Command-E | Export MIDI (from a transcription) |
+| Command-E | Export MIDI |
 | Command-1, Command-2 | Audio, MIDI editor |
 | Option-Command-I | Show or hide the inspector |
 | Command-+, Command-- | Zoom |
@@ -68,7 +68,7 @@ Help, **Keyboard Shortcuts** (Command-/) lists them all. The main ones:
 
 ## Features
 
-- **Audio input.** Drop or open a file, see its waveform, and drag the handles to transcribe only a slice. Exported notes can keep the original timeline or start at zero.
+- **Audio input.** Drop or open a file and see its waveform with a time ruler. Drag the handles to change the slice, drag across empty waveform to pick a new slice, drag inside the slice to move it, and click to move the playhead. A slice is at least 0.5 s long. Exported notes can keep the original timeline or start at zero.
 - **Three engines.** MuScriptor (multi-instrument, drums included), Basic Pitch (fast, any pitched audio) and a piano model (high-resolution, piano only). The picker shows each model's licence.
 - **Streaming piano roll.** Notes appear while a MuScriptor run is still going, coloured by instrument. Show or hide instruments with the legend. Cancel keeps the notes found so far.
 - **Instruments, device and threads.** For MuScriptor you can restrict the transcription to chosen instruments, pick the compute device (Auto, a GPU, or CPU) and set the thread count.

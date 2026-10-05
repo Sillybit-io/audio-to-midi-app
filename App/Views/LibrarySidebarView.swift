@@ -8,6 +8,8 @@ struct LibrarySidebarView: View {
     @Binding var selection: LibrarySelection?
     let openAudio: () -> Void
     @Binding var importingMIDI: Bool
+    /// The audio file whose model download just failed; its row says so until the next try.
+    var failedDownload: URL?
 
     @State private var failure: (title: String, message: String)?
 
@@ -103,11 +105,15 @@ struct LibrarySidebarView: View {
     }
 
     @ViewBuilder private func audioRow(_ entry: LibraryEntry) -> some View {
+        let failed = entry.url.standardizedFileURL == failedDownload?.standardizedFileURL
         Label {
-            Text(entry.name)
+            VStack(alignment: .leading, spacing: Metric.sp1) {
+                Text(entry.name)
+                if failed { Text("Download failed \u{00B7} Try again").font(.caption).foregroundStyle(Token.warn) }
+            }
         } icon: {
-            Image(systemName: entry.isMissing ? "exclamationmark.triangle" : "waveform")
-                .foregroundStyle(entry.isMissing ? Token.warn : Native.fgSecondary)
+            Image(systemName: entry.isMissing || failed ? "exclamationmark.triangle" : "waveform")
+                .foregroundStyle(entry.isMissing || failed ? Token.warn : Native.fgSecondary)
         }
         .help(entry.isMissing ? "File not found. Relink\u{2026} to find it again." : entry.url.abbreviatedPath)
         .accessibilityElement(children: .combine)

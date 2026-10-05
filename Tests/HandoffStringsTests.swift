@@ -56,3 +56,26 @@ struct HandoffStringsTests {
         #expect(Metric.sliderW == 80 && Metric.readoutW == 40)
     }
 }
+
+@MainActor
+struct VelocityLaneStrokeTests {
+    private let layout = PianoRollLayout(pixelsPerSecond: 100, xOrigin: 0, laneHeight: 12, topPitch: 95)
+    private let notes = [EditorNote(id: 1, track: "piano", pitch: 60, start: 0, duration: 0.5, velocity: 90),
+                         EditorNote(id: 2, track: "piano", pitch: 62, start: 1, duration: 0.5, velocity: 90),
+                         EditorNote(id: 3, track: "bass", pitch: 40, start: 1, duration: 0.5, velocity: 90)]
+
+    @Test func aStrokePaintsTheNotesUnderItAlongItsSlope() {
+        let values = MIDIVelocityLaneView.stroke(from: CGPoint(x: 0, y: 0), to: CGPoint(x: 100, y: Metric.velH),
+                                                 notes: notes, layout: layout, selection: [], hiddenTracks: [])
+        #expect(values == [1: 127, 2: 1, 3: 1])
+    }
+
+    @Test func withASelectionOnlySelectedNotesChangeAndHiddenTracksNever() {
+        let selected = MIDIVelocityLaneView.stroke(from: CGPoint(x: 0, y: 0), to: CGPoint(x: 100, y: 0),
+                                                   notes: notes, layout: layout, selection: [2], hiddenTracks: [])
+        #expect(selected == [2: 127])
+        let hidden = MIDIVelocityLaneView.stroke(from: CGPoint(x: 0, y: 0), to: CGPoint(x: 100, y: 0),
+                                                 notes: notes, layout: layout, selection: [], hiddenTracks: ["bass"])
+        #expect(hidden == [1: 127, 2: 127])
+    }
+}
