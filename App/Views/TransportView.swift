@@ -21,13 +21,22 @@ struct TransportView: View {
                 .help("Loop (L)")
                 .accessibilityLabel("Loop")
                 .accessibilityValue(playback.loops ? "On" : "Off")
-            Text("\(PlaybackEngine.timeText(seconds: playback.position)) \u{00B7} \(PlaybackEngine.barBeatText(seconds: playback.position))")
-                .font(.body.monospacedDigit()).foregroundStyle(Native.fgSecondary)
-                .lineLimit(1).frame(width: Metric.positionW, alignment: .leading)
-                .accessibilityLabel("Playback position")
+            // The hidden text is the widest the readout gets for this audio: it never clips, never moves the toolbar
+            // while playing, and leaves no spare room after short audio.
+            ZStack(alignment: .leading) {
+                Text(Self.readout(playback.duration)).hidden().accessibilityHidden(true)
+                Text(Self.readout(playback.position))
+            }
+            .font(.body.monospacedDigit()).foregroundStyle(Native.fgSecondary).lineLimit(1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Playback position")
                 .accessibilityValue("\(PlaybackEngine.timeText(seconds: playback.position)), bar \(PlaybackEngine.barBeat(seconds: playback.position).bar) beat \(PlaybackEngine.barBeat(seconds: playback.position).beat)")
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Transport")
+    }
+
+    private static func readout(_ seconds: Double) -> String {
+        "\(PlaybackEngine.timeText(seconds: seconds)) \u{00B7} \(PlaybackEngine.barBeatText(seconds: seconds))"
     }
 }

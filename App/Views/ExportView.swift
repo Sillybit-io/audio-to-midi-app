@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Builds the file the toolbar's Export… button saves and the inspector's chip drags out.
+/// Builds the file the toolbar's Export… button saves and the footer's chip drags out.
 enum MIDIExport {
     static func item(notes: [NoteEvent], entry: ModelEntry?, slice: AudioSlice, name: String,
                      embedNotice: Bool = true, keyInName: Bool = true) -> MIDIExportItem {
@@ -71,8 +71,9 @@ struct ExportView: View {
     }
 }
 
-/// The MIDI file as an object to drag into Finder or a DAW. It sits in the inspector, with its name and a hint,
-/// because an icon alone in the toolbar didn't say what it was.
+/// The MIDI file as an object to drag into Finder or a DAW. It sits in the footer, which stays in view whatever the
+/// inspector shows, and carries the file's name because an icon alone didn't say what it was. It is left out until
+/// there are notes to drag.
 struct MIDIDragChip: View {
     let notes: [NoteEvent]
     let entry: ModelEntry?
@@ -80,19 +81,23 @@ struct MIDIDragChip: View {
     let name: String
 
     var body: some View {
-        let file = notes.isEmpty ? name : MIDIExport.fileName(notes: notes, name: name)
-        let chip = Label("\(file).mid", systemImage: "music.note")
+        if !notes.isEmpty {
+            let file = MIDIExport.fileName(notes: notes, name: name)
+            Label {
+                Text("\(file).mid").foregroundStyle(Native.fg)
+            } icon: {
+                Image(systemName: "music.note").foregroundStyle(Token.accent)
+            }
+            .font(.caption)
             .lineLimit(1).truncationMode(.middle)
-            .padding(.horizontal, Metric.sp5).padding(.vertical, Metric.sp3)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Metric.sp5).padding(.vertical, Metric.sp2)
+            .frame(maxWidth: Metric.dragChipW)
+            .fixedSize(horizontal: true, vertical: false)
             .background(Token.surfaceSunken, in: Capsule())
             .overlay(Capsule().strokeBorder(Token.border))
-        if notes.isEmpty {
-            chip.opacity(0.5).help("Transcribe something first")
-        } else {
-            chip.draggable(MIDIExport.item(notes: notes, entry: entry, slice: slice, name: name))
-                .help("Drag this MIDI file into Finder or a DAW")
-                .accessibilityLabel("MIDI file \(file), drag into Finder or a DAW")
+            .draggable(MIDIExport.item(notes: notes, entry: entry, slice: slice, name: name))
+            .help("Drag this MIDI file into Finder or a DAW")
+            .accessibilityLabel("MIDI file \(file), drag into Finder or a DAW")
         }
     }
 }

@@ -47,7 +47,7 @@ struct AudioInspectorView: View {
                     Toggle(isOn: $screen.estimateVelocity) {
                         VStack(alignment: .leading, spacing: Metric.sp1) {
                             Text("Estimate note velocity from the audio")
-                            Text("\(entry.engine == .muscriptor ? "MuScriptor" : "ADTOF") has none. Reflects relative loudness, not playing force.")
+                            Text("\(Self.velocitylessName(entry)) has none. Reflects relative loudness, not playing force.")
                                 .font(.caption).foregroundStyle(Native.fgSecondary)
                         }
                     }
@@ -70,14 +70,6 @@ struct AudioInspectorView: View {
                                          muted: $screen.mutedInstruments, hidden: $screen.hiddenInstruments)
                 }
             }
-            Section {
-                MIDIDragChip(notes: session.notes, entry: entry, slice: screen.document.slice,
-                             name: screen.document.document?.name ?? "transcription")
-            } header: {
-                Text("Export")
-            } footer: {
-                Text("Drag the file into Finder or your DAW, or use Export\u{2026} in the toolbar.")
-            }
         }
         .formStyle(.grouped)
     }
@@ -96,7 +88,8 @@ struct AudioInspectorView: View {
                 })) {
                 Section("MuScriptor · multi-instrument") { ForEach(entries(.muscriptor)) { row($0) } }
                 Section("Piano only") { ForEach(entries(.pianoOnnx)) { row($0) } }
-                Section("Drums only") { ForEach(entries(.drumsAdtof) + entries(.drumsOaf)) { row($0) } }
+                Section("Kit drums only") { ForEach(entries(.drumsAdtof) + entries(.drumsOaf)) { row($0) } }
+                Section("Hand percussion · built in") { ForEach(entries(.handPercussion)) { row($0) } }
                 Section("Built in") { ForEach(entries(.basicPitch)) { row($0) } }
                 Divider()
                 Text("Manage Models…").tag(Optional(Self.manageTag))
@@ -110,11 +103,15 @@ struct AudioInspectorView: View {
                     Text("Piano only. On other instruments it still reports piano notes.").font(.caption).foregroundStyle(Native.fgSecondary)
                 }
                 if entry.engine == .drumsAdtof {
-                    Text("Drums only: kick, snare, toms, hi-hat and cymbals. Reads the drums in a full mix.")
+                    Text("Drum kit only: kick, snare, toms, hi-hat and cymbals. Reads the drums in a full mix. Not for darbuka or other hand drums; use Hand percussion.")
+                        .font(.caption).foregroundStyle(Native.fgSecondary)
+                }
+                if entry.engine == .handPercussion {
+                    Text("Darbuka, doumbek, bendir and similar hand drums, one drum on its own. Finds each stroke and labels it low (doum, a Low Conga) or high (tek or ka, an Open Hi Conga). It cannot tell tek from ka, and it will not separate a drum from a band.")
                         .font(.caption).foregroundStyle(Native.fgSecondary)
                 }
                 if entry.engine == .drumsOaf {
-                    Text("Drums only, eight kit pieces. Trained on isolated drums, so it works best on drum-only audio such as an e-kit recording, a drum stem or a loop.")
+                    Text("Drum kit only, eight kit pieces. Trained on isolated drums, so it works best on drum-only audio such as an e-kit recording, a drum stem or a loop. Not for darbuka or other hand drums; use Hand percussion.")
                         .font(.caption).foregroundStyle(Native.fgSecondary)
                 }
             }
@@ -133,6 +130,14 @@ struct AudioInspectorView: View {
             if let entry {
                 Text(entry.attribution).font(.caption).foregroundStyle(Native.fgSecondary)
             }
+        }
+    }
+
+    private static func velocitylessName(_ entry: ModelEntry) -> String {
+        switch entry.engine {
+        case .muscriptor: "MuScriptor"
+        case .handPercussion: "Hand percussion"
+        default: "ADTOF"
         }
     }
 

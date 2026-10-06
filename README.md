@@ -72,14 +72,15 @@ Help, **Keyboard Shortcuts** (Command-/) lists them all. The main ones:
 ## Features
 
 - **Audio input.** Drop or open a file and see its waveform with a time ruler. Drag the handles to change the slice, drag across empty waveform to pick a new slice, drag inside the slice to move it, and click to move the playhead. A slice is at least 0.5 s long. Exported notes can keep the original timeline or start at zero.
-- **Five models.** MuScriptor (multi-instrument, drums included), Basic Pitch (fast, any pitched audio), a piano model (high-resolution, piano only) and two drum models, Drums (ADTOF) and Drums (OaF, Magenta). The picker shows each model's licence.
+- **Six models.** MuScriptor (multi-instrument, drums included), Basic Pitch (fast, any pitched audio), a piano model (high-resolution, piano only), two drum-kit models, Drums (ADTOF) and Drums (OaF, Magenta), and a built-in Hand percussion detector. The picker shows each model's licence.
 - **Streaming piano roll.** Notes appear while a MuScriptor run is still going, coloured by instrument. Show or hide instruments with the legend. Cancel keeps the notes found so far.
 - **Instruments, device and threads.** For MuScriptor you can restrict the transcription to chosen instruments, pick the compute device (Auto, a GPU, or CPU) and set the thread count.
 - **Drums.** ADTOF reads the drums in a full mix (five kit pieces, non-commercial). Onsets and Frames Drums gives eight kit pieces with predicted velocity but was trained on isolated drums, so use it on e-kit recordings, drum stems and loops. Hits are coloured by kit piece, the key column names each lane that has hits, and the legend counts hits per piece. **Separate drums first** (optional) isolates the drums with HT-Demucs before either model listens; it is very slow, many times the audio's length on an Intel Mac, so use it on short slices.
-- **Note velocity.** The piano and OaF drum models predict velocity themselves. For MuScriptor and ADTOF, which have none, a toggle (on by default) estimates velocity from the audio's loudness at each onset. Basic Pitch notes use the amplitude it reports.
+- **Hand percussion.** For a darbuka, doumbek, bendir or similar hand drum playing on its own. It finds each stroke and labels it low (doum, written as General MIDI Low Conga) or high (tek or ka, written as Open Hi Conga). It is signal processing built into the app, not a trained model, because no open model for hand drums that may be used commercially exists: there is nothing to download, and the app's own Apache-2.0 licence covers it. It cannot tell tek from ka, which are the same sound played by each hand. The two drum-kit models are not for hand drums: on darbuka recordings they find many of the strokes but label most of them as one tom, not as doum and tek, and both missed an isolated low hit entirely.
+- **Note velocity.** The piano and OaF drum models predict velocity themselves. For MuScriptor, ADTOF and Hand percussion, which have none, a toggle (on by default) estimates velocity from the audio's loudness at each onset. Basic Pitch notes use the amplitude it reports.
 - **Playback.** Play the notes through the built-in General MIDI sound bank, next to the original audio. Mix between the two with one slider, change the speed from 0.5x to 2x, and loop the slice. Playback needs an audio output device.
 - **Key and scale detection.** Ranks major, minor, dorian, phrygian, lydian, mixolydian and locrian in all twelve keys, from the transcribed notes, or from the audio file with the Detect from audio button.
-- **MIDI export.** Type 1 Standard MIDI File with one track per instrument. Drag the file from the inspector's Export section into Finder or a DAW, or use Export (Command-E). The export sheet can embed the model's licence notice in the file and add the detected key to the file name, for example `Song - Eb minor.mid`.
+- **MIDI export.** Type 1 Standard MIDI File with one track per instrument. Drag the file from the chip in the footer, next to the zoom slider, into Finder or a DAW, or use Export (Command-E). The export sheet can embed the model's licence notice in the file and add the detected key to the file name, for example `Song - Eb minor.mid`.
 - **Licences in the app.** The About window lists every third-party component and its licence text.
 
 ## Models
@@ -91,6 +92,7 @@ Help, **Keyboard Shortcuts** (Command-/) lists them all. The main ones:
 | Drums (ADTOF) (Zehren, Alunno and Bientinesi; ONNX conversion for this app) | CC BY-NC-SA 4.0 | 2 MB | Drums only, five kit pieces. Non-commercial use only |
 | Drums (OaF, Magenta) (Callender, Hawthorne and Engel; ONNX conversion for this app) | Apache-2.0 | 6 MB | Drums only, eight kit pieces with velocity, for drum-only audio. Commercial use allowed |
 | Drum separator (HT-Demucs) (Meta; ONNX export by StemSplit.io) | MIT | 316 MB | Optional helper for **Separate drums first**. Commercial use allowed |
+| Hand percussion (this app) | Apache-2.0 | Built in | Darbuka and similar hand drums, one drum on its own. Low and high strokes only. Commercial use allowed |
 | Basic Pitch (Spotify) | Apache-2.0 | Built in | Commercial use allowed |
 
 Basic Pitch is selected on a fresh install. Pick another model in the inspector and the button reads **Download & Transcribe**; the download happens when you press it, then the run starts. A failed or offline download shows a message with **Try Again**, and nothing is changed.
@@ -143,7 +145,7 @@ The Xcode project is generated from `project.yml` and is not checked in, so run 
 
 Debug builds have a **Debug** menu, with **Simulate Crash**, to check that the debug log records each kind of crash. `open SillyMIDITools.app --args -SimulateCrash swift` does the same without the menu; the other kinds are `exception` and `memory`.
 
-To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, as the CI workflow does: the tests that create real security-scoped bookmarks need the app's entitlements, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) leaves out. The end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads. The end-to-end drum tests need `build/models/adtof_frame_rnn.onnx` and `oaf_drums.onnx` (from `scripts/convert-drums.sh`) and `htdemucs_ft_drums.onnx` for the separator; each skips when its file is missing.
+To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, as the CI workflow does: the tests that create real security-scoped bookmarks need the app's entitlements, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) leaves out. The end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads. The end-to-end drum tests need `build/models/adtof_frame_rnn.onnx` and `oaf_drums.onnx` (from `scripts/convert-drums.sh`) and `htdemucs_ft_drums.onnx` for the separator; each skips when its file is missing. The end-to-end hand percussion tests read two Wikimedia Commons darbuka recordings (CC BY-SA 4.0, test input only) that `scripts/fetch-darbuka-clips.sh` downloads into `build/percussion`, and skip without them.
 
 ## Releasing
 
@@ -167,7 +169,8 @@ Names already in the stack are mangled Swift; `xcrun swift-demangle` makes them 
 - Release builds are Apple silicon only, and are not notarized.
 - The piano model handles one instrument; on other music it reports piano notes for whatever it hears.
 - OaF Drums was trained on isolated drums and finds little in a full mix; on its synthetic test clip it detects far fewer hits than ADTOF.
-- Velocity estimated for MuScriptor and ADTOF is relative loudness, not a measurement of how hard a note was played.
+- Hand percussion was checked on two clean solo darbuka recordings, where it reads Maksum and Saidi stroke for stroke. It has not been tried on other hand drums, other players or noisy rooms. Two groups of strokes is all it separates, so a djembe's third tone or a darbuka's slap is labelled low or high.
+- Velocity estimated for MuScriptor, ADTOF and Hand percussion is relative loudness, not a measurement of how hard a note was played.
 - Key detection ranks likely keys; modes that share most of their notes (for example dorian and natural minor) can be close.
 - OGG files are not decoded.
 - Export and the editor use a fixed 120 bpm, 4/4 grid. Tempo and time signature can't be edited. Importing a file converts its tempo changes into real time, and saving an edited file writes it back at 120 bpm.

@@ -246,6 +246,8 @@ struct MIDIEditorView: View {
                 Button { document.redo() } label: { Label("Redo", systemImage: "arrow.uturn.forward") }
                     .disabled(!(document.revision >= 0 && document.canRedo)).help("Redo")
             }
+            ToolbarSpacer(.fixed)
+            // The capsule draws its own background, so it stays out of the undo and redo glass.
             ToolbarItem {
                 Button { coordinator.save(editor) } label: {
                     CapsuleActionLabel(title: "Save", systemImage: "square.and.arrow.down", isPrimary: document.isDirty, isEnabled: document.isDirty)
@@ -254,6 +256,8 @@ struct MIDIEditorView: View {
                 .disabled(!document.isDirty).help("Save (\u{2318}S)")
                 .accessibilityValue(document.isDirty ? "Unsaved changes" : "No unsaved changes")
             }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarSpacer(.fixed)
             ToolbarItem {
                 ExportView(notes: document.noteEvents, entry: ModelCatalog.entry(id: editor.provenance?.modelID),
                            slice: editor.exportSlice, name: editor.name, showNotice: $editor.showExport)
@@ -467,17 +471,28 @@ private struct MIDIEditorFooterView: View {
             HStack(spacing: Metric.sp6) {
                 summaryText
                 Spacer(minLength: Metric.sp4)
+                exportChip
                 snapControl
                 quantizeButton
                 speedControl
                 zoomControl
             }
             VStack(alignment: .leading, spacing: Metric.sp3) {
-                HStack { summaryText; Spacer(minLength: Metric.sp4); zoomControl }
+                HStack(spacing: Metric.sp6) { summaryText; Spacer(minLength: Metric.sp4); exportChip; zoomControl }
+                HStack(spacing: Metric.sp6) { snapControl; quantizeButton; speedControl; Spacer(minLength: 0) }
+            }
+            VStack(alignment: .leading, spacing: Metric.sp3) {
+                summaryText
+                HStack(spacing: Metric.sp6) { exportChip; Spacer(minLength: 0); zoomControl }
                 HStack(spacing: Metric.sp6) { snapControl; quantizeButton; speedControl; Spacer(minLength: 0) }
             }
         }
         .padding(.horizontal, Metric.sp6).padding(.vertical, Metric.sp4)
+    }
+
+    private var exportChip: some View {
+        MIDIDragChip(notes: document.noteEvents, entry: ModelCatalog.entry(id: editor.provenance?.modelID),
+                     slice: editor.exportSlice, name: editor.name)
     }
 
     private var summaryText: some View {

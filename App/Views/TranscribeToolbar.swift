@@ -11,7 +11,7 @@ struct CapsuleActionLabel: View {
     var body: some View {
         Label(title, systemImage: systemImage)
             .labelStyle(.titleAndIcon)
-            .padding(.horizontal, Metric.sp5).padding(.vertical, Metric.sp2)
+            .padding(.horizontal, Metric.sp6).padding(.vertical, Metric.sp3)
             .foregroundStyle(isPrimary ? Token.fgOnAccent : Native.fg)
             .background(isPrimary ? Token.accent : Token.surfaceSunken, in: Capsule())
             .overlay(Capsule().strokeBorder(isPrimary ? Color.clear : Token.border))

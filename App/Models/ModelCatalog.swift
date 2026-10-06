@@ -32,7 +32,7 @@ enum AccessRequirement: Sendable {
 }
 
 struct ModelEntry: Identifiable, Hashable, Sendable {
-    enum Engine: Sendable { case muscriptor, basicPitch, pianoOnnx, drumsAdtof, drumsOaf, separator }
+    enum Engine: Sendable { case muscriptor, basicPitch, pianoOnnx, drumsAdtof, drumsOaf, handPercussion, separator }
 
     let id: String
     let displayName: String
@@ -63,11 +63,14 @@ struct ModelEntry: Identifiable, Hashable, Sendable {
         case .drumsAdtof: "Transcribed with ADTOF by Zehren, Alunno and Bientinesi (CC BY-NC-SA 4.0, non-commercial use only)."
         case .separator: ""
         case .drumsOaf: "Transcribed with Onsets and Frames Drums by Callender, Hawthorne and Engel, Magenta (Apache-2.0)."
+        case .handPercussion: "Transcribed with the hand percussion detector built into Silly MIDI Tools (Apache-2.0). Low strokes are General MIDI Low Conga, high strokes Open Hi Conga."
         }
     }
-    var needsDownload: Bool { engine != .basicPitch }
+    /// True for the engines that ship inside the app and have nothing to download.
+    var isBuiltIn: Bool { engine == .basicPitch || engine == .handPercussion }
+    var needsDownload: Bool { !isBuiltIn }
     /// True for the models that report no velocity, so the app can estimate it from the audio's loudness.
-    var canEstimateVelocity: Bool { engine == .muscriptor || engine == .drumsAdtof }
+    var canEstimateVelocity: Bool { engine == .muscriptor || engine == .drumsAdtof || engine == .handPercussion }
     /// False for helper models, which are downloaded and listed but never picked to transcribe with.
     var transcribes: Bool { engine != .separator }
     var isDrumModel: Bool { engine == .drumsAdtof || engine == .drumsOaf }
@@ -149,6 +152,14 @@ enum ModelCatalog {
         attribution: "Drums only, eight kit pieces with velocity, for drum-only audio. Callender, Hawthorne and Engel (Magenta); ONNX conversion for this app",
         licenseTexts: [LicenseText(resource: "Apache-2.0", ext: "txt"), LicenseText(resource: "OafDrumsNotice", ext: "md")])
 
+    /// Signal processing in the app itself, so it has no download, no weights and the app's own licence.
+    private static let handPercussion = ModelEntry(
+        id: "hand-percussion", displayName: "Hand percussion (doum / tek)", engine: .handPercussion,
+        mirrorRepo: nil, revision: nil, remotePath: nil, byteSize: 0, sha256: nil, authorsRepo: nil, access: .open,
+        statements: [], homepage: nil, licenseName: "Apache-2.0", licenseKind: .commercialAllowed,
+        attribution: "Built in. Signal processing, not a trained model",
+        licenseTexts: [LicenseText(resource: "Apache-2.0", ext: "txt"), LicenseText(resource: "HandPercussionNotice", ext: "md")])
+
     static let separatorID = "drum-separator"
 
     private static let separator = ModelEntry(
@@ -172,6 +183,7 @@ enum ModelCatalog {
         pianoOnnx,
         drumsAdtof,
         drumsOaf,
+        handPercussion,
         separator,
     ]
 

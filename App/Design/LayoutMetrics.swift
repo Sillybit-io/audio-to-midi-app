@@ -12,8 +12,8 @@ extension Metric {
     static let sliderW = sp10 + sp9
     /// Numeric fields: slice times, note start, length and velocity.
     static let fieldW = sp10 + sp9
-    /// The transport's `m:ss.s · bar.beat` readout, wide enough for `99:59.9 · 999.4` so it never clips in the toolbar.
-    static let positionW = sp10 * 2 + sp3
+    /// The widest the MIDI file chip in the footer grows before its name is shortened.
+    static let dragChipW = sp10 * 5
     /// The `1.00×` speed readout and the progress percentage.
     static let readoutW = sp10 - sp4
     /// The licence text box in the licence sheet.

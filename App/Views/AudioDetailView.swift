@@ -226,7 +226,8 @@ final class AudioScreenModel {
             steps = ["Download \(entry.sizeText)", "Verify SHA-256"]
             offset = 2
         }
-        steps += ["Load model"]
+        let load = selectedEntry?.engine == .handPercussion ? 0 : 1
+        if load == 1 { steps += ["Load model"] }
         if usesSeparator { steps.append("Separate drums") }
         steps.append("Transcribe")
         if estimateVelocity, selectedEntry?.canEstimateVelocity == true { steps.append("Estimate velocity") }
@@ -244,8 +245,8 @@ final class AudioScreenModel {
             let separating = usesSeparator && session.progress < DrumOnnxEngine.separationShare
             let label = separating ? "Separating drums" : "Transcribing"
             let title = session.progress > 0.15 ? session.eta.map { "\(label), about \(Int($0.rounded(.up))) s left" } ?? label : label
-            return .running(title: title, steps: steps, current: offset + 1 + (usesSeparator && !separating ? 1 : 0), fraction: session.progress)
-        case .refining: return .running(title: "Estimating velocity", steps: steps, current: offset + (usesSeparator ? 3 : 2), fraction: nil)
+            return .running(title: title, steps: steps, current: offset + load + (usesSeparator && !separating ? 1 : 0), fraction: session.progress)
+        case .refining: return .running(title: "Estimating velocity", steps: steps, current: offset + load + (usesSeparator ? 1 : 0) + 1, fraction: nil)
         case .failed(let message): return failureDismissed ? nil : .failed(title: "Transcription failed", message: message)
         default: return nil
         }
@@ -407,6 +408,23 @@ final class AudioScreenModel {
             session.start { BasicPitchEngine().stream(samples: samples, sourceRate: rate) }
             return
         }
+        /// Estimates velocity from the audio for the models that report none, when the user left that on.
+        func velocityRefinement(_ audio16: Task<[Float], Error>) -> (@Sendable ([NoteEvent]) async -> [NoteEvent])? {
+            guard estimateVelocity, entry.canEstimateVelocity else { return nil }
+            return { (notes: [NoteEvent]) async -> [NoteEvent] in
+                guard let audio = try? await audio16.value else { return notes }
+                return await Task.detached { VelocityEstimator.estimate(notes: notes, samples: audio, sampleRate: 16000) }.value
+            }
+        }
+        if entry.engine == .handPercussion {
+            let audio16 = Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }
+            let hands = HandPercussionEngine()
+            session.start(refine: velocityRefinement(audio16)) {
+                let resampled = try await Task.detached { try Resampler.resample(samples, from: rate, to: HandPercussionEngine.sampleRate) }.value
+                return hands.stream(samples: resampled)
+            }
+            return
+        }
         guard let modelURL = store.installedURL(for: entry) else { return }
         if entry.engine == .pianoOnnx {
             let piano = PianoOnnxEngine(modelURL: modelURL, threads: count)
@@ -417,13 +435,7 @@ final class AudioScreenModel {
             return
         }
         let audio16 = Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }
-        var refine: (@Sendable ([NoteEvent]) async -> [NoteEvent])?
-        if estimateVelocity, entry.canEstimateVelocity {
-            refine = { (notes: [NoteEvent]) async -> [NoteEvent] in
-                guard let audio = try? await audio16.value else { return notes }
-                return await Task.detached { VelocityEstimator.estimate(notes: notes, samples: audio, sampleRate: 16000) }.value
-            }
-        }
+        let refine = velocityRefinement(audio16)
         if entry.engine == .drumsAdtof || entry.engine == .drumsOaf {
             var drums = DrumOnnxEngine(modelURL: modelURL, spec: entry.engine == .drumsOaf ? .oaf : .adtof, threads: count)
             if usesSeparator, let helper = separatorEntry, let helperURL = store.installedURL(for: helper) {
@@ -512,10 +524,14 @@ struct AudioDetailView: View {
             ToolbarItem {
                 TransportView(playback: playback, toggle: screen.togglePlayback)
             }
+            ToolbarSpacer(.fixed)
+            // The capsule draws its own background, so it stays out of the transport's glass.
             ToolbarItem {
                 TranscribeButton(label: screen.transcribeLabel, isBusy: session.isBusy, isPrimary: !isRepeat,
                                  canStart: screen.canStart, hint: screen.startBlocker ?? "Transcribe the selected slice", action: screen.start)
             }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarSpacer(.fixed)
             ToolbarItem {
                 ExportView(notes: session.notes, entry: screen.selectedEntry,
                            slice: model.slice, name: model.document?.name ?? "transcription", showNotice: $screen.showExport)
@@ -548,22 +564,34 @@ struct AudioFooterView: View {
             HStack(spacing: Metric.sp6) {
                 summaryText
                 Spacer(minLength: Metric.sp4)
+                exportChip
                 mixControl
                 speedControl
                 zoomControl
             }
             VStack(alignment: .leading, spacing: Metric.sp3) {
-                HStack { summaryText; Spacer(); zoomControl }
+                HStack(spacing: Metric.sp6) { summaryText; Spacer(minLength: Metric.sp4); exportChip; zoomControl }
                 HStack(spacing: Metric.sp6) { mixControl; speedControl; Spacer(minLength: 0) }
             }
             VStack(alignment: .leading, spacing: Metric.sp3) {
                 summaryText
+                HStack(spacing: Metric.sp6) { exportChip; Spacer(minLength: 0); zoomControl }
+                HStack(spacing: Metric.sp6) { mixControl; speedControl; Spacer(minLength: 0) }
+            }
+            VStack(alignment: .leading, spacing: Metric.sp3) {
+                summaryText
+                exportChip
                 mixControl
                 speedControl
                 zoomControl
             }
         }
         .padding(.horizontal, Metric.sp6).padding(.vertical, Metric.sp4)
+    }
+
+    private var exportChip: some View {
+        MIDIDragChip(notes: screen.session.notes, entry: screen.selectedEntry, slice: screen.document.slice,
+                     name: screen.document.document?.name ?? "transcription")
     }
 
     private var summaryText: some View {

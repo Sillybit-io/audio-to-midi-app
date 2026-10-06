@@ -22,7 +22,7 @@ struct DrumKitTests {
     }
 
     @Test func noTwoLanesShareAShortName() {
-        let pitches = Array(35...59) + [64, 70, 75]
+        let pitches = Array(35...64) + [70, 75]
         let labels = pitches.map { DrumKit.laneLabel(forPitch: $0) }
         // The two kicks are one kit piece; every other pair of lanes must read differently.
         #expect(Set(labels).count == labels.count - 1)
@@ -38,7 +38,15 @@ struct DrumKitTests {
         #expect(DrumKit.counts(pitches: [Int]()).isEmpty)
     }
 
+    @Test func congasAndBongosAreHandDrumsLowOrHigh() {
+        for pitch in [61, 64] { #expect(DrumKit.piece(forPitch: pitch) == .handLow, "pitch \(pitch)") }
+        for pitch in [60, 62, 63] { #expect(DrumKit.piece(forPitch: pitch) == .handHigh, "pitch \(pitch)") }
+        #expect(DrumKit.name(forPitch: HandPercussionEngine.lowPitch) == "Low conga")
+        #expect(DrumKit.name(forPitch: HandPercussionEngine.highPitch) == "Open hi conga")
+        #expect(DrumKit.piece(forPitch: HandPercussionEngine.lowPitch) != DrumKit.piece(forPitch: HandPercussionEngine.highPitch))
+    }
+
     @Test func everyPieceHasATitle() {
-        #expect(DrumPiece.allCases.map(\.title) == ["Kick", "Snare", "Toms", "Hi-hat", "Cymbals", "Percussion"])
+        #expect(DrumPiece.allCases.map(\.title) == ["Kick", "Snare", "Toms", "Hi-hat", "Cymbals", "Percussion", "Hand drum, low", "Hand drum, high"])
     }
 }

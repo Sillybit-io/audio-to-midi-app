@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The six kit pieces a drum hit is drawn as: one colour each, so a drum track reads as a kit rather than one brown block.
+/// The pieces a drum hit is drawn as: one colour each, so a drum track reads as a kit rather than one brown block. The
+/// two hand-drum pieces are the low and high tones of a darbuka, a conga or a bongo.
 enum DrumPiece: CaseIterable, Sendable {
-    case kick, snare, toms, hiHat, cymbals, percussion
+    case kick, snare, toms, hiHat, cymbals, percussion, handLow, handHigh
 
     var title: String {
         switch self {
@@ -12,6 +13,8 @@ enum DrumPiece: CaseIterable, Sendable {
         case .hiHat: "Hi-hat"
         case .cymbals: "Cymbals"
         case .percussion: "Percussion"
+        case .handLow: "Hand drum, low"
+        case .handHigh: "Hand drum, high"
         }
     }
 
@@ -23,6 +26,8 @@ enum DrumPiece: CaseIterable, Sendable {
         case .hiHat: Token.drumHiHat
         case .cymbals: Token.drumCymbals
         case .percussion: Token.drumPercussion
+        case .handLow: Token.drumKick
+        case .handHigh: Token.drumCymbals
         }
     }
 }
@@ -36,6 +41,8 @@ enum DrumKit {
         case 41, 43, 45, 47, 48, 50: .toms
         case 42, 44, 46: .hiHat
         case 49, 51, 52, 53, 55, 57, 59: .cymbals
+        case 61, 64: .handLow
+        case 60, 62, 63: .handHigh
         default: .percussion
         }
     }
@@ -47,7 +54,8 @@ enum DrumKit {
         47: ("Low-mid tom", "Lo-mid"), 48: ("High-mid tom", "Hi-mid"), 49: ("Crash", "Crash"), 50: ("High tom", "High tom"),
         51: ("Ride", "Ride"), 52: ("China", "China"), 53: ("Ride bell", "Bell"), 54: ("Tambourine", "Tamb"),
         55: ("Splash", "Splash"), 56: ("Cowbell", "Cowbell"), 57: ("Crash 2", "Crash 2"), 58: ("Vibraslap", "Vibra"),
-        59: ("Ride 2", "Ride 2"), 64: ("Low conga", "Conga"), 70: ("Maracas", "Maracas"), 75: ("Claves", "Claves"),
+        59: ("Ride 2", "Ride 2"), 60: ("Hi bongo", "Hi bongo"), 61: ("Low bongo", "Lo bongo"), 62: ("Mute hi conga", "Hi mute"),
+        63: ("Open hi conga", "Hi conga"), 64: ("Low conga", "Lo conga"), 70: ("Maracas", "Maracas"), 75: ("Claves", "Claves"),
     ]
 
     /// The General MIDI name, for tooltips and descriptions.
