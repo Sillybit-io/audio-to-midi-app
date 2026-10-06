@@ -39,6 +39,7 @@ struct DropZoneView: View {
                 .padding(Metric.sp8)
         }
         .dropDestination(for: URL.self) { urls, _ in
+            debugLog(.library, "Dropped on the empty window: \(urls.map(\.lastPathComponent).joined(separator: ", "))")
             guard let url = urls.first else { return false }
             onOpen(url)
             return true

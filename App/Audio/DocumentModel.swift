@@ -39,6 +39,7 @@ final class DocumentModel {
 
     /// Decodes `url` and shows it. A file opened while an earlier one is still decoding wins; the earlier result is dropped.
     func open(_ url: URL) {
+        debugLog(.audio, "Decoding \"\(url.lastPathComponent)\" (\(url.path))")
         loading?.cancel()
         isLoading = true
         loading = Task {
@@ -47,12 +48,18 @@ final class DocumentModel {
                     let doc = try AudioDocument.load(url: url)
                     return (doc, WaveformPeaks.compute(doc.samples, buckets: 1000))
                 }.value
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    debugLog(.audio, "Dropped the decode of \"\(url.lastPathComponent)\": another file was opened meanwhile.")
+                    return
+                }
+                debugLog(.audio, String(format: "Decoded \"%@\": %.2f s at %.0f Hz, %ld samples. The app uses %@.",
+                                         url.lastPathComponent, result.0.duration, result.0.sampleRate, result.0.samples.count, DebugLog.footprint()))
                 document = result.0
                 peaks = result.1
                 slice = AudioSlice(duration: result.0.duration)
             } catch {
                 guard !Task.isCancelled else { return }
+                debugLog(.audio, "Couldn\u{2019}t decode \"\(url.lastPathComponent)\": \(String(reflecting: error))")
                 failure = .decoding(url)
             }
             isLoading = false

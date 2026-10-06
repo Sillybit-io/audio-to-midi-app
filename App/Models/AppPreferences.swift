@@ -23,6 +23,7 @@ final class AppPreferences {
     static let appearanceKey = "appearance"
     static let addAudioModeKey = "addAudioMode"
     static let followPlayheadKey = "followPlayhead"
+    static let debugLoggingKey = "debugLogging"
     static let fallbackModelID = "basic-pitch"
 
     /// The model a new Audio screen starts on. Basic Pitch is built in, so a first Transcribe never waits for a download.
@@ -43,6 +44,16 @@ final class AppPreferences {
         didSet { defaults.set(followPlayhead, forKey: Self.followPlayheadKey) }
     }
 
+    /// Writes a debug log to `Logs/` in the working folder. Off until the user turns it on.
+    var debugLogging: Bool {
+        didSet {
+            defaults.set(debugLogging, forKey: Self.debugLoggingKey)
+            onDebugLoggingChange(debugLogging)
+        }
+    }
+
+    @ObservationIgnored var onDebugLoggingChange: (Bool) -> Void = { _ in }
+
     @ObservationIgnored private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -52,5 +63,6 @@ final class AppPreferences {
         appearance = defaults.string(forKey: Self.appearanceKey).flatMap(AppearancePreference.init) ?? .automatic
         addAudioMode = defaults.string(forKey: Self.addAudioModeKey).flatMap(AddAudioMode.init) ?? .copy
         followPlayhead = defaults.object(forKey: Self.followPlayheadKey) as? Bool ?? true
+        debugLogging = defaults.bool(forKey: Self.debugLoggingKey)
     }
 }

@@ -26,6 +26,7 @@ final class AudioScreens {
 
     func open(_ url: URL) {
         if let returning = parked, returning.document.document?.url == url {
+            debugLog(.audio, "Back to \"\(url.lastPathComponent)\": its screen is restored (\(returning.session.state.stage)).")
             parked = nil
             if current.session.isBusy { park(current) }
             current.playback.stop()
@@ -33,6 +34,7 @@ final class AudioScreens {
             return
         }
         if current.session.isBusy, current.document.document?.url != url {
+            debugLog(.audio, "\"\(current.document.document?.url.lastPathComponent ?? "?")\" keeps transcribing in the background.")
             park(current)
             current = make()
             wire(current)

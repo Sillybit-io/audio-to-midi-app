@@ -6,10 +6,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var coordinator: MIDISaveCoordinator?
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        debugLog(.app, "Quit requested\(coordinator?.hasUnsavedChanges == true ? "; the open MIDI file has unsaved changes" : "").")
         guard let coordinator, coordinator.hasUnsavedChanges else { return .terminateNow }
         coordinator.confirmLeaving(then: { sender.reply(toApplicationShouldTerminate: true) },
                                    cancelled: { sender.reply(toApplicationShouldTerminate: false) })
         return .terminateLater
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        DebugLog.shared.end()
     }
 }
 
@@ -25,6 +30,7 @@ final class WindowCloseGuard: NSObject, NSWindowDelegate {
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        debugLog(.app, "Window close requested.")
         guard coordinator.hasUnsavedChanges else { return original?.windowShouldClose?(sender) ?? true }
         let coordinator = coordinator
         coordinator.confirmLeaving(then: { [weak sender] in
@@ -83,13 +89,19 @@ struct SillyMIDIToolsApp: App {
     @State private var workingFolder: WorkingFolderStore
     @State private var imports: AudioImportStore
     @State private var library: LibraryStore
-    @State private var preferences = AppPreferences()
+    @State private var preferences: AppPreferences
     @State private var saveCoordinator = MIDISaveCoordinator()
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
         let folder = WorkingFolderStore()
         folder.resolveAtLaunch()
+        let preferences = AppPreferences()
+        DebugLogSetup.connect(preferences: preferences, folder: folder)
+        #if DEBUG
+        SimulatedCrash.fromLaunchArguments()
+        #endif
+        _preferences = State(initialValue: preferences)
         let importStore = AudioImportStore()
         _workingFolder = State(initialValue: folder)
         _imports = State(initialValue: importStore)
@@ -109,6 +121,9 @@ struct SillyMIDIToolsApp: App {
         .commands {
             SidebarCommands()
             AppCommands()
+            #if DEBUG
+            SimulateCrashCommands()
+            #endif
         }
         Window("About Silly MIDI Tools", id: "about") { AboutView().preferredColorScheme(preferences.appearance.colorScheme) }
             .windowResizability(.contentSize)

@@ -16,6 +16,31 @@ struct EngineProcessTests {
         engine.transcribe(model: URL(fileURLWithPath: "/tmp/none.gguf"), samples: [0, 0, 0], device: "cpu", threads: 1, instruments: [])
     }
 
+    @Test func theEnginesErrorOutputGoesToTheDebugLog() async throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "smt-log-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let log = DebugLog()
+        log.configure(enabled: true, folder: folder)
+        let engine = EngineProcess(executable: fake, environment: ["FAKE_STDERR": "ggml: falling back to CPU"], log: log)
+
+        _ = try await engine.devices()
+
+        let file = try #require(log.currentFile)
+        var text = ""
+        for _ in 0..<50 {
+            text = try String(contentsOf: file, encoding: .utf8)
+            if text.contains("ggml") { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(text.contains(#/\] engine +engine: ggml: falling back to CPU/#))
+    }
+
+    @Test func writingToAnEngineThatHasExitedFailsInsteadOfEndingTheApp() throws {
+        let pipe = EngineProcess.makeInputPipe()
+        try pipe.fileHandleForReading.close()
+        #expect(throws: (any Error).self) { try pipe.fileHandleForWriting.write(contentsOf: Data("\n".utf8)) }
+    }
+
     @Test func listsDevicesAndInstruments() async throws {
         let engine = EngineProcess(executable: fake)
         #expect(try await engine.devices().first?.backend == "CPU")

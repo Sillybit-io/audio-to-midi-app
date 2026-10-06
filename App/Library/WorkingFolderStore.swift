@@ -52,8 +52,11 @@ final class WorkingFolderStore {
     static let midiName = "MIDI"
     static let defaultFolderName = "Silly MIDI Tools"
 
-    private(set) var folder: URL?
+    private(set) var folder: URL? {
+        didSet { if folder != oldValue { onFolderChange(folder) } }
+    }
     var errorMessage: String?
+    @ObservationIgnored var onFolderChange: (URL?) -> Void = { _ in }
 
     var isResolved: Bool { folder != nil }
     var audioFolder: URL? { folder?.appending(path: Self.audioName, directoryHint: .isDirectory) }
@@ -101,8 +104,10 @@ final class WorkingFolderStore {
             swapLease(to: started ? url : nil)
             folder = url
             errorMessage = nil
+            debugLog(.folder, "Working folder at launch: \(url.path)\(isStale ? " (bookmark refreshed)" : "")")
         } catch {
             errorMessage = error.localizedDescription
+            debugLog(.folder, "The saved working folder couldn\u{2019}t be used: \(error.localizedDescription)")
         }
     }
 
@@ -119,6 +124,7 @@ final class WorkingFolderStore {
         swapLease(to: started ? url : nil)
         folder = url
         errorMessage = nil
+        debugLog(.folder, "Working folder chosen: \(url.path)")
     }
 
     static let panelMessage = "Choose or create the folder where Silly MIDI Tools keeps your audio and MIDI files."
@@ -136,7 +142,10 @@ final class WorkingFolderStore {
     func handlePick(_ result: Result<URL, Error>) -> Bool {
         switch result {
         case .failure(let error):
-            if (error as? CocoaError)?.code != .userCancelled { errorMessage = error.localizedDescription }
+            if (error as? CocoaError)?.code != .userCancelled {
+                errorMessage = error.localizedDescription
+                debugLog(.folder, "The folder panel failed: \(error.localizedDescription)")
+            }
             return false
         case .success(let url):
             do {
@@ -144,6 +153,7 @@ final class WorkingFolderStore {
                 return true
             } catch {
                 errorMessage = error.localizedDescription
+                debugLog(.folder, "\(url.path) can\u{2019}t be the working folder: \(error.localizedDescription)")
                 return false
             }
         }

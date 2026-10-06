@@ -68,9 +68,11 @@ struct LibrarySidebarView: View {
             }
             do {
                 let destination = try MIDIImporter.importFile(from: url, into: folder)
+                debugLog(.midi, "Imported \"\(url.lastPathComponent)\" as \"\(destination.lastPathComponent)\".")
                 library.refresh()
                 selection = .midi(destination)
             } catch {
+                debugLog(.midi, "Couldn\u{2019}t import \"\(url.lastPathComponent)\": \(String(reflecting: error))")
                 failure = ("Could not import \u{201C}\(url.lastPathComponent)\u{201D}", error.localizedDescription)
             }
         }
@@ -152,7 +154,9 @@ struct LibrarySidebarView: View {
             guard response == .OK, let url = panel.url else { return }
             do {
                 try imports.relink(reference, to: url)
+                debugLog(.library, "Relinked \"\(reference.name)\" to \(url.path).")
             } catch {
+                debugLog(.library, "Couldn\u{2019}t relink \"\(reference.name)\": \(String(reflecting: error))")
                 failure = ("Could not relink \u{201C}\(reference.name)\u{201D}", error.localizedDescription)
             }
             library.refresh()

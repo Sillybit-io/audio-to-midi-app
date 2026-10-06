@@ -64,6 +64,7 @@ final class AudioImportStore {
             do {
                 try fileManager.copyItem(at: source, to: target)
             } catch {
+                debugLog(.library, "Copying \"\(source.lastPathComponent)\" failed\(scoped ? "" : " (no sandbox access to it)"): \(String(reflecting: error))")
                 throw AudioImportError.copyFailed(source.lastPathComponent)
             }
             return target

@@ -80,6 +80,7 @@ struct ContentView: View {
         }
         .onChange(of: model.document?.url) { _, url in if let url { selection = .audio(url) } }
         .onChange(of: selection) { _, new in
+            debugLog(.library, "Selected \(new?.logDescription ?? "nothing").")
             if case .audio(let url) = new, url != model.document?.url { screens.open(url) }
             if case .midi(let url) = new {
                 screen.playback.stop()
@@ -98,8 +99,12 @@ struct ContentView: View {
         }
         .fileImporter(isPresented: Binding(get: { model.isImporting }, set: { model.isImporting = $0 }), allowedContentTypes: [.audio]) { result in
             switch result {
-            case .success(let url): openAudio(url)
-            case .failure(let error): model.failure = .other(error)
+            case .success(let url):
+                debugLog(.library, "Chose \"\(url.lastPathComponent)\" in the open panel.")
+                openAudio(url)
+            case .failure(let error):
+                debugLog(.library, "The open panel failed: \(error.localizedDescription)")
+                model.failure = .other(error)
             }
         }
         .alert(model.failure?.title ?? "", isPresented: Binding(
@@ -191,6 +196,7 @@ struct ContentView: View {
     }
 
     private func openAudio(_ url: URL) {
+        debugLog(.library, "Opening \"\(url.lastPathComponent)\" as \(AudioDocument.kind(of: url)), from \(url.deletingLastPathComponent().path)")
         switch AudioDocument.kind(of: url) {
         case .audio:
             saveCoordinator.confirmLeaving(then: { importAndOpen(url) })
@@ -209,11 +215,13 @@ struct ContentView: View {
         do {
             let target = try imports.importAudio(from: url, mode: preferences.addAudioMode,
                                                  audioFolder: workingFolder.audioFolder)
+            debugLog(.library, "Added \"\(url.lastPathComponent)\" (\(preferences.addAudioMode.rawValue)): it opens from \(target.path)")
             Task { @MainActor in
                 library.refresh()
                 screens.open(target)
             }
         } catch {
+            debugLog(.library, "Couldn\u{2019}t add \"\(url.lastPathComponent)\": \(String(reflecting: error))")
             model.failure = .other(error)
         }
     }
@@ -224,14 +232,17 @@ struct ContentView: View {
             midiEditor = try MIDIEditorModel.load(url)
             saveCoordinator.editor = midiEditor
             midiFailure = nil
+            debugLog(.midi, "Opened \"\(url.lastPathComponent)\": \(midiEditor?.document.notes.count ?? 0) notes, \(midiEditor?.document.tracks.count ?? 0) tracks.")
         } catch {
             midiFailure = (url.lastPathComponent, error.localizedDescription)
+            debugLog(.midi, "Couldn\u{2019}t open \"\(url.lastPathComponent)\": \(String(reflecting: error))")
         }
     }
 
     /// Renames the open file on disk and keeps it open and selected under its new name.
     private func renameMIDI(_ editor: MIDIEditorModel, to name: String) throws {
         let renamed = try editor.rename(to: name)
+        debugLog(.midi, "Renamed to \"\(renamed.lastPathComponent)\".")
         selection = .midi(renamed)
         library.refresh()
     }

@@ -93,6 +93,18 @@ Downloads are pinned to a fixed revision and checked against a SHA-256 before us
 
 MuScriptor weights are gated on Hugging Face. The first time you use one, an alert tells you its size and takes you to the licence sheet. You need a Hugging Face account, you must accept the terms on the model page, and you paste a read token (Settings, Hugging Face, or in the sheet) before the download starts. **Save and check** shows a progress line while it asks Hugging Face, says plainly if the token is rejected (and doesn't keep it) and shows the account when it is accepted. The download button then needs the three statements ticked. The piano model is not gated.
 
+## Troubleshooting
+
+If something goes wrong or the app crashes, turn on **Save debug logs** in Settings, General, Troubleshooting. It takes effect at once, without a relaunch, and stays on until you turn it off.
+
+- Each launch writes one file to `Logs/` in your working folder, for example `Logs/2026-10-06 14.30.12.log`. The newest 10 are kept. **Show Logs in Finder** opens the folder.
+- A log starts with the app version, the macOS version and the Mac. Then there is one timestamped line for each thing the app does: opening, dropping and decoding files, each stage of a transcription with the app's memory use, the engine's own output, model downloads, licence checks, playback, and MIDI saves and exports.
+- After a crash, the log ends with the reason, for example Swift's `Fatal error: Index out of range` or an uncaught exception, and the stack. The next launch says that the previous session crashed and repeats its last lines.
+- macOS still writes its own report to `~/Library/Logs/DiagnosticReports/SillyMIDITools-<date>.ips`. When you report a crash, attach both files.
+- Logs name your files and folders. They never contain your Hugging Face token or your audio. Read a log before you post it publicly.
+
+When the switch is off, nothing is written.
+
 ## Build from source
 
 Requirements: macOS 26 or later, Xcode 26 or later, `xcodegen`, `cmake` and `ninja`.
@@ -107,6 +119,8 @@ xcodebuild -project SillyMIDITools.xcodeproj -scheme SillyMIDITools -destination
 
 The Xcode project is generated from `project.yml` and is not checked in, so run `xcodegen generate` after cloning and after editing `project.yml`. Builds are for the host architecture only and are ad-hoc signed.
 
+Debug builds have a **Debug** menu, with **Simulate Crash**, to check that the debug log records each kind of crash. `open SillyMIDITools.app --args -SimulateCrash swift` does the same without the menu; the other kinds are `exception` and `memory`.
+
 To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, as the CI workflow does: the tests that create real security-scoped bookmarks need the app's entitlements, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) leaves out. The end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads.
 
 ## Releasing
@@ -116,7 +130,15 @@ To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, a
 3. Push to `main` and wait for CI to pass.
 4. On GitHub, open Actions, Release, **Run workflow** on `main`. Tick **draft** to review the release before it goes public.
 
-The workflow builds the Apple silicon app on a runner, checks its version, architecture and signature, tags the commit `v<version>`, and attaches `SillyMIDITools-<version>-macOS-arm64.zip` and its `.sha256` to the release. It refuses to run if the version is already tagged or CI hasn't passed on the commit.
+The workflow builds the Apple silicon app on a runner, checks its version, architecture and signature, tags the commit `v<version>`, and attaches `SillyMIDITools-<version>-macOS-arm64.zip`, its `.sha256` and `SillyMIDITools-<version>-macOS-arm64.dSYM.zip` to the release. It refuses to run if the version is already tagged or CI hasn't passed on the commit.
+
+The dSYM holds the debug symbols of that exact build. To turn an address in a crash stack into a function, file and line, take the app's load address from the **Images** list at the top of the debug log:
+
+```sh
+atos -o SillyMIDITools.app.dSYM/Contents/Resources/DWARF/SillyMIDITools -arch arm64 -l <load address> <address>
+```
+
+Names already in the stack are mangled Swift; `xcrun swift-demangle` makes them readable.
 
 ## Known limits
 

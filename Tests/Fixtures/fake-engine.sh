@@ -1,6 +1,8 @@
 #!/bin/zsh
 # Replays canned sidecar protocol lines. FAKE_MODE=crash exits abruptly after two updates.
 # A stdin line makes it write FAKE_MARK (if set), print the Cancelled error and exit 2.
+# FAKE_STDERR, when set, is written to stderr first.
+[[ -n "$FAKE_STDERR" ]] && echo "$FAKE_STDERR" >&2
 case "$1" in
   devices) echo '{"type":"devices","auto":0,"devices":[{"index":0,"name":"CPU","backend":"CPU","integrated":false,"memory_total":0}]}' ;;
   instruments) echo '{"type":"instruments","instruments":[{"name":"acoustic_piano","program":0},{"name":"drums","program":128}]}' ;;

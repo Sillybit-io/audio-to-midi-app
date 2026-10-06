@@ -100,3 +100,51 @@ struct AppCommands: Commands {
         openWindow(id: "about")
     }
 }
+
+#if DEBUG
+/// Debug builds only: crashes the app on purpose, to check that the debug log records each kind of crash.
+enum SimulatedCrash: String, CaseIterable {
+    case swift, exception, memory
+
+    var title: String {
+        switch self {
+        case .swift: "Swift Runtime Error"
+        case .exception: "Uncaught Objective-C Exception"
+        case .memory: "Bad Memory Access"
+        }
+    }
+
+    func trigger() {
+        debugLog(.app, "Simulating a crash: \(title).")
+        switch self {
+        case .swift:
+            let empty: [Int] = []
+            _ = empty[Int.random(in: 1...2)]
+        case .exception:
+            Thread.detachNewThread {
+                NSException(name: .genericException, reason: "Simulated from the Debug menu", userInfo: nil).raise()
+            }
+        case .memory:
+            UnsafeMutablePointer<Int>(bitPattern: 0x10)!.pointee = 1
+        }
+    }
+
+    /// `open SillyMIDITools.app --args -SimulateCrash swift` crashes two seconds after launch, without the menu.
+    static func fromLaunchArguments() {
+        guard let name = UserDefaults.standard.string(forKey: "SimulateCrash"), let crash = SimulatedCrash(rawValue: name) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { crash.trigger() }
+    }
+}
+
+struct SimulateCrashCommands: Commands {
+    var body: some Commands {
+        CommandMenu("Debug") {
+            Menu("Simulate Crash") {
+                ForEach(SimulatedCrash.allCases, id: \.self) { crash in
+                    Button(crash.title) { crash.trigger() }
+                }
+            }
+        }
+    }
+}
+#endif

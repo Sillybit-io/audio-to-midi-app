@@ -19,6 +19,20 @@ struct SettingsPreferencesTests {
         #expect(preferences.appearance.colorScheme == nil)
     }
 
+    @Test func debugLoggingStartsOffAndIsRemembered() {
+        let (defaults, cleanup) = suite()
+        defer { cleanup() }
+        let first = AppPreferences(defaults: defaults)
+        #expect(first.debugLogging == false)
+        var heard: [Bool] = []
+        first.onDebugLoggingChange = { heard.append($0) }
+
+        first.debugLogging = true
+
+        #expect(heard == [true])
+        #expect(AppPreferences(defaults: defaults).debugLogging)
+    }
+
     @Test func choicesPersistAcrossLaunches() {
         let (defaults, cleanup) = suite()
         defer { cleanup() }

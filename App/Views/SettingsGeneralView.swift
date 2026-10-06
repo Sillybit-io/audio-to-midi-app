@@ -57,8 +57,33 @@ struct SettingsGeneralView: View {
                 Toggle("Scroll piano roll to follow playhead", isOn: $preferences.followPlayhead)
                 LabeledContent("MIDI file", value: "Type 1 · 120 BPM · 4/4")
             }
+            Section {
+                Toggle("Save debug logs", isOn: $preferences.debugLogging)
+                if preferences.debugLogging {
+                    HStack(spacing: Metric.sp4) {
+                        Text(logStatus).font(.caption).foregroundStyle(DebugLog.shared.problem == nil ? Native.fgSecondary : Token.warn)
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button("Show Logs in Finder", action: showLogs).disabled(DebugLog.shared.currentFile == nil)
+                    }
+                }
+            } header: {
+                Text("Troubleshooting")
+            } footer: {
+                Text("Writes what the app does, and the reason for a crash, to a Logs folder in your working folder: one file per launch, the newest 10 kept. Logs name your files but never hold your Hugging Face token or your audio. Leave this off unless you are tracking down a problem.")
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private var logStatus: String {
+        if let problem = DebugLog.shared.problem { return problem }
+        guard let file = DebugLog.shared.currentFile else { return "Starting\u{2026}" }
+        return "Writing to \(DebugLog.folderName)/\(file.lastPathComponent)"
+    }
+
+    private func showLogs() {
+        if let file = DebugLog.shared.currentFile { NSWorkspace.shared.activateFileViewerSelecting([file]) }
     }
 
     private func directory(inDefaultLocation: Bool) -> URL {

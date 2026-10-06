@@ -67,6 +67,21 @@ struct WorkingFolderTests {
         return url
     }
 
+    @Test func folderChangesAreAnnouncedOnce() throws {
+        let first = try tempFolder("first")
+        let second = try tempFolder("second")
+        let store = store()
+        var announced: [URL?] = []
+        store.onFolderChange = { announced.append($0) }
+
+        store.handlePick(.success(first))
+        store.handlePick(.success(first))
+        store.handlePick(.success(second))
+        store.reset()
+
+        #expect(announced == [first, second, nil])
+    }
+
     @Test func freshGrantCreatesSubfoldersAndStoresBookmark() throws {
         let folder = try tempFolder()
         let store = store()

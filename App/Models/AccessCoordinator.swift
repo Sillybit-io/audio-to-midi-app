@@ -40,6 +40,7 @@ final class AccessCoordinator {
     func authorize(_ entry: ModelEntry) async -> Bool {
         guard entry.gated else { return true }
         let decision = await gate.evaluate(entry)
+        debugLog(.access, "Licence sheet for \(entry.displayName); Hugging Face check: \(decision).")
         request = AccessRequest(entry: entry, decision: decision)
         return await withCheckedContinuation { continuation = $0 }
     }
@@ -60,6 +61,7 @@ final class AccessCoordinator {
         tokenError = nil
         defer { isCheckingToken = false }
         guard keychain.save(trimmed), keychain.read() == trimmed else {
+            debugLog(.access, "The token couldn\u{2019}t be saved to the Keychain.")
             tokenError = "The token couldn\u{2019}t be saved to your Keychain."
             return
         }
@@ -69,10 +71,14 @@ final class AccessCoordinator {
             request?.decision = .invalidToken
             return
         }
-        if let current = request { request?.decision = await gate.evaluate(current.entry) }
+        if let current = request {
+            request?.decision = await gate.evaluate(current.entry)
+            debugLog(.access, "Hugging Face check after saving the token: \(request.map { "\($0.decision)" } ?? "sheet closed").")
+        }
     }
 
     func removeToken() {
+        debugLog(.access, "Token removed.")
         keychain.delete()
         tokenPresent = false
         accountName = nil
@@ -81,7 +87,15 @@ final class AccessCoordinator {
     /// Looks up the account the saved token belongs to. A token Hugging Face rejects is removed; with no connection it stays.
     func refreshAccount() async {
         guard let token = keychain.read() else { accountName = nil; return }
-        guard let who = try? await client.whoami(token: token) else { accountName = nil; return }
+        let who: (status: Int, name: String?)
+        do {
+            who = try await client.whoami(token: token)
+        } catch {
+            debugLog(.access, "Couldn\u{2019}t reach Hugging Face to check the token: \(error.localizedDescription)")
+            accountName = nil
+            return
+        }
+        debugLog(.access, "Hugging Face token check answered \(who.status).")
         if who.status == 401 {
             removeToken()
             tokenError = "Hugging Face rejected this token. Paste a valid read token."
@@ -91,6 +105,7 @@ final class AccessCoordinator {
     }
 
     func finish(agreed: Bool) {
+        if continuation != nil { debugLog(.access, "Licence sheet answered: \(agreed ? "agreed" : "declined").") }
         let waiting = continuation
         continuation = nil
         request = nil
@@ -99,6 +114,7 @@ final class AccessCoordinator {
 
     private func release(agreed: Bool) {
         guard let waiting = continuation else { return }
+        debugLog(.access, "The licence sheet went away without an answer; the download is released as declined.")
         continuation = nil
         waiting.resume(returning: agreed)
     }

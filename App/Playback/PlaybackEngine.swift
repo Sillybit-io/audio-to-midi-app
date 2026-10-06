@@ -17,7 +17,9 @@ final class PlaybackEngine {
 
     private(set) var isPlaying = false
     private(set) var position = 0.0
-    private(set) var lastError: String?
+    private(set) var lastError: String? {
+        didSet { if let lastError, lastError != oldValue { debugLog(.playback, "Playback error: \(lastError)") } }
+    }
     /// The end of the material: the slice's length, or the end of the last note. Looping wraps here.
     var duration = 0.0
     var loops = false
@@ -223,6 +225,7 @@ final class PlaybackEngine {
             player.play()
             isPlaying = true
             startTicker()
+            debugLog(.playback, String(format: "Playing from %.2f s at %.2f\u{00D7}, %ld instrument groups.", position, rate, groups.count))
         } catch {
             lastError = error.localizedDescription
         }
@@ -261,6 +264,7 @@ final class PlaybackEngine {
     }
 
     func stop() {
+        if isPlaying { debugLog(.playback, "Stopped.") }
         pause()
         position = 0
         sequencer.currentPositionInSeconds = 0

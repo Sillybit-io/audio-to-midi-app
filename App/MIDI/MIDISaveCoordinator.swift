@@ -146,9 +146,11 @@ final class MIDISaveCoordinator {
             editor.fingerprint = FileFingerprint.of(editor.url)
             document.markSaved()
             saveFailure = nil
+            debugLog(.midi, "Saved \"\(file)\": \(document.notes.count) notes.")
             onSaved()
             return true
         } catch {
+            debugLog(.midi, "Couldn\u{2019}t save \"\(file)\": \(String(reflecting: error))")
             saveFailure = (file, error.localizedDescription)
             return false
         }
@@ -169,6 +171,7 @@ final class MIDISaveCoordinator {
         presenter(editor.name) { [weak self] choice in
             guard let self else { return }
             promptIsOpen = false
+            debugLog(.midi, "Unsaved changes in \"\(editor.name)\": \(choice).")
             switch choice {
             case .save:
                 if save(editor) { proceed() } else { cancelled() }

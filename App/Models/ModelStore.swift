@@ -72,9 +72,11 @@ final class ModelStore {
         guard entry.needsDownload, let remote = entry.downloadURL, let expected = entry.sha256 else { return }
         if case .downloading = state(for: entry) { return }
         guard await policy.authorize(entry) else {
+            debugLog(.models, "Download of \(entry.displayName) not authorised.")
             states[entry.id] = .failed(ModelStoreError.denied.localizedDescription)
             return
         }
+        debugLog(.models, "Downloading \(entry.displayName) (\(entry.byteSize) bytes) from \(remote.host() ?? "?").")
         states[entry.id] = .downloading(0)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -88,13 +90,16 @@ final class ModelStore {
                 try? FileManager.default.removeItem(at: temp)
                 throw ModelStoreError.badResponse(http.statusCode)
             }
+            debugLog(.models, "Downloaded \(entry.displayName); checking its SHA-256.")
             states[entry.id] = .verifying
             try await Self.verify(fileAt: temp, sha256: expected, byteSize: entry.byteSize)
             let destination = directory.appendingPathComponent(entry.fileName)
             try? FileManager.default.removeItem(at: destination)
             try FileManager.default.moveItem(at: temp, to: destination)
             states[entry.id] = .installed
+            debugLog(.models, "Installed \(entry.displayName).")
         } catch {
+            debugLog(.models, "Download of \(entry.displayName) failed: \(String(reflecting: error))")
             states[entry.id] = .failed(error.localizedDescription)
         }
     }
@@ -106,7 +111,9 @@ final class ModelStore {
             if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
             states[entry.id] = .notInstalled
             deleteError = nil
+            debugLog(.models, "Deleted \(entry.displayName).")
         } catch {
+            debugLog(.models, "Couldn\u{2019}t delete \(entry.displayName): \(String(reflecting: error))")
             deleteError = "Couldn\u{2019}t delete \u{201C}\(entry.displayName)\u{201D}: \(error.localizedDescription)"
         }
     }

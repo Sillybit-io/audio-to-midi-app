@@ -76,6 +76,8 @@ final class LibraryStore {
     @ObservationIgnored private var midiFolder: URL?
     @ObservationIgnored private var watches: [any FolderWatching] = []
     @ObservationIgnored private var infoCache: [URL: (stamp: Date, size: Int, info: MIDIFileInfo?)] = [:]
+    /// The last summary written to the debug log; a refresh that changes nothing isn't logged again.
+    @ObservationIgnored private var loggedSummary = ""
 
     init(imports: AudioImportStore, watcher: any FolderWatcher = DispatchFolderWatcher(), fileManager: FileManager = .default) {
         self.imports = imports
@@ -109,6 +111,11 @@ final class LibraryStore {
             return entry
         }
         infoCache = infoCache.filter { cached in midi.contains { $0.url == cached.key } }
+        let summary = "Library: \(audio.count) audio (\(audio.filter(\.isMissing).count) missing), \(midi.count) MIDI."
+        if summary != loggedSummary {
+            loggedSummary = summary
+            debugLog(.library, summary)
+        }
     }
 
     private func midiInfo(for url: URL) -> MIDIFileInfo? {

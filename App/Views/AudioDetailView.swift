@@ -105,6 +105,7 @@ final class AudioScreenModel {
         case .done, .cancelled:
             self.run = nil
             writer.finish(session.state, notes: session.notes, run: run, folder: destination())
+            debugLog(.library, "Result of \"\(run.title)\": \(writer.status)")
             if case .saved = writer.status { onSaved() }
         case .failed:
             self.run = nil
@@ -248,6 +249,7 @@ final class AudioScreenModel {
             #endif
         } catch {
             engineProblem = error.localizedDescription
+            debugLog(.engine, "The engine isn\u{2019}t available: \(String(reflecting: error))")
         }
     }
 
@@ -284,6 +286,7 @@ final class AudioScreenModel {
     /// Another audio file is open, so the notes, summary and save line on screen belonged to the last one.
     /// A run still going is cancelled first and its partial notes are saved for the file it was transcribing.
     func documentChanged() {
+        debugLog(.audio, "The screen now shows \"\(document.document?.url.lastPathComponent ?? "nothing")\"; the previous result is cleared.")
         if session.isBusy || prepareTask != nil {
             cancel()
             sessionStateChanged()
@@ -320,6 +323,7 @@ final class AudioScreenModel {
 
     /// Stops a run, a download, or a wait on the first-use alert or the licence sheet.
     func cancel() {
+        debugLog(.transcription, "Cancel pressed (\(session.isBusy ? "run going" : prepareTask != nil ? "preparing the model" : "nothing running")).")
         prepareTask?.cancel()
         firstUse.answerConsent(false)
         access.finish(agreed: false)
@@ -329,6 +333,11 @@ final class AudioScreenModel {
     /// Transcribes the slice, first fetching the model when it isn't on the disk yet.
     func start() {
         guard canStart, let entry = selectedEntry else { return }
+        debugLog(.transcription, "Transcribe pressed on \"\(document.document?.url.lastPathComponent ?? "?")\": \(entry.displayName), "
+                 + String(format: "slice %.2f\u{2013}%.2f s, ", document.slice.start, document.slice.end)
+                 + "threads \(threads), device \(deviceIndex.map(String.init) ?? "auto"), "
+                 + "instruments \(chosenInstruments.isEmpty ? "automatic" : chosenInstruments.sorted().joined(separator: ", ")), "
+                 + "velocity \(estimateVelocity ? "on" : "off"), model \(store.state(for: entry) == .installed ? "installed" : "to download").")
         downloadFailure = nil
         failureDismissed = false
         startedAt = Date()
@@ -340,7 +349,9 @@ final class AudioScreenModel {
         includesDownload = entry
         prepareTask = Task { [weak self] in
             guard let self else { return }
-            switch await firstUse.prepare(entry) {
+            let outcome = await firstUse.prepare(entry)
+            debugLog(.models, "Getting \(entry.displayName) ready: \(outcome)")
+            switch outcome {
             case .ready: launch(entry)
             case .cancelled: includesDownload = nil
             case .failed(let message):
@@ -358,8 +369,10 @@ final class AudioScreenModel {
         ran = RunRecord(modelID: entry.id, modelName: entry.displayName, start: document.slice.start, end: document.slice.end,
                         instruments: chosenInstruments, estimatesVelocity: estimateVelocity, took: nil)
         writer.reset()
+        session.label = audio.url.lastPathComponent
         let samples = document.slice.cut(audio.samples, sampleRate: audio.sampleRate)
         let rate = audio.sampleRate
+        debugLog(.transcription, "Starting \(entry.displayName) on \(samples.count) samples at \(Int(rate)) Hz.")
         let device = deviceIndex.map(String.init) ?? "auto"
         let names = chosenInstruments.sorted()
         let count = threads
@@ -424,6 +437,7 @@ struct AudioDetailView: View {
             AudioFooterView(screen: screen, onEditMIDI: onEditMIDI)
         }
         .dropDestination(for: URL.self) { urls, _ in
+            debugLog(.library, "Dropped on the Audio screen: \(urls.map(\.lastPathComponent).joined(separator: ", "))")
             guard let url = urls.first else { return false }
             onOpenAudio(url)
             return true

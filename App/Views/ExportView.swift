@@ -58,9 +58,14 @@ struct ExportView: View {
                 }
                 .padding(Metric.sp7).frame(width: Metric.sheetW)
             }
-            .fileExporter(isPresented: $exporting, item: item, contentTypes: [.midi], defaultFilename: "\(fileName).mid") { _ in
+            .fileExporter(isPresented: $exporting, item: item, contentTypes: [.midi], defaultFilename: "\(fileName).mid") { result in
+                switch result {
+                case .success(let url): debugLog(.export, "Exported to \(url.path).")
+                case .failure(let error): debugLog(.export, "Export failed: \(String(reflecting: error))")
+                }
                 MIDIExportItem.clearTemporaryFiles()
             } onCancellation: {
+                debugLog(.export, "Export cancelled.")
                 MIDIExportItem.clearTemporaryFiles()
             }
     }

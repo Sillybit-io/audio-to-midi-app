@@ -11,9 +11,29 @@ final class TranscriptionSession {
         case done(Int)
         case failed(String)
         case cancelled
+
+        /// The state without its progress, for the debug log.
+        var stage: String {
+            switch self {
+            case .idle: "idle"
+            case .loading: "loading the model"
+            case .running: "transcribing"
+            case .refining: "estimating velocity"
+            case .done(let count): "done, \(count) notes"
+            case .failed(let message): "failed: \(message)"
+            case .cancelled: "cancelled"
+            }
+        }
     }
 
-    private(set) var state: State = .idle
+    private(set) var state: State = .idle {
+        didSet {
+            guard DebugLog.shared.isEnabled, oldValue.stage != state.stage else { return }
+            debugLog(.transcription, "\"\(label)\": \(state.stage) (\(notes.count) notes so far, the app uses \(DebugLog.footprint()))")
+        }
+    }
+    /// The file being transcribed, for the debug log.
+    @ObservationIgnored var label = ""
     private(set) var notes: [NoteEvent] = []
     private(set) var finalizedThrough = 0.0
     private(set) var progress = 0.0
@@ -71,6 +91,7 @@ final class TranscriptionSession {
                 await self?.finishRun()
             } catch is CancellationError {
             } catch {
+                debugLog(.transcription, "The run stopped with an error: \(String(reflecting: error))")
                 self?.fail(error.localizedDescription)
             }
         }

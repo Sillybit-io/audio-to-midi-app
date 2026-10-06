@@ -18,6 +18,7 @@ struct MIDIExportItem: Transferable, Sendable {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent(name).appendingPathExtension("mid")
         try MIDIBuilder.build(notes: notes, options: options).write(to: url)
+        debugLog(.export, "Wrote \"\(url.lastPathComponent)\" (\(notes.count) notes) for a drag or an export.")
         return url
     }
 

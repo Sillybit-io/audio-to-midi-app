@@ -52,12 +52,14 @@ final class FirstUseTranscription {
     }
 
     func answerConsent(_ approved: Bool) {
+        if consent != nil { debugLog(.models, "First-use download alert answered: \(approved ? "go ahead" : "cancel").") }
         consentRequest = nil
         consent?.resume(returning: approved)
         consent = nil
     }
 
     private func askConsent(_ entry: ModelEntry) async -> Bool {
+        debugLog(.models, "Asking before downloading \(entry.displayName).")
         consentRequest = entry
         return await withCheckedContinuation { consent = $0 }
     }
