@@ -1,6 +1,23 @@
 import AVFoundation
+import UniformTypeIdentifiers
 
 struct AudioDocument: Sendable {
+    enum Kind: Equatable {
+        case audio
+        case midi
+        case other
+    }
+
+    /// What a file the user opened or dropped is, judged by its type, so that only audio is copied into the library.
+    /// A format Core Audio can't decode (OGG) still counts as audio; the open fails with its own message.
+    static func kind(of url: URL) -> Kind {
+        let ext = url.pathExtension.lowercased()
+        if AudioOpenFailure.decodableExtensions.contains(ext) { return .audio }
+        guard let type = UTType(filenameExtension: ext) else { return .other }
+        if type.conforms(to: .midi) { return .midi }
+        return type.conforms(to: .audio) ? .audio : .other
+    }
+
     let url: URL
     let samples: [Float]
     let sampleRate: Double

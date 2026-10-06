@@ -34,20 +34,28 @@ final class DocumentModel {
     var peaks: [Peak] = []
     var failure: AudioOpenFailure?
     var isImporting = false
+    private(set) var isLoading = false
+    @ObservationIgnored private var loading: Task<Void, Never>?
 
+    /// Decodes `url` and shows it. A file opened while an earlier one is still decoding wins; the earlier result is dropped.
     func open(_ url: URL) {
-        Task {
+        loading?.cancel()
+        isLoading = true
+        loading = Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
                     let doc = try AudioDocument.load(url: url)
                     return (doc, WaveformPeaks.compute(doc.samples, buckets: 1000))
                 }.value
+                guard !Task.isCancelled else { return }
                 document = result.0
                 peaks = result.1
                 slice = AudioSlice(duration: result.0.duration)
             } catch {
+                guard !Task.isCancelled else { return }
                 failure = .decoding(url)
             }
+            isLoading = false
         }
     }
 }

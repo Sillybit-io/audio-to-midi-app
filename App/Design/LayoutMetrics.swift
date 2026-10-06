@@ -3,12 +3,17 @@ import CoreGraphics
 /// Sizes the views need that the generated token set doesn't name. Each is built from those tokens, so the 4-pt grid
 /// stays the one source of sizes. `DesignTokens.swift` is generated from the prototype and isn't edited by hand.
 extension Metric {
+    /// The narrowest window. The handoff's 960 pt leaves the detail column about 430 pt with both side panes open, too
+    /// little for the MIDI editor's transport, tools, undo, Save, Export and inspector button on one toolbar.
+    static let windowMinWide = windowMinW + sp10 * 3
     /// The Original ↔ Notes mix slider (220 pt in the handoff).
     static let mixSliderW = sheetW / 2
     /// Speed and zoom sliders, and the download progress bar in Settings.
     static let sliderW = sp10 + sp9
     /// Numeric fields: slice times, note start, length and velocity.
     static let fieldW = sp10 + sp9
+    /// The transport's `m:ss.s · bar.beat` readout, wide enough for `99:59.9 · 999.4` so it never clips in the toolbar.
+    static let positionW = sp10 * 2 + sp3
     /// The `1.00×` speed readout and the progress percentage.
     static let readoutW = sp10 - sp4
     /// The licence text box in the licence sheet.

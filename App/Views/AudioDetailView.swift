@@ -52,13 +52,17 @@ final class AudioScreenModel {
     /// The failed panel was dismissed; it stays hidden until the next run.
     private(set) var failureDismissed = false
     private(set) var ran: RunRecord?
-    @ObservationIgnored private var includesDownload: ModelEntry?
-    @ObservationIgnored private var prepareTask: Task<Void, Never>?
+    /// Both of these decide what the screen shows (the download panel, the button), so they are observed: when a
+    /// preparation ends without anything else changing, the screen has to redraw.
+    private var includesDownload: ModelEntry?
+    private var prepareTask: Task<Void, Never>?
     /// The run in flight; it is consumed by the first terminal state, so a run is saved once.
     @ObservationIgnored private var run: TranscriptionWriter.Run?
     @ObservationIgnored private let destination: () -> URL?
     @ObservationIgnored private let references: () -> [AudioReference]
     @ObservationIgnored private let onSaved: () -> Void
+    /// True while a run for another audio file is going in the background. One run at a time keeps the machine usable.
+    @ObservationIgnored var otherRunInProgress: () -> Bool = { false }
 
     /// `destination` is the MIDI folder to save results in; `onSaved` lets the library pick the new file up.
     init(document: DocumentModel, store: ModelStore, session: TranscriptionSession, access: AccessCoordinator,
@@ -173,8 +177,13 @@ final class AudioScreenModel {
 
     var isPreparing: Bool { prepareTask != nil }
 
+    /// Why Transcribe is unavailable even though a file is open, for its tooltip.
+    var startBlocker: String? {
+        otherRunInProgress() ? "Another file is still being transcribed. Wait for it to finish, or open it and press Cancel." : nil
+    }
+
     var canStart: Bool {
-        guard document.document != nil, !session.isBusy, !isPreparing, let entry = selectedEntry else { return false }
+        guard document.document != nil, !session.isBusy, !isPreparing, !otherRunInProgress(), let entry = selectedEntry else { return false }
         guard store.state(for: entry) == .installed || entry.downloadURL != nil else { return false }
         return entry.engine != .muscriptor || engine != nil
     }
@@ -227,6 +236,8 @@ final class AudioScreenModel {
     }
 
     func loadEngineInfo() async {
+        guard engine == nil || engineProblem != nil else { return }
+        engineProblem = nil
         do {
             let process = EngineProcess(executable: try EngineLocator.locate())
             engine = process
@@ -311,7 +322,7 @@ final class AudioScreenModel {
     func cancel() {
         prepareTask?.cancel()
         firstUse.answerConsent(false)
-        if access.request != nil { access.finish(agreed: false) }
+        access.finish(agreed: false)
         session.cancel()
     }
 
@@ -450,12 +461,13 @@ struct AudioDetailView: View {
             }
             ToolbarItem {
                 TranscribeButton(label: screen.transcribeLabel, isBusy: session.isBusy, isPrimary: !isRepeat,
-                                 canStart: screen.canStart, action: screen.start)
+                                 canStart: screen.canStart, hint: screen.startBlocker ?? "Transcribe the selected slice", action: screen.start)
             }
             ToolbarItem {
                 ExportView(notes: session.notes, entry: screen.selectedEntry,
                            slice: model.slice, name: model.document?.name ?? "transcription", showNotice: $screen.showExport)
             }
+            ToolbarItem { InspectorToggle() }
         }
     }
 

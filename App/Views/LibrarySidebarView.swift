@@ -10,6 +10,8 @@ struct LibrarySidebarView: View {
     @Binding var importingMIDI: Bool
     /// The audio file whose model download just failed; its row says so until the next try.
     var failedDownload: URL?
+    /// The audio file being transcribed right now; its row says so, whichever file is open.
+    var transcribing: URL?
 
     @State private var failure: (title: String, message: String)?
 
@@ -106,18 +108,27 @@ struct LibrarySidebarView: View {
 
     @ViewBuilder private func audioRow(_ entry: LibraryEntry) -> some View {
         let failed = entry.url.standardizedFileURL == failedDownload?.standardizedFileURL
+        let busy = entry.url.standardizedFileURL == transcribing?.standardizedFileURL
         Label {
             VStack(alignment: .leading, spacing: Metric.sp1) {
                 Text(entry.name)
-                if failed { Text("Download failed \u{00B7} Try again").font(.caption).foregroundStyle(.secondary) }
+                if failed {
+                    Text("Download failed \u{00B7} Try again").font(.caption).foregroundStyle(.secondary)
+                } else if busy {
+                    Text("Transcribing\u{2026}").font(.caption).foregroundStyle(.secondary)
+                }
             }
         } icon: {
-            Image(systemName: entry.isMissing || failed ? "exclamationmark.triangle" : "waveform")
-                .foregroundStyle(entry.isMissing || failed ? Token.warn : Native.fgSecondary)
+            if busy {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: entry.isMissing || failed ? "exclamationmark.triangle" : "waveform")
+                    .foregroundStyle(entry.isMissing || failed ? Token.warn : Native.fgSecondary)
+            }
         }
         .help(entry.isMissing ? "File not found. Relink\u{2026} to find it again." : entry.url.abbreviatedPath)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.isMissing ? "\(entry.name), file not found" : failed ? "\(entry.name), download failed" : entry.name)
+        .accessibilityLabel(entry.isMissing ? "\(entry.name), file not found" : failed ? "\(entry.name), download failed" : busy ? "\(entry.name), transcribing" : entry.name)
         .contextMenu {
             if !entry.isMissing {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }

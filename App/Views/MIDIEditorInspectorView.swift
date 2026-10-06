@@ -24,6 +24,13 @@ struct MIDIEditorInspectorView: View {
             selectionSection
             tracksSection
             keySection
+            Section {
+                MIDIDragChip(notes: document.noteEvents, entry: model, slice: editor.exportSlice, name: editor.name)
+            } header: {
+                Text("Export")
+            } footer: {
+                Text("Drag the file into Finder or your DAW, or use Export\u{2026} in the toolbar.")
+            }
         }
         .formStyle(.grouped)
     }

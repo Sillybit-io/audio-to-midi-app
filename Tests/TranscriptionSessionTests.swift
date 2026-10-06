@@ -108,6 +108,27 @@ struct TranscriptionSessionTests {
         #expect(session.state == .idle && session.notes.isEmpty)
     }
 
+    private nonisolated static func cpuSeconds() -> Double {
+        var time = timespec()
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time)
+        return Double(time.tv_sec) + Double(time.tv_nsec) / 1_000_000_000
+    }
+
+    @Test func cancellingStopsBasicPitchFromComputing() async throws {
+        let rate = BasicPitchEngine.sampleRate
+        let samples = (0..<Int(rate * 150)).map { Float(sin(Double($0) * 0.03)) * 0.3 }
+        let session = TranscriptionSession()
+        session.start { BasicPitchEngine().stream(samples: samples, sourceRate: rate) }
+        try await Task.sleep(for: .seconds(3))
+        #expect(session.isBusy)
+        session.cancel()
+        try await Task.sleep(for: .milliseconds(1500))
+        let before = Self.cpuSeconds()
+        try await Task.sleep(for: .seconds(2))
+        let used = Self.cpuSeconds() - before
+        #expect(used < 0.5, "the engine kept computing for \(used) CPU seconds after Cancel")
+    }
+
     @Test func secondStartWhileBusyIsIgnored() async {
         let session = TranscriptionSession()
         session.start { AsyncThrowingStream { _ in } }

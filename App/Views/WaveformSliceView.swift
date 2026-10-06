@@ -59,15 +59,9 @@ struct WaveformSliceView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Metric.sp4) {
-            HStack(spacing: Metric.sp4) {
-                Text("Waveform").font(.headline)
-                Text(Self.selectionText(model.slice)).monospacedDigit().foregroundStyle(Native.fgSecondary)
-                Spacer(minLength: Metric.sp4)
-                Toggle("Original timeline", isOn: Binding(
-                    get: { !model.slice.relativeTimeline },
-                    set: { model.slice.relativeTimeline = !$0 }))
-                    .toggleStyle(.switch).controlSize(.small)
-                Button("Reset") { model.slice.reset() }
+            ViewThatFits(in: .horizontal) {
+                header(showsTitle: true)
+                header(showsTitle: false)
             }
             VStack(spacing: 0) {
                 Canvas { context, size in drawRuler(context, size) }
@@ -100,6 +94,20 @@ struct WaveformSliceView: View {
         .background(Token.surfaceRaised, in: RoundedRectangle(cornerRadius: Metric.rPanel))
         .overlay(RoundedRectangle(cornerRadius: Metric.rPanel).strokeBorder(Token.border))
         .padding(.horizontal, Metric.sp6).padding(.top, Metric.sp4)
+    }
+
+    /// The title goes first when the column is too narrow for everything on one line.
+    private func header(showsTitle: Bool) -> some View {
+        HStack(spacing: Metric.sp4) {
+            if showsTitle { Text("Waveform").font(.headline) }
+            Text(Self.selectionText(model.slice)).monospacedDigit().foregroundStyle(Native.fgSecondary).lineLimit(1)
+            Spacer(minLength: Metric.sp4)
+            Toggle("Original timeline", isOn: Binding(
+                get: { !model.slice.relativeTimeline },
+                set: { model.slice.relativeTimeline = !$0 }))
+                .toggleStyle(.switch).controlSize(.small).fixedSize()
+            Button("Reset") { model.slice.reset() }
+        }
     }
 
     private func drawRuler(_ context: GraphicsContext, _ size: CGSize) {

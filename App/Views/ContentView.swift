@@ -2,19 +2,17 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @Bindable var model: DocumentModel
     let store: ModelStore
     @Bindable var access: AccessCoordinator
-    let session: TranscriptionSession
     let workingFolder: WorkingFolderStore
     let library: LibraryStore
     let imports: AudioImportStore
     let preferences: AppPreferences
     let saveCoordinator: MIDISaveCoordinator
 
-    @State private var screen: AudioScreenModel
+    @State private var screens: AudioScreens
     @State private var selection: LibrarySelection?
-    @State private var showInspector = false
+    @AppStorage("inspectorShown") private var showInspector = true
     @State private var showWelcome = false
     @State private var showShortcuts = false
     @State private var importingMIDI = false
@@ -22,29 +20,34 @@ struct ContentView: View {
     @State private var midiEditor: MIDIEditorModel?
     @State private var midiFailure: (name: String, message: String)?
 
-    init(model: DocumentModel, store: ModelStore, access: AccessCoordinator, session: TranscriptionSession,
+    init(store: ModelStore, access: AccessCoordinator,
          workingFolder: WorkingFolderStore, library: LibraryStore, imports: AudioImportStore, preferences: AppPreferences,
          saveCoordinator: MIDISaveCoordinator) {
-        self.model = model
         self.store = store
         self.access = access
-        self.session = session
         self.workingFolder = workingFolder
         self.library = library
         self.imports = imports
         self.preferences = preferences
         self.saveCoordinator = saveCoordinator
         saveCoordinator.onSaved = { library.refresh() }
-        _screen = State(initialValue: AudioScreenModel(document: model, store: store, session: session, access: access, preferences: preferences,
-                                                       destination: { workingFolder.midiFolder }, references: { imports.references },
-                                                       onSaved: { library.refresh() }))
+        _screens = State(initialValue: AudioScreens {
+            AudioScreenModel(document: DocumentModel(), store: store, session: TranscriptionSession(), access: access, preferences: preferences,
+                             destination: { workingFolder.midiFolder }, references: { imports.references },
+                             onSaved: { library.refresh() })
+        })
     }
+
+    private var screen: AudioScreenModel { screens.current }
+    private var model: DocumentModel { screens.current.document }
+    private var session: TranscriptionSession { screens.current.session }
 
     var body: some View {
         NavigationSplitView {
             LibrarySidebarView(library: library, workingFolder: workingFolder, imports: imports,
                                selection: gatedSelection, openAudio: { model.isImporting = true }, importingMIDI: $importingMIDI,
-                               failedDownload: screen.downloadFailure == nil ? nil : model.document?.url)
+                               failedDownload: screen.downloadFailure == nil ? nil : model.document?.url,
+                               transcribing: screens.transcribingURL)
                 .id(sidebarRevision)
                 .navigationSplitViewColumnWidth(min: Metric.sidebarW - Metric.sp9, ideal: Metric.sidebarW, max: Metric.sidebarW + Metric.sp10)
         } detail: {
@@ -52,22 +55,15 @@ struct ContentView: View {
             // system inspector without its controls or default-coloured text.
             HStack(spacing: 0) {
                 detail.frame(maxWidth: .infinity)
-                if showInspector {
+                if showInspector && hasInspector {
                     Divider()
                     inspector.frame(width: Metric.inspectorW).background(Token.bg)
                 }
             }
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
-            .toolbar {
-                ToolbarItem {
-                    Button { showInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
-                        .help(showInspector ? "Hide Inspector" : "Show Inspector")
-                        .accessibilityValue(showInspector ? "Shown" : "Hidden")
-                }
-            }
         }
-        .frame(minWidth: Metric.windowMinW, minHeight: Metric.windowMinH)
+        .frame(minWidth: Metric.windowMinWide, minHeight: Metric.windowMinH)
         .environment(saveCoordinator)
         .environment(preferences)
         .focusedSceneValue(\.commandTarget, commandTarget)
@@ -82,9 +78,9 @@ struct ContentView: View {
         .onChange(of: workingFolder.folder, initial: true) {
             library.attach(audio: workingFolder.audioFolder, midi: workingFolder.midiFolder)
         }
-        .onChange(of: model.document?.url) { _, url in selection = url.map { .audio($0) } }
+        .onChange(of: model.document?.url) { _, url in if let url { selection = .audio(url) } }
         .onChange(of: selection) { _, new in
-            if case .audio(let url) = new, url != model.document?.url { model.open(url) }
+            if case .audio(let url) = new, url != model.document?.url { screens.open(url) }
             if case .midi(let url) = new {
                 screen.playback.stop()
                 // Already open, for example just renamed: keep the edits and their undo steps.
@@ -100,7 +96,7 @@ struct ContentView: View {
         .sheet(item: $access.request) { request in
             LicenseSheet(coordinator: access, request: request).interactiveDismissDisabled()
         }
-        .fileImporter(isPresented: $model.isImporting, allowedContentTypes: [.audio]) { result in
+        .fileImporter(isPresented: Binding(get: { model.isImporting }, set: { model.isImporting = $0 }), allowedContentTypes: [.audio]) { result in
             switch result {
             case .success(let url): openAudio(url)
             case .failure(let error): model.failure = .other(error)
@@ -195,16 +191,28 @@ struct ContentView: View {
     }
 
     private func openAudio(_ url: URL) {
-        saveCoordinator.confirmLeaving(then: { importAndOpen(url) })
+        switch AudioDocument.kind(of: url) {
+        case .audio:
+            saveCoordinator.confirmLeaving(then: { importAndOpen(url) })
+        case .midi:
+            model.failure = AudioOpenFailure(title: "That\u{2019}s a MIDI file",
+                                             message: "Use Import MIDI\u{2026} in the sidebar to add it to your library.")
+        case .other:
+            model.failure = AudioOpenFailure(title: "Could not open \u{201C}\(url.lastPathComponent)\u{201D}",
+                                             message: "This isn\u{2019}t an audio file. Use WAV, MP3, FLAC, M4A or AIFF.")
+        }
     }
 
-    /// Copies or references the audio as the user prefers, then opens it.
+    /// Copies or references the audio as the user prefers, then opens it. The file is taken in at once, while a dropped
+    /// file is still reachable; switching the window to it waits until the drop or the panel has finished.
     private func importAndOpen(_ url: URL) {
         do {
             let target = try imports.importAudio(from: url, mode: preferences.addAudioMode,
                                                  audioFolder: workingFolder.audioFolder)
-            library.refresh()
-            model.open(target)
+            Task { @MainActor in
+                library.refresh()
+                screens.open(target)
+            }
         } catch {
             model.failure = .other(error)
         }
@@ -259,10 +267,15 @@ struct ContentView: View {
                 ProgressView()
             }
         } else if model.document == nil {
-            DropZoneView(onOpen: openAudio, onChooseFile: { model.isImporting = true },
-                         folderPath: workingFolder.folder.map { $0.abbreviatedPath + "/" })
+            if model.isLoading {
+                ProgressView()
+            } else {
+                DropZoneView(onOpen: openAudio, onChooseFile: { model.isImporting = true },
+                             folderPath: workingFolder.folder.map { $0.abbreviatedPath + "/" })
+            }
         } else {
             AudioDetailView(screen: screen, onOpenAudio: openAudio, onEditMIDI: { gatedSelection.wrappedValue = .midi($0) })
+                .id(ObjectIdentifier(screen))
         }
     }
 
@@ -276,12 +289,15 @@ struct ContentView: View {
                     ContentUnavailableView("No MIDI File", systemImage: "pianokeys")
                 }
             } else if model.document != nil {
-                AudioInspectorView(screen: screen)
+                AudioInspectorView(screen: screen).id(ObjectIdentifier(screen))
             } else {
                 ContentUnavailableView("No Audio Selected", systemImage: "waveform")
             }
         }
     }
+
+    /// There is nothing to inspect on the empty screen, so the pane (and its toolbar button) only exist with a file open.
+    private var hasInspector: Bool { isMIDISelected || model.document != nil }
 
     private var isMIDISelected: Bool {
         if case .midi = selection { true } else { false }

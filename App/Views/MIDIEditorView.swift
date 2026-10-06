@@ -237,17 +237,13 @@ struct MIDIEditorView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!document.isDirty).help("Save (\u{2318}S)")
+                .accessibilityValue(document.isDirty ? "Unsaved changes" : "No unsaved changes")
             }
             ToolbarItem {
                 ExportView(notes: document.noteEvents, entry: editor.provenance?.modelID.flatMap { id in ModelCatalog.entries.first { $0.id == id } },
                            slice: editor.exportSlice, name: editor.name, showNotice: $editor.showExport)
             }
-            ToolbarItem {
-                Circle().fill(Token.warn).frame(width: Metric.sp4, height: Metric.sp4)
-                    .opacity(document.isDirty ? 1 : 0)
-                    .help("Unsaved changes")
-                    .accessibilityLabel(document.isDirty ? "Unsaved changes" : "No unsaved changes")
-            }
+            ToolbarItem { InspectorToggle() }
         }
     }
 

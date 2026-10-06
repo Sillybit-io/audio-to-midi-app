@@ -25,6 +25,7 @@ struct TranscribeButton: View {
     let isBusy: Bool
     let isPrimary: Bool
     let canStart: Bool
+    var hint = "Transcribe the selected slice"
     let action: () -> Void
 
     private var isEnabled: Bool { !isBusy && canStart }
@@ -36,7 +37,7 @@ struct TranscribeButton: View {
         .buttonStyle(.plain)
         .disabled(!isEnabled)
         .keyboardShortcut(.return)
-        .help("Transcribe the selected slice")
+        .help(hint)
         .accessibilityLabel(label)
     }
 }

@@ -59,6 +59,14 @@ struct AudioInspectorView: View {
                                          muted: $screen.mutedInstruments, hidden: $screen.hiddenInstruments)
                 }
             }
+            Section {
+                MIDIDragChip(notes: session.notes, entry: entry, slice: screen.document.slice,
+                             name: screen.document.document?.name ?? "transcription")
+            } header: {
+                Text("Export")
+            } footer: {
+                Text("Drag the file into Finder or your DAW, or use Export\u{2026} in the toolbar.")
+            }
         }
         .formStyle(.grouped)
     }
@@ -81,6 +89,7 @@ struct AudioInspectorView: View {
                 Divider()
                 Text("Manage Models…").tag(Optional(Self.manageTag))
             }
+            .labelsHidden()
             if let entry {
                 HStack(spacing: Metric.sp4) {
                     LicenseBadge(entry: entry)
@@ -94,7 +103,12 @@ struct AudioInspectorView: View {
                     Text("Auto").tag(Int?.none)
                     ForEach(screen.devices, id: \.index) { Text("\($0.name) (\($0.backend))").tag(Optional($0.index)) }
                 }
-                Stepper("Threads \(screen.threads)", value: $screen.threads, in: 1...32)
+                LabeledContent("Threads") {
+                    HStack(spacing: Metric.sp3) {
+                        Text("\(screen.threads)").monospacedDigit()
+                        Stepper("Threads", value: $screen.threads, in: 1...32).labelsHidden()
+                    }
+                }
             }
             if let entry {
                 Text(entry.attribution).font(.caption).foregroundStyle(Native.fgSecondary)

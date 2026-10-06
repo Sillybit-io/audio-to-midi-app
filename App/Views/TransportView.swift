@@ -23,6 +23,7 @@ struct TransportView: View {
                 .accessibilityValue(playback.loops ? "On" : "Off")
             Text("\(PlaybackEngine.timeText(seconds: playback.position)) \u{00B7} \(PlaybackEngine.barBeatText(seconds: playback.position))")
                 .font(.body.monospacedDigit()).foregroundStyle(Native.fgSecondary)
+                .lineLimit(1).frame(width: Metric.positionW, alignment: .leading)
                 .accessibilityLabel("Playback position")
                 .accessibilityValue("\(PlaybackEngine.timeText(seconds: playback.position)), bar \(PlaybackEngine.barBeat(seconds: playback.position).bar) beat \(PlaybackEngine.barBeat(seconds: playback.position).beat)")
         }
