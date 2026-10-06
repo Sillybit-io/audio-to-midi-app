@@ -4,7 +4,7 @@ import SwiftUI
 struct MIDIVelocityLaneView: View {
     let document: MIDIDocument
     let layout: PianoRollLayout
-    var colour: (String) -> Color = { InstrumentColor.color(for: $0) }
+    var colour: (EditorNote) -> Color = { InstrumentColor.color(for: $0.track) }
 
     @State private var stroke: [Int: Int] = [:]
     @State private var last: CGPoint?
@@ -42,7 +42,7 @@ struct MIDIVelocityLaneView: View {
             let height = max(Metric.velBarMinH, usable * CGFloat(velocity) / 127)
             let bar = CGRect(x: x - Metric.velBarW / 2, y: size.height - height, width: Metric.velBarW, height: height)
             let selected = document.selection.contains(note.id)
-            let color = colour(note.track).opacity(selected ? 1 : 0.6)
+            let color = colour(note).opacity(selected ? 1 : 0.6)
             context.fill(Path(roundedRect: bar, cornerRadius: Metric.velBarW / 2), with: .color(color))
             if selected {
                 context.fill(Path(ellipseIn: CGRect(x: x - Metric.velDot / 2, y: bar.minY - Metric.velDot / 2, width: Metric.velDot, height: Metric.velDot)), with: .color(color))

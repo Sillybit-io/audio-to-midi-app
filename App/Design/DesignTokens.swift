@@ -72,6 +72,12 @@ enum Token {
     static let instSynth = Color(light: 0xD02C2A, dark: 0xF0574E)   // --inst-synth
     static let instDrums = Color(light: 0x886B54, dark: 0xBD9E86)   // --inst-drums
     static let instAll = Color(light: 0x656F81, dark: 0x949FB2)   // --inst-all
+    static let drumKick = Color(light: 0xA8452B, dark: 0xE58A6B)   // --drum-kick
+    static let drumSnare = Color(light: 0xB87800, dark: 0xF0B13A)   // --drum-snare
+    static let drumToms = Color(light: 0x16807A, dark: 0x4CC2B8)   // --drum-toms
+    static let drumHiHat = Color(light: 0x6B8E23, dark: 0xA7CF4F)   // --drum-hihat
+    static let drumCymbals = Color(light: 0x2F7DC4, dark: 0x6BB2F0)   // --drum-cymbals
+    static let drumPercussion = Color(light: 0x8E4B9E, dark: 0xC48BD6)   // --drum-percussion
     static let noteEdge = Color(light: 0x000000, lightAlpha: 0.18, dark: 0xFFFFFF, darkAlpha: 0.22)   // --note-edge
     static let appIconBgTop = Color(light: 0x212E45, dark: 0x212E45)   // --app-icon-bg-top
     static let appIconBg = Color(light: 0x0C1323, dark: 0x0C1323)   // --app-icon-bg

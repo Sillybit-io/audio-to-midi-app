@@ -27,11 +27,20 @@ enum RollDrawing {
         }
     }
 
-    static func keys(_ context: GraphicsContext, _ size: CGSize, pitches: ClosedRange<Int>, yOffset: CGFloat) {
+    /// `lanes` names the pitches that carry drum hits: such a row is a plain key with a colour bar and the piece's name,
+    /// because on a drum track the row is a kit piece, not a note.
+    static func keys(_ context: GraphicsContext, _ size: CGSize, pitches: ClosedRange<Int>, yOffset: CGFloat,
+                     lanes: [Int: (label: String, colour: Color)] = [:]) {
         for pitch in pitches {
             let y = CGFloat(pitches.upperBound - pitch) * Metric.rowH - yOffset
             guard y + Metric.rowH >= 0, y <= size.height else { continue }
             context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: Metric.rowH)), with: .color(Token.keyWhite))
+            if let lane = lanes[pitch] {
+                context.fill(Path(CGRect(x: 0, y: y, width: Metric.sp2, height: Metric.rowH)), with: .color(lane.colour))
+                context.draw(Text(lane.label).font(.system(size: TypeScale.micro)).foregroundStyle(Token.keyLabel),
+                             at: CGPoint(x: size.width - Metric.sp2, y: y + Metric.rowH / 2), anchor: .trailing)
+                continue
+            }
             if isBlack(pitch) {
                 context.fill(Path(CGRect(x: 0, y: y, width: size.width * 0.6, height: Metric.rowH)), with: .color(Token.keyBlack))
             }
@@ -113,6 +122,7 @@ struct PianoRollView: View {
             let contentWidth = max(proxy.size.width - Metric.keysW, layout.contentWidth(duration: duration) + Metric.sp10)
             let contentHeight = RollDrawing.contentHeight(pitches: pitches)
             let xOffset = offset.x, yOffset = offset.y
+            let lanes = DrumKit.lanes(pitches: notes.lazy.filter { $0.isDrum && !hidden.contains($0.instrument) }.map(\.pitch))
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     Token.surfaceSunken.frame(width: Metric.keysW, height: Metric.rulerH)
@@ -124,7 +134,7 @@ struct PianoRollView: View {
                         .accessibilityHint("Click to move the playhead")
                 }
                 HStack(spacing: 0) {
-                    Canvas { context, size in RollDrawing.keys(context, size, pitches: pitches, yOffset: yOffset) }
+                    Canvas { context, size in RollDrawing.keys(context, size, pitches: pitches, yOffset: yOffset, lanes: lanes) }
                         .frame(width: Metric.keysW)
                     ZStack {
                         ScrollView([.horizontal, .vertical]) {
@@ -187,7 +197,8 @@ struct PianoRollView: View {
         RollDrawing.grid(context, size, layout, pitches: pitches, top: top, bottom: bottom)
         let visible = layout.visibleNotes(notes, from: layout.seconds(atX: 0), to: layout.seconds(atX: size.width))
         for note in visible where !hidden.contains(note.instrument) && pitches.contains(note.pitch) {
-            let colour = neutralColour ? InstrumentColor.color(forFamily: "all") : InstrumentColor.color(for: note.instrument)
+            let colour = neutralColour ? InstrumentColor.color(forFamily: "all")
+                : note.isDrum ? DrumKit.piece(forPitch: note.pitch).colour : InstrumentColor.color(for: note.instrument)
             RollDrawing.note(context, rect: layout.rect(for: note), color: colour)
         }
         if finalizedThrough > 0 { RollDrawing.line(context, x: layout.x(seconds: finalizedThrough), top: top, bottom: bottom, color: Native.fgSecondary) }

@@ -9,7 +9,7 @@ protocol ModelInstalling: AnyObject {
 
 extension ModelStore: ModelInstalling {}
 
-/// Gets a model onto the disk before a run: the first-use alert for gated weights, then `ModelStore.install`,
+/// Gets a model onto the disk before a run: the first-use alert for weights that need acceptance, then `ModelStore.install`,
 /// which asks the access policy (the licence sheet) and downloads and verifies the file.
 @MainActor @Observable
 final class FirstUseTranscription {
@@ -39,7 +39,7 @@ final class FirstUseTranscription {
         guard preparing == nil else { return .cancelled }
         preparing = entry
         defer { preparing = nil }
-        if entry.gated {
+        if entry.requiresAcceptance {
             guard await askConsent(entry) else { return .cancelled }
             try? await Task.sleep(for: settle)
         }

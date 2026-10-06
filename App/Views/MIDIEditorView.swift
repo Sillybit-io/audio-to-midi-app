@@ -57,6 +57,20 @@ final class MIDIEditorModel {
         isUndifferentiated(track) ? InstrumentColor.color(forFamily: "all") : InstrumentColor.color(for: track)
     }
 
+    /// A hit on a drum track takes its kit piece's colour; any other note takes its track's.
+    func colour(for note: EditorNote) -> Color {
+        document.tracks.first { $0.id == note.track }?.isDrums == true
+            ? DrumKit.piece(forPitch: note.pitch).colour : colour(forTrack: note.track)
+    }
+
+    /// The pitches carrying drum hits, named and coloured for the key column.
+    var drumLanes: [Int: (label: String, colour: Color)] {
+        let drumTracks = Set(document.tracks.filter(\.isDrums).map(\.id))
+        guard !drumTracks.isEmpty else { return [:] }
+        let document = document
+        return DrumKit.lanes(pitches: document.notes.lazy.filter { drumTracks.contains($0.track) && document.isVisible($0) }.map(\.pitch))
+    }
+
     func displayName(ofTrack track: String) -> String {
         if isUndifferentiated(track) { return "Notes" }
         let name = document.tracks.first { $0.id == track }?.name ?? track.replacingOccurrences(of: "_", with: " ")
@@ -151,6 +165,7 @@ struct MIDIEditorView: View {
             let contentWidth = max(proxy.size.width - Metric.keysW, layout.contentWidth(duration: extent))
             let contentHeight = RollDrawing.contentHeight(pitches: Self.pitches)
             let yOffset = offset.y
+            let lanes = editor.drumLanes
             let playhead: Double? = editor.playback.isPlaying || editor.playback.position > 0 ? editor.playback.position : nil
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
@@ -163,7 +178,7 @@ struct MIDIEditorView: View {
                         .accessibilityHint("Click to move the playhead")
                 }
                 HStack(spacing: 0) {
-                    Canvas { context, size in RollDrawing.keys(context, size, pitches: Self.pitches, yOffset: yOffset) }
+                    Canvas { context, size in RollDrawing.keys(context, size, pitches: Self.pitches, yOffset: yOffset, lanes: lanes) }
                         .frame(width: Metric.keysW)
                     ScrollView([.horizontal, .vertical]) {
                         Color.clear.frame(width: contentWidth, height: contentHeight)
@@ -186,7 +201,7 @@ struct MIDIEditorView: View {
                 HStack(spacing: 0) {
                     Text("Vel").font(.caption).foregroundStyle(Native.fgSecondary)
                         .frame(width: Metric.keysW, height: Metric.velH).background(Token.surfaceSunken)
-                    MIDIVelocityLaneView(document: document, layout: layout, colour: editor.colour(forTrack:))
+                    MIDIVelocityLaneView(document: document, layout: layout, colour: editor.colour(for:))
                 }
                 Divider()
                 MIDIEditorFooterView(editor: editor, document: document)
@@ -265,7 +280,7 @@ struct MIDIEditorView: View {
             let rect = MIDIEditing.rect(of: note, in: layout)
             guard rect.maxX >= 0, rect.minX <= size.width, rect.maxY >= top, rect.minY <= bottom else { continue }
             let level = 0.4 + 0.6 * Double(note.velocity) / 127
-            let color = editor.colour(forTrack: note.track).opacity(document.isAudible(note) ? level : 0.3)
+            let color = editor.colour(for: note).opacity(document.isAudible(note) ? level : 0.3)
             RollDrawing.note(context, rect: rect, color: color, selected: document.selection.contains(note.id))
         }
         if let playhead { RollDrawing.line(context, x: layout.x(seconds: playhead), top: top, bottom: bottom, color: Token.playhead) }
@@ -275,7 +290,7 @@ struct MIDIEditorView: View {
             let length = MIDIEditing.drawLength(dragSeconds: dragSeconds(session), grid: document.snap)
             let ghost = EditorNote(id: -1, track: document.drawTrackID, pitch: pitch, start: MIDIEditing.snapFloor(time, to: document.snap),
                                    duration: length, velocity: MIDIEditing.defaultVelocity)
-            RollDrawing.note(context, rect: MIDIEditing.rect(of: ghost, in: layout), color: editor.colour(forTrack: ghost.track).opacity(0.7), selected: true)
+            RollDrawing.note(context, rect: MIDIEditing.rect(of: ghost, in: layout), color: editor.colour(for: ghost).opacity(0.7), selected: true)
         case .marquee where session.moved:
             let box = CGRect(x: min(session.startGrid.x, session.currentGrid.x), y: min(session.startGrid.y, session.currentGrid.y),
                              width: abs(session.currentGrid.x - session.startGrid.x), height: abs(session.currentGrid.y - session.startGrid.y))

@@ -15,6 +15,7 @@ struct LicenseTests {
             case .nonCommercial: "NonCommercial"
             case .commercialAllowed: "Apache License"
             case .attributionRequired: "Attribution 4.0 International"
+            case .permissive: "Permission is hereby granted"
             }
             #expect(joined.contains(keyword), "\(entry.id) text should name its licence")
         }

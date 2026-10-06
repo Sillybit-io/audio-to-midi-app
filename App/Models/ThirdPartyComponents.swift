@@ -4,7 +4,8 @@ enum ThirdPartyComponents {
     /// Must equal the level-two headings of THIRD_PARTY_NOTICES.md, in order.
     static let names = [
         "MuScriptor weights", "GGUF conversion", "muscriptor.cpp", "ggml", "pffft", "Basic Pitch",
-        "swift-midi-file", "ONNX Runtime", "Piano transcription model", "Piano transcription post-processing", "Jon Worthy and the Bends excerpt", "Apple General MIDI soundbank",
+        "swift-midi-file", "ONNX Runtime", "Piano transcription model", "Piano transcription post-processing", "Drum transcription model (ADTOF)",
+        "Drum transcription model (Onsets and Frames)", "Drum separator model (HT-Demucs)", "Jon Worthy and the Bends excerpt", "Apple General MIDI soundbank",
     ]
 
     static func noticesText(bundle: Bundle = Bundle(for: ModelStoreProbe.self)) -> String {
@@ -63,6 +64,12 @@ extension ThirdPartyComponents {
                  licence: "CC BY-NC 4.0", sections: ["MuScriptor weights", "GGUF conversion"]),
             Spec(id: "piano", name: "Piano transcription model", credit: "Qiuqiang Kong et al. · ONNX conversion by LanOss",
                  licence: "CC BY 4.0", sections: ["Piano transcription model", "Piano transcription post-processing"]),
+            Spec(id: "adtof", name: "Drums (ADTOF)", credit: "M. Zehren, M. Alunno and P. Bientinesi · ONNX conversion for this app",
+                 licence: "CC BY-NC-SA 4.0", sections: ["Drum transcription model (ADTOF)"]),
+            Spec(id: "oaf", name: "Drums (Onsets and Frames)", credit: "Lee Callender, Curtis Hawthorne and Jesse Engel (Magenta) · ONNX conversion for this app",
+                 licence: "Apache-2.0", sections: ["Drum transcription model (Onsets and Frames)"]),
+            Spec(id: "htdemucs", name: "Drum separator (HT-Demucs)", credit: "Rouard, Massa and Defossez (Meta) · ONNX export by StemSplit.io",
+                 licence: "MIT", sections: ["Drum separator model (HT-Demucs)"]),
             Spec(id: "basicpitch", name: "Basic Pitch", credit: "Spotify", licence: "Apache-2.0", sections: ["Basic Pitch"]),
         ]),
         ("Libraries", [

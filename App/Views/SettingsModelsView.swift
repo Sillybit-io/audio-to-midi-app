@@ -38,7 +38,11 @@ struct SettingsModelsView: View {
                 HStack(spacing: Metric.sp3) {
                     Text(entry.displayName).font(.headline)
                     LicenseBadge(entry: entry)
-                    if entry.gated { Text("Gated").font(.caption).foregroundStyle(Native.fgSecondary) }
+                    switch entry.access {
+                    case .open: EmptyView()
+                    case .terms: Text("Licence acceptance").font(.caption).foregroundStyle(Native.fgSecondary)
+                    case .huggingFaceGated: Text("Hugging Face gated").font(.caption).foregroundStyle(Native.fgSecondary)
+                    }
                 }
                 Text(entry.attribution).font(.caption).foregroundStyle(Native.fgSecondary)
                 if entry.needsDownload {

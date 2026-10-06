@@ -13,7 +13,7 @@ struct ModelAccessGate: Sendable {
     let token: @Sendable () -> String?
 
     func evaluate(_ entry: ModelEntry) async -> GateDecision {
-        guard entry.gated, let repo = entry.authorsRepo else { return .allowed }
+        guard entry.access == .huggingFaceGated, let repo = entry.authorsRepo else { return .allowed }
         guard let token = token(), !token.isEmpty else { return .needsToken }
         do {
             let who = try await client.whoami(token: token)

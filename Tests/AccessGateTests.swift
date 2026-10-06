@@ -30,6 +30,26 @@ struct AccessGateTests {
         #expect(client.calls == 0)
     }
 
+    @Test func termsOnlyModelIsAllowedWithoutNetwork() async {
+        let client = MockClient()
+        let gate = ModelAccessGate(client: client, token: { nil })
+        let termsOnly = ModelEntry(
+            id: "t", displayName: "T", engine: .pianoOnnx, mirrorRepo: nil, revision: nil, remotePath: nil,
+            byteSize: 1, sha256: nil, authorsRepo: nil, access: .terms, statements: ["I agree."],
+            homepage: URL(string: "https://example.com"), licenseName: "X", licenseKind: .nonCommercial,
+            attribution: "A", licenseTexts: [])
+        #expect(termsOnly.requiresAcceptance)
+        #expect(termsOnly.modelPageURL == URL(string: "https://example.com"))
+        #expect(await gate.evaluate(termsOnly) == .allowed)
+        #expect(client.calls == 0)
+    }
+
+    @Test func everyAcceptanceModelCarriesStatementsAndOnlyOpenOnesDoNot() {
+        for entry in ModelCatalog.entries {
+            #expect(entry.requiresAcceptance == !entry.statements.isEmpty)
+        }
+    }
+
     @Test func noTokenMeansNoNetworkCall() async {
         let client = MockClient()
         let gate = ModelAccessGate(client: client, token: { nil })

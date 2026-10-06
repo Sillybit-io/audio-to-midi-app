@@ -49,7 +49,7 @@ struct SettingsGeneralView: View {
             }
             Section("Transcription") {
                 Picker("Default model", selection: $preferences.defaultModelID) {
-                    ForEach(ModelCatalog.entries) { Text($0.displayName).tag($0.id) }
+                    ForEach(ModelCatalog.entries.filter(\.transcribes)) { Text($0.displayName).tag($0.id) }
                 }
             }
             Section("Playback and files") {

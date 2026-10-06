@@ -31,18 +31,28 @@ struct AudioInspectorView: View {
                     Text("Leave all off to let MuScriptor detect instruments automatically.")
                 }
             }
+            if entry?.isDrumModel == true {
+                Section("Drums") {
+                    Toggle(isOn: $screen.separateDrums) {
+                        VStack(alignment: .leading, spacing: Metric.sp1) {
+                            Text("Separate drums first")
+                            Text("Isolates the drums from the mix before listening. Downloads a \(screen.separatorEntry?.sizeText ?? "large") helper model once, and is very slow: on an Intel Mac, many times the length of the audio. Best for short slices. Helps most with Onsets and Frames on full songs.")
+                                .font(.caption).foregroundStyle(Native.fgSecondary)
+                        }
+                    }
+                }
+            }
             Section("Velocity") {
-                if entry?.engine == .muscriptor {
+                if let entry, entry.canEstimateVelocity {
                     Toggle(isOn: $screen.estimateVelocity) {
                         VStack(alignment: .leading, spacing: Metric.sp1) {
                             Text("Estimate note velocity from the audio")
-                            Text("MuScriptor has none. Reflects relative loudness, not playing force.")
+                            Text("\(entry.engine == .muscriptor ? "MuScriptor" : "ADTOF") has none. Reflects relative loudness, not playing force.")
                                 .font(.caption).foregroundStyle(Native.fgSecondary)
                         }
                     }
                 } else {
-                    Text(entry?.engine == .pianoOnnx ? "Predicted by the piano model." : "Taken from the note amplitude Basic Pitch reports.")
-                        .foregroundStyle(Native.fgSecondary)
+                    Text(velocityNote).foregroundStyle(Native.fgSecondary)
                 }
             }
             SliceFieldsSection(model: screen.document)
@@ -56,6 +66,7 @@ struct AudioInspectorView: View {
             if !screen.presentInstruments.isEmpty {
                 Section("Instruments in Result") {
                     InstrumentLegendView(counts: screen.instrumentCounts, neutral: screen.usesNeutralColour,
+                                         drumPieces: screen.drumPieceCounts,
                                          muted: $screen.mutedInstruments, hidden: $screen.hiddenInstruments)
                 }
             }
@@ -85,6 +96,7 @@ struct AudioInspectorView: View {
                 })) {
                 Section("MuScriptor · multi-instrument") { ForEach(entries(.muscriptor)) { row($0) } }
                 Section("Piano only") { ForEach(entries(.pianoOnnx)) { row($0) } }
+                Section("Drums only") { ForEach(entries(.drumsAdtof) + entries(.drumsOaf)) { row($0) } }
                 Section("Built in") { ForEach(entries(.basicPitch)) { row($0) } }
                 Divider()
                 Text("Manage Models…").tag(Optional(Self.manageTag))
@@ -96,6 +108,14 @@ struct AudioInspectorView: View {
                 }
                 if entry.engine == .pianoOnnx {
                     Text("Piano only. On other instruments it still reports piano notes.").font(.caption).foregroundStyle(Native.fgSecondary)
+                }
+                if entry.engine == .drumsAdtof {
+                    Text("Drums only: kick, snare, toms, hi-hat and cymbals. Reads the drums in a full mix.")
+                        .font(.caption).foregroundStyle(Native.fgSecondary)
+                }
+                if entry.engine == .drumsOaf {
+                    Text("Drums only, eight kit pieces. Trained on isolated drums, so it works best on drum-only audio such as an e-kit recording, a drum stem or a loop.")
+                        .font(.caption).foregroundStyle(Native.fgSecondary)
                 }
             }
             if entry?.engine == .muscriptor {
@@ -113,6 +133,14 @@ struct AudioInspectorView: View {
             if let entry {
                 Text(entry.attribution).font(.caption).foregroundStyle(Native.fgSecondary)
             }
+        }
+    }
+
+    private var velocityNote: String {
+        switch entry?.engine {
+        case .pianoOnnx: "Predicted by the piano model."
+        case .drumsOaf: "Predicted by the drum model."
+        default: "Taken from the note amplitude Basic Pitch reports."
         }
     }
 

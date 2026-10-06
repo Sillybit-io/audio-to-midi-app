@@ -17,6 +17,7 @@ final class AudioScreenModel {
         var end: Double
         var instruments: Set<String>
         var estimatesVelocity: Bool
+        var separatedDrums = false
         /// Whole seconds from pressing Transcribe to the end, download included.
         var took: Int?
     }
@@ -39,6 +40,8 @@ final class AudioScreenModel {
     /// Muting affects playback only; hiding takes notes out of the roll and playback.
     var mutedInstruments: Set<String> = []
     var estimateVelocity = true
+    /// Isolate the drums with the HT-Demucs helper before a drum model listens.
+    var separateDrums = false
     var pixelsPerSecond: CGFloat = Metric.ppsDefault
     var showExport = false
     private(set) var keyFromAudio: [KeyMatch] = []
@@ -132,6 +135,11 @@ final class AudioScreenModel {
         Dictionary(grouping: session.notes, by: \.instrument).map { ($0.key, $0.value.count) }.sorted { $0.name < $1.name }
     }
 
+    /// Drum hits in the result per kit piece, for the legend.
+    var drumPieceCounts: [(piece: DrumPiece, count: Int)] {
+        DrumKit.counts(pitches: session.notes.lazy.filter(\.isDrum).map(\.pitch))
+    }
+
     /// Playback groups to switch off for muted or hidden instruments. No note is changed.
     var silencedGroups: Set<String> {
         let off = mutedInstruments.union(hiddenInstruments)
@@ -145,6 +153,7 @@ final class AudioScreenModel {
     var settingsChanged: Bool {
         guard let ran else { return false }
         if ran.modelID != selectedModel || ran.start != document.slice.start || ran.end != document.slice.end { return true }
+        if selectedEntry?.isDrumModel == true, ran.separatedDrums != usesSeparator { return true }
         guard selectedEntry?.engine == .muscriptor else { return false }
         return ran.instruments != chosenInstruments || ran.estimatesVelocity != estimateVelocity
     }
@@ -176,6 +185,14 @@ final class AudioScreenModel {
         }
     }
 
+    var separatorEntry: ModelEntry? { ModelCatalog.entry(id: ModelCatalog.separatorID) }
+    var usesSeparator: Bool { separateDrums && selectedEntry?.isDrumModel == true }
+
+    /// The models a run needs, in the order they are fetched: the separator first.
+    private func requiredModels(for entry: ModelEntry) -> [ModelEntry] {
+        (usesSeparator ? [separatorEntry].compactMap { $0 } : []) + [entry]
+    }
+
     var isPreparing: Bool { prepareTask != nil }
 
     /// Why Transcribe is unavailable even though a file is open, for its tooltip.
@@ -185,14 +202,14 @@ final class AudioScreenModel {
 
     var canStart: Bool {
         guard document.document != nil, !session.isBusy, !isPreparing, !otherRunInProgress(), let entry = selectedEntry else { return false }
-        guard store.state(for: entry) == .installed || entry.downloadURL != nil else { return false }
+        guard requiredModels(for: entry).allSatisfy({ store.state(for: $0) == .installed || $0.downloadURL != nil }) else { return false }
         return entry.engine != .muscriptor || engine != nil
     }
 
     var transcribeLabel: String {
         if session.isBusy || isPreparing { return "Transcribing…" }
         guard let entry = selectedEntry else { return "Transcribe" }
-        if store.state(for: entry) != .installed { return "Download & Transcribe" }
+        if requiredModels(for: entry).contains(where: { store.state(for: $0) != .installed }) { return "Download & Transcribe" }
         switch session.state {
         case .done, .cancelled: return "Transcribe Again"
         default: return "Transcribe"
@@ -209,8 +226,10 @@ final class AudioScreenModel {
             steps = ["Download \(entry.sizeText)", "Verify SHA-256"]
             offset = 2
         }
-        steps += ["Load model", "Transcribe"]
-        if estimateVelocity, selectedEntry?.engine == .muscriptor { steps.append("Estimate velocity") }
+        steps += ["Load model"]
+        if usesSeparator { steps.append("Separate drums") }
+        steps.append("Transcribe")
+        if estimateVelocity, selectedEntry?.canEstimateVelocity == true { steps.append("Estimate velocity") }
         if isPreparing, let entry = includesDownload {
             switch store.state(for: entry) {
             case .downloading(let value):
@@ -222,9 +241,11 @@ final class AudioScreenModel {
         switch session.state {
         case .loading(let value): return .running(title: "Loading model", steps: steps, current: offset, fraction: value)
         case .running:
-            let title = session.progress > 0.15 ? session.eta.map { "About \(Int($0.rounded(.up))) s left" } ?? "Transcribing" : "Transcribing"
-            return .running(title: title, steps: steps, current: offset + 1, fraction: session.progress)
-        case .refining: return .running(title: "Estimating velocity", steps: steps, current: offset + 2, fraction: nil)
+            let separating = usesSeparator && session.progress < DrumOnnxEngine.separationShare
+            let label = separating ? "Separating drums" : "Transcribing"
+            let title = session.progress > 0.15 ? session.eta.map { "\(label), about \(Int($0.rounded(.up))) s left" } ?? label : label
+            return .running(title: title, steps: steps, current: offset + 1 + (usesSeparator && !separating ? 1 : 0), fraction: session.progress)
+        case .refining: return .running(title: "Estimating velocity", steps: steps, current: offset + (usesSeparator ? 3 : 2), fraction: nil)
         case .failed(let message): return failureDismissed ? nil : .failed(title: "Transcription failed", message: message)
         default: return nil
         }
@@ -341,23 +362,29 @@ final class AudioScreenModel {
         downloadFailure = nil
         failureDismissed = false
         startedAt = Date()
-        if store.state(for: entry) == .installed {
+        let missing = requiredModels(for: entry).filter { store.state(for: $0) != .installed }
+        if missing.isEmpty {
             includesDownload = nil
             launch(entry)
             return
         }
-        includesDownload = entry
         prepareTask = Task { [weak self] in
             guard let self else { return }
-            let outcome = await firstUse.prepare(entry)
-            debugLog(.models, "Getting \(entry.displayName) ready: \(outcome)")
-            switch outcome {
-            case .ready: launch(entry)
-            case .cancelled: includesDownload = nil
-            case .failed(let message):
-                downloadFailure = (entry, message)
-                includesDownload = nil
+            for model in missing {
+                includesDownload = model
+                let outcome = await firstUse.prepare(model)
+                debugLog(.models, "Getting \(model.displayName) ready: \(outcome)")
+                switch outcome {
+                case .ready: continue
+                case .cancelled: includesDownload = nil
+                case .failed(let message):
+                    downloadFailure = (model, message)
+                    includesDownload = nil
+                }
+                prepareTask = nil
+                return
             }
+            launch(entry)
             prepareTask = nil
         }
     }
@@ -367,7 +394,7 @@ final class AudioScreenModel {
         run = TranscriptionWriter.Run(source: audio.url, sourceID: TranscriptionWriter.sourceIdentifier(for: audio.url, references: references()),
                                       title: audio.name, modelID: entry.id, notice: entry.exportNotice, slice: document.slice)
         ran = RunRecord(modelID: entry.id, modelName: entry.displayName, start: document.slice.start, end: document.slice.end,
-                        instruments: chosenInstruments, estimatesVelocity: estimateVelocity, took: nil)
+                        instruments: chosenInstruments, estimatesVelocity: estimateVelocity, separatedDrums: usesSeparator, took: nil)
         writer.reset()
         session.label = audio.url.lastPathComponent
         let samples = document.slice.cut(audio.samples, sampleRate: audio.sampleRate)
@@ -389,15 +416,27 @@ final class AudioScreenModel {
             }
             return
         }
-        let process = engine
         let audio16 = Task.detached { try Resampler.resample(samples, from: rate, to: 16000) }
         var refine: (@Sendable ([NoteEvent]) async -> [NoteEvent])?
-        if estimateVelocity {
+        if estimateVelocity, entry.canEstimateVelocity {
             refine = { (notes: [NoteEvent]) async -> [NoteEvent] in
                 guard let audio = try? await audio16.value else { return notes }
                 return await Task.detached { VelocityEstimator.estimate(notes: notes, samples: audio, sampleRate: 16000) }.value
             }
         }
+        if entry.engine == .drumsAdtof || entry.engine == .drumsOaf {
+            var drums = DrumOnnxEngine(modelURL: modelURL, spec: entry.engine == .drumsOaf ? .oaf : .adtof, threads: count)
+            if usesSeparator, let helper = separatorEntry, let helperURL = store.installedURL(for: helper) {
+                drums.separator = DrumSeparator(modelURL: helperURL, threads: count)
+            }
+            let engineForRun = drums
+            session.start(refine: refine) {
+                let resampled = try await Task.detached { try Resampler.resample(samples, from: rate, to: DrumOnnxEngine.sampleRate) }.value
+                return engineForRun.stream(samples: resampled)
+            }
+            return
+        }
+        let process = engine
         session.start(refine: refine) {
             let resampled = try await audio16.value
             guard let process else { throw EngineLocatorError.missing }

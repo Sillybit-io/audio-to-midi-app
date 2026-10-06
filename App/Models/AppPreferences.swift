@@ -59,7 +59,7 @@ final class AppPreferences {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         let stored = defaults.string(forKey: Self.defaultModelKey)
-        defaultModelID = ModelCatalog.entries.contains { $0.id == stored } ? stored! : Self.fallbackModelID
+        defaultModelID = ModelCatalog.entries.contains { $0.id == stored && $0.transcribes } ? stored! : Self.fallbackModelID
         appearance = defaults.string(forKey: Self.appearanceKey).flatMap(AppearancePreference.init) ?? .automatic
         addAudioMode = defaults.string(forKey: Self.addAudioModeKey).flatMap(AddAudioMode.init) ?? .copy
         followPlayhead = defaults.object(forKey: Self.followPlayheadKey) as? Bool ?? true

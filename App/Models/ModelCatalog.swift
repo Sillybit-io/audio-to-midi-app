@@ -9,18 +9,30 @@ enum LicenseKind: Sendable {
     case nonCommercial
     case commercialAllowed
     case attributionRequired
+    case permissive
 
     var badge: String {
         switch self {
         case .nonCommercial: "Non-commercial use only"
         case .commercialAllowed: "Commercial use allowed"
         case .attributionRequired: "Commercial use allowed with credit"
+        case .permissive: "Commercial use allowed"
         }
     }
 }
 
+/// What a model asks of the user before its first download.
+enum AccessRequirement: Sendable {
+    /// Downloads straight away.
+    case open
+    /// The licence sheet with the model's own statements; nothing is checked with Hugging Face.
+    case terms
+    /// The licence sheet plus a Hugging Face token whose account has accepted the authors' terms.
+    case huggingFaceGated
+}
+
 struct ModelEntry: Identifiable, Hashable, Sendable {
-    enum Engine: Sendable { case muscriptor, basicPitch, pianoOnnx }
+    enum Engine: Sendable { case muscriptor, basicPitch, pianoOnnx, drumsAdtof, drumsOaf, separator }
 
     let id: String
     let displayName: String
@@ -31,7 +43,11 @@ struct ModelEntry: Identifiable, Hashable, Sendable {
     let byteSize: Int64
     let sha256: String?
     let authorsRepo: String?
-    let gated: Bool
+    let access: AccessRequirement
+    /// The sentences the user ticks on the licence sheet. Empty for an open model.
+    let statements: [String]
+    /// Where "Open model page" goes when the authors have no Hugging Face repository.
+    let homepage: URL?
     let licenseName: String
     let licenseKind: LicenseKind
     let attribution: String
@@ -44,9 +60,19 @@ struct ModelEntry: Identifiable, Hashable, Sendable {
         case .muscriptor: "Transcribed with MuScriptor by Mirelo and Kyutai (CC BY-NC 4.0, non-commercial use only)."
         case .basicPitch: "Transcribed with Basic Pitch by Spotify (Apache-2.0)."
         case .pianoOnnx: "Transcribed with the high-resolution piano transcription model by Kong et al. (CC BY 4.0)."
+        case .drumsAdtof: "Transcribed with ADTOF by Zehren, Alunno and Bientinesi (CC BY-NC-SA 4.0, non-commercial use only)."
+        case .separator: ""
+        case .drumsOaf: "Transcribed with Onsets and Frames Drums by Callender, Hawthorne and Engel, Magenta (Apache-2.0)."
         }
     }
     var needsDownload: Bool { engine != .basicPitch }
+    /// True for the models that report no velocity, so the app can estimate it from the audio's loudness.
+    var canEstimateVelocity: Bool { engine == .muscriptor || engine == .drumsAdtof }
+    /// False for helper models, which are downloaded and listed but never picked to transcribe with.
+    var transcribes: Bool { engine != .separator }
+    var isDrumModel: Bool { engine == .drumsAdtof || engine == .drumsOaf }
+    /// True when a licence sheet comes before the download.
+    var requiresAcceptance: Bool { access != .open }
     /// Rough working set: the weights plus the float32 cache, estimated as twice the file size.
     var memoryEstimate: Int64 { byteSize * 2 }
 
@@ -56,7 +82,7 @@ struct ModelEntry: Identifiable, Hashable, Sendable {
     }
 
     var modelPageURL: URL? {
-        authorsRepo.flatMap { URL(string: "https://huggingface.co/\($0)") }
+        authorsRepo.flatMap { URL(string: "https://huggingface.co/\($0)") } ?? homepage
     }
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -71,7 +97,12 @@ enum ModelCatalog {
         ModelEntry(
             id: "muscriptor-\(size)", displayName: "MuScriptor \(size.capitalized)", engine: .muscriptor,
             mirrorRepo: mirrorRepo, revision: revision, remotePath: "v1/muscriptor-\(size)-f16.gguf",
-            byteSize: bytes, sha256: sha, authorsRepo: "MuScriptor/muscriptor-\(size)", gated: true,
+            byteSize: bytes, sha256: sha, authorsRepo: "MuScriptor/muscriptor-\(size)", access: .huggingFaceGated,
+            statements: [
+                "I will use this model and its MIDI output for non-commercial purposes only.",
+                "I hold the rights to the audio I transcribe.",
+                "The model and its output are provided as is; Mirelo and Kyutai are not liable.",
+            ], homepage: nil,
             licenseName: "CC BY-NC 4.0", licenseKind: .nonCommercial,
             attribution: "Mirelo and Kyutai; GGUF conversion by Damien Ronssin",
             licenseTexts: [LicenseText(resource: "CC-BY-NC-4.0", ext: "txt"), LicenseText(resource: "MuScriptorNotice", ext: "md")])
@@ -81,10 +112,53 @@ enum ModelCatalog {
         id: "piano-onnx", displayName: "Piano (ONNX)", engine: .pianoOnnx,
         mirrorRepo: "LanOss/mobimml-piano-transcription", revision: "7dff58faf160d4c0bf13be48e30e614faecdba72",
         remotePath: "piano_transcription.onnx", byteSize: 154_214_201,
-        sha256: "6ec4f07640837df2fcd2cede9c540865acff341def93fbd6432548dee169195a", authorsRepo: nil, gated: false,
+        sha256: "6ec4f07640837df2fcd2cede9c540865acff341def93fbd6432548dee169195a", authorsRepo: nil, access: .open, statements: [], homepage: nil,
         licenseName: "CC BY 4.0", licenseKind: .attributionRequired,
         attribution: "Piano only. Qiuqiang Kong et al., ONNX conversion by LanOss",
         licenseTexts: [LicenseText(resource: "CC-BY-4.0", ext: "txt"), LicenseText(resource: "PianoOnnxNotice", ext: "md")])
+
+    /// The converted drum models are hosted on the maintainer's Hugging Face account. `scripts/publish-drum-models.sh`
+    /// uploads them and rewrites the owner, revision, size and checksum lines marked `drum-models` below.
+    private static let drumsOwner = "thebluescreen" // drum-models:owner
+    private static let drumsAdtofRevision = "d0e809bb1c1b6fe8a4a00c576852117a0636ab5a" // drum-models:adtof-revision
+    private static let drumsOafRevision = "771fd5529062b9f6f0b58f01cc4b9819db046f4a" // drum-models:oaf-revision
+
+    private static let drumsAdtof = ModelEntry(
+        id: "drums-adtof", displayName: "Drums (ADTOF)", engine: .drumsAdtof,
+        mirrorRepo: "\(drumsOwner)/adtof-drums-onnx", revision: drumsAdtofRevision, remotePath: "adtof_frame_rnn.onnx",
+        byteSize: 2_171_762, // drum-models:adtof-size
+        sha256: "189ca3c2bc7339a5f0fdc0bb11069d4bcc4fafabd142e945228c368c379b6227", // drum-models:adtof-sha
+        authorsRepo: nil, access: .terms,
+        statements: [
+            "I will use this model and its MIDI output for non-commercial purposes only.",
+            "I hold the rights to the audio I transcribe.",
+            "The model and its output are provided as is; the ADTOF authors are not liable.",
+        ],
+        homepage: URL(string: "https://github.com/MZehren/ADTOF"),
+        licenseName: "CC BY-NC-SA 4.0", licenseKind: .nonCommercial,
+        attribution: "Drums only, five kit pieces. M. Zehren, M. Alunno and P. Bientinesi; ONNX conversion for this app",
+        licenseTexts: [LicenseText(resource: "CC-BY-NC-SA-4.0", ext: "txt"), LicenseText(resource: "AdtofNotice", ext: "md")])
+
+    private static let drumsOaf = ModelEntry(
+        id: "drums-oaf", displayName: "Drums (OaF, Magenta)", engine: .drumsOaf,
+        mirrorRepo: "\(drumsOwner)/oaf-drums-onnx", revision: drumsOafRevision, remotePath: "oaf_drums.onnx",
+        byteSize: 5_966_247, // drum-models:oaf-size
+        sha256: "23d4b05ce7e9715bdb4396823d68bc886e8a958fa9f6266c0f7132b78098b521", // drum-models:oaf-sha
+        authorsRepo: nil, access: .open, statements: [], homepage: nil,
+        licenseName: "Apache-2.0", licenseKind: .commercialAllowed,
+        attribution: "Drums only, eight kit pieces with velocity, for drum-only audio. Callender, Hawthorne and Engel (Magenta); ONNX conversion for this app",
+        licenseTexts: [LicenseText(resource: "Apache-2.0", ext: "txt"), LicenseText(resource: "OafDrumsNotice", ext: "md")])
+
+    static let separatorID = "drum-separator"
+
+    private static let separator = ModelEntry(
+        id: separatorID, displayName: "Drum separator (HT-Demucs)", engine: .separator,
+        mirrorRepo: "StemSplitio/htdemucs-ft-drums-onnx", revision: "55f929d333054c69ae0e829b15e8f8826a39d6eb",
+        remotePath: "htdemucs_ft_drums.onnx", byteSize: 316_446_953,
+        sha256: "f76b68af36066e38885b369299b5032a861038f9b49da5aa6cf1c31cfa69cf27", authorsRepo: nil, access: .open,
+        statements: [], homepage: nil, licenseName: "MIT", licenseKind: .permissive,
+        attribution: "Optional helper: isolates the drums before a drum model listens. Rouard, Massa and Defossez (Meta); ONNX export by StemSplit.io",
+        licenseTexts: [LicenseText(resource: "MIT", ext: "txt"), LicenseText(resource: "HTDemucsNotice", ext: "md")])
 
     static let entries: [ModelEntry] = [
         muscriptor("small", bytes: 209_425_152, sha: "925f55af65a20ebc4f8b45ceaf095a12b72493d436cb112623cd0041a1af23d4"),
@@ -92,10 +166,13 @@ enum ModelCatalog {
         muscriptor("large", bytes: 2_739_142_176, sha: "35a750fb1ab1e77195cdc2c0b9b4aeea2f4d59f11f729f02af9920c4854ef72e"),
         ModelEntry(
             id: "basic-pitch", displayName: "Basic Pitch", engine: .basicPitch, mirrorRepo: nil, revision: nil,
-            remotePath: nil, byteSize: 0, sha256: nil, authorsRepo: nil, gated: false,
+            remotePath: nil, byteSize: 0, sha256: nil, authorsRepo: nil, access: .open, statements: [], homepage: nil,
             licenseName: "Apache-2.0", licenseKind: .commercialAllowed, attribution: "Spotify",
             licenseTexts: [LicenseText(resource: "Apache-2.0", ext: "txt"), LicenseText(resource: "BasicPitchNotice", ext: "txt")]),
         pianoOnnx,
+        drumsAdtof,
+        drumsOaf,
+        separator,
     ]
 
     static func entry(id: String?) -> ModelEntry? {

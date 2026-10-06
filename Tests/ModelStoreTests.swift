@@ -10,11 +10,16 @@ struct ModelStoreTests {
         #expect(sums["muscriptor-medium"] == "3850cc9e5b436b17a09bd25b8f2615cb3366ab96a71e7b50f73a793a917fdf03")
         #expect(sums["muscriptor-large"] == "35a750fb1ab1e77195cdc2c0b9b4aeea2f4d59f11f729f02af9920c4854ef72e")
         #expect(sums["piano-onnx"] == "6ec4f07640837df2fcd2cede9c540865acff341def93fbd6432548dee169195a")
+        #expect(sums["drums-adtof"]?.count == 64 && sums["drums-oaf"]?.count == 64)
         let urls = ModelCatalog.entries.compactMap(\.downloadURL)
-        #expect(urls.count == 4)
+        #expect(urls.count == 7)
         #expect(urls.allSatisfy { !$0.absoluteString.contains("/main/") })
         let muscriptor = ModelCatalog.entries.filter { $0.engine == .muscriptor }.compactMap(\.downloadURL)
         #expect(muscriptor.count == 3 && muscriptor.allSatisfy { $0.absoluteString.contains("d7045f94e8b19427f4ff9542975035e66596e51c") })
+        for id in ["drums-adtof", "drums-oaf"] {
+            let revision = ModelCatalog.entry(id: id)?.revision ?? ""
+            #expect(revision.count == 40 && revision.allSatisfy(\.isHexDigit), "\(id) must be pinned to a commit")
+        }
         #expect(ModelCatalog.entries.first { $0.id == "piano-onnx" }?.downloadURL?.absoluteString
             == "https://huggingface.co/LanOss/mobimml-piano-transcription/resolve/7dff58faf160d4c0bf13be48e30e614faecdba72/piano_transcription.onnx")
     }

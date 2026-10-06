@@ -72,10 +72,11 @@ Help, **Keyboard Shortcuts** (Command-/) lists them all. The main ones:
 ## Features
 
 - **Audio input.** Drop or open a file and see its waveform with a time ruler. Drag the handles to change the slice, drag across empty waveform to pick a new slice, drag inside the slice to move it, and click to move the playhead. A slice is at least 0.5 s long. Exported notes can keep the original timeline or start at zero.
-- **Three engines.** MuScriptor (multi-instrument, drums included), Basic Pitch (fast, any pitched audio) and a piano model (high-resolution, piano only). The picker shows each model's licence.
+- **Five models.** MuScriptor (multi-instrument, drums included), Basic Pitch (fast, any pitched audio), a piano model (high-resolution, piano only) and two drum models, Drums (ADTOF) and Drums (OaF, Magenta). The picker shows each model's licence.
 - **Streaming piano roll.** Notes appear while a MuScriptor run is still going, coloured by instrument. Show or hide instruments with the legend. Cancel keeps the notes found so far.
 - **Instruments, device and threads.** For MuScriptor you can restrict the transcription to chosen instruments, pick the compute device (Auto, a GPU, or CPU) and set the thread count.
-- **Note velocity.** The piano model predicts velocity itself. For MuScriptor, which has none, a toggle (on by default) estimates velocity from the audio's loudness at each onset. Basic Pitch notes use the amplitude it reports.
+- **Drums.** ADTOF reads the drums in a full mix (five kit pieces, non-commercial). Onsets and Frames Drums gives eight kit pieces with predicted velocity but was trained on isolated drums, so use it on e-kit recordings, drum stems and loops. Hits are coloured by kit piece, the key column names each lane that has hits, and the legend counts hits per piece. **Separate drums first** (optional) isolates the drums with HT-Demucs before either model listens; it is very slow, many times the audio's length on an Intel Mac, so use it on short slices.
+- **Note velocity.** The piano and OaF drum models predict velocity themselves. For MuScriptor and ADTOF, which have none, a toggle (on by default) estimates velocity from the audio's loudness at each onset. Basic Pitch notes use the amplitude it reports.
 - **Playback.** Play the notes through the built-in General MIDI sound bank, next to the original audio. Mix between the two with one slider, change the speed from 0.5x to 2x, and loop the slice. Playback needs an audio output device.
 - **Key and scale detection.** Ranks major, minor, dorian, phrygian, lydian, mixolydian and locrian in all twelve keys, from the transcribed notes, or from the audio file with the Detect from audio button.
 - **MIDI export.** Type 1 Standard MIDI File with one track per instrument. Drag the file from the inspector's Export section into Finder or a DAW, or use Export (Command-E). The export sheet can embed the model's licence notice in the file and add the detected key to the file name, for example `Song - Eb minor.mid`.
@@ -87,6 +88,9 @@ Help, **Keyboard Shortcuts** (Command-/) lists them all. The main ones:
 | --- | --- | --- | --- |
 | MuScriptor small, medium, large (Mirelo and Kyutai; GGUF conversion by Damien Ronssin) | CC BY-NC 4.0 | 0.2 to 2.7 GB | Non-commercial use only |
 | Piano (ONNX) (Kong et al., ONNX conversion by LanOss) | CC BY 4.0 | 154 MB | Piano only. Commercial use allowed with credit |
+| Drums (ADTOF) (Zehren, Alunno and Bientinesi; ONNX conversion for this app) | CC BY-NC-SA 4.0 | 2 MB | Drums only, five kit pieces. Non-commercial use only |
+| Drums (OaF, Magenta) (Callender, Hawthorne and Engel; ONNX conversion for this app) | Apache-2.0 | 6 MB | Drums only, eight kit pieces with velocity, for drum-only audio. Commercial use allowed |
+| Drum separator (HT-Demucs) (Meta; ONNX export by StemSplit.io) | MIT | 316 MB | Optional helper for **Separate drums first**. Commercial use allowed |
 | Basic Pitch (Spotify) | Apache-2.0 | Built in | Commercial use allowed |
 
 Basic Pitch is selected on a fresh install. Pick another model in the inspector and the button reads **Download & Transcribe**; the download happens when you press it, then the run starts. A failed or offline download shows a message with **Try Again**, and nothing is changed.
@@ -94,6 +98,22 @@ Basic Pitch is selected on a fresh install. Pick another model in the inspector 
 Downloads are pinned to a fixed revision and checked against a SHA-256 before use. Models are stored in the app's sandbox container under Application Support. Settings, Models shows each model's licence, lets you download or delete it, and can reveal the folder. **Manage Models…** in the model picker opens it.
 
 MuScriptor weights are gated on Hugging Face. The first time you use one, an alert tells you its size and takes you to the licence sheet. You need a Hugging Face account, you must accept the terms on the model page, and you paste a read token (Settings, Hugging Face, or in the sheet) before the download starts. **Save and check** shows a progress line while it asks Hugging Face, says plainly if the token is rejected (and doesn't keep it) and shows the account when it is accepted. The download button then needs the three statements ticked. The piano model is not gated.
+
+### How a model asks for access
+
+Every downloadable model follows the same path. Each catalogue entry says what it needs before its first download: nothing (**open**), a licence sheet with the model's own statements (**terms**, used by ADTOF), or the licence sheet plus a Hugging Face token whose account accepted the authors' terms (**Hugging Face gated**, used by MuScriptor). The sheet ticks come from the entry, and Settings, Models labels each row.
+
+### Adding a model
+
+1. Add a `ModelEntry` to `App/Models/ModelCatalog.swift`: the Hugging Face repo, a pinned revision, the file's size and SHA-256, the `access` policy, the statements to tick (none for open models), the licence kind and texts.
+2. Put the licence text and an attribution notice in `App/Resources/Licenses`, add a section to `THIRD_PARTY_NOTICES.md` and a matching name and entry in `App/Models/ThirdPartyComponents.swift`.
+3. Give the engine an export notice, and wire it into `AudioScreenModel.launch` and the picker in `AudioInspectorView`.
+
+The tests check that every entry's licence text resolves and names its licence, and that every download is pinned.
+
+### The drum models
+
+The two drum models are converted from the authors' checkpoints (ADTOF's Keras checkpoint, Magenta's E-GMD TensorFlow checkpoint) to ONNX with the audio frontend inside the graph. `scripts/convert-drums.sh` rebuilds both files and the test fixtures, and asserts that each matches the authors' own pipeline (ADTOF to 2e-6, OaF to 4e-5). They are hosted at `thebluescreen/adtof-drums-onnx` and `thebluescreen/oaf-drums-onnx`, and the catalogue pins each to a revision. `scripts/publish-drum-models.sh HF_USERNAME` uploads a rebuilt pair (it needs a Hugging Face token that can write), checks the download byte for byte, and re-pins the catalogue.
 
 ## Troubleshooting
 
@@ -123,7 +143,7 @@ The Xcode project is generated from `project.yml` and is not checked in, so run 
 
 Debug builds have a **Debug** menu, with **Simulate Crash**, to check that the debug log records each kind of crash. `open SillyMIDITools.app --args -SimulateCrash swift` does the same without the menu; the other kinds are `exception` and `memory`.
 
-To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, as the CI workflow does: the tests that create real security-scoped bookmarks need the app's entitlements, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) leaves out. The end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads.
+To run the tests, replace `build` with `test` and keep `CODE_SIGN_IDENTITY=-`, as the CI workflow does: the tests that create real security-scoped bookmarks need the app's entitlements, which an unsigned build (`CODE_SIGNING_ALLOWED=NO`) leaves out. The end-to-end piano tests need the model, which `scripts/fetch-piano-onnx.sh` downloads. The end-to-end drum tests need `build/models/adtof_frame_rnn.onnx` and `oaf_drums.onnx` (from `scripts/convert-drums.sh`) and `htdemucs_ft_drums.onnx` for the separator; each skips when its file is missing.
 
 ## Releasing
 
@@ -146,7 +166,8 @@ Names already in the stack are mangled Swift; `xcrun swift-demangle` makes them 
 
 - Release builds are Apple silicon only, and are not notarized.
 - The piano model handles one instrument; on other music it reports piano notes for whatever it hears.
-- Velocity estimated for MuScriptor is relative loudness, not a measurement of how hard a note was played.
+- OaF Drums was trained on isolated drums and finds little in a full mix; on its synthetic test clip it detects far fewer hits than ADTOF.
+- Velocity estimated for MuScriptor and ADTOF is relative loudness, not a measurement of how hard a note was played.
 - Key detection ranks likely keys; modes that share most of their notes (for example dorian and natural minor) can be close.
 - OGG files are not decoded.
 - Export and the editor use a fixed 120 bpm, 4/4 grid. Tempo and time signature can't be edited. Importing a file converts its tempo changes into real time, and saving an edited file writes it back at 120 bpm.

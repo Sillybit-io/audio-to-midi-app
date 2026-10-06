@@ -10,3 +10,4 @@ reports/
 .DS_Store
 docs/
 smt-*.jpg
+__pycache__/

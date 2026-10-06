@@ -38,7 +38,7 @@ final class AccessCoordinator {
     }
 
     func authorize(_ entry: ModelEntry) async -> Bool {
-        guard entry.gated else { return true }
+        guard entry.requiresAcceptance else { return true }
         let decision = await gate.evaluate(entry)
         debugLog(.access, "Licence sheet for \(entry.displayName); Hugging Face check: \(decision).")
         request = AccessRequest(entry: entry, decision: decision)
