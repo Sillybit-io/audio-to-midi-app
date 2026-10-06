@@ -37,8 +37,16 @@ struct HuggingFaceSettingsView: View {
                     Text(coordinator.accountName.map { "Signed in as \($0)" } ?? "Token saved")
                     Button("Remove token", role: .destructive) { coordinator.removeToken() }
                 } else {
-                    SecureField("Read token", text: $token)
-                    Button("Save and check") { Task { await coordinator.saveToken(token); token = "" } }
+                    SecureField("Read token", text: $token).disabled(coordinator.isCheckingToken).onSubmit(save)
+                    if let error = coordinator.tokenError { Text(error).foregroundStyle(Token.warn) }
+                    HStack(spacing: Metric.sp3) {
+                        Button("Save and check", action: save)
+                            .disabled(coordinator.isCheckingToken || token.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if coordinator.isCheckingToken {
+                            ProgressView().controlSize(.small)
+                            Text("Checking with Hugging Face\u{2026}").foregroundStyle(Native.fgSecondary)
+                        }
+                    }
                 }
             } header: {
                 Text("Hugging Face")
@@ -48,5 +56,11 @@ struct HuggingFaceSettingsView: View {
         }
         .formStyle(.grouped)
         .task { await coordinator.refreshAccount() }
+    }
+
+    private func save() {
+        let value = token
+        token = ""
+        Task { await coordinator.saveToken(value) }
     }
 }
