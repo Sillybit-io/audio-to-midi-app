@@ -78,9 +78,13 @@ struct EngineProcessTests {
     }
 
     @Test func temporaryAudioIsRemoved() async {
-        let before = (try? FileManager.default.contentsOfDirectory(atPath: NSTemporaryDirectory()).filter { $0.hasPrefix("smt-") }.count) ?? 0
+        // Only the engine's own `smt-<id>.f32` files: other suites make `smt-` folders of their own while this runs.
+        func engineAudio() -> Int {
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: NSTemporaryDirectory())) ?? []
+            return names.filter { $0.hasPrefix("smt-") && $0.hasSuffix(".f32") }.count
+        }
+        let before = engineAudio()
         _ = await collect(stream(EngineProcess(executable: fake)))
-        let after = (try? FileManager.default.contentsOfDirectory(atPath: NSTemporaryDirectory()).filter { $0.hasPrefix("smt-") }.count) ?? 0
-        #expect(after <= before)
+        #expect(engineAudio() <= before)
     }
 }
