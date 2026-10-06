@@ -12,3 +12,5 @@ Requires **macOS 26 or later on a Mac with Apple silicon**. This build is not ma
 4. Press **Continue** on the Welcome sheet and choose a working folder, drop an audio file on the window and press **Transcribe**.
 
 SHA-256 of the zip: `__SHA256__`
+
+`SillyMIDITools-__VERSION__-macOS-arm64.dSYM.zip` holds this build's debug symbols, for reading crash stacks. You don't need it to run the app.

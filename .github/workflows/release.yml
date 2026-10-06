@@ -110,6 +110,25 @@ jobs:
           echo "ZIP=$zip" >> "$GITHUB_ENV"
           echo "SHA256=$(cut -d' ' -f1 "$zip.sha256")" >> "$GITHUB_ENV"
 
+      - name: Zip the debug symbols
+        run: |
+          products=build/DerivedData/Build/Products/Release
+          dsym="$products/SillyMIDITools.app.dSYM"
+          if [[ ! -d "$dsym" ]]; then
+            echo "::error::No dSYM at $dsym."
+            exit 1
+          fi
+          # The symbols are only useful for the binary that ships, so their UUIDs have to match.
+          app_uuid=$(dwarfdump --uuid "$products/SillyMIDITools.app/Contents/MacOS/SillyMIDITools" | awk '{print $2}')
+          dsym_uuid=$(dwarfdump --uuid "$dsym" | awk '{print $2}')
+          if [[ -z "$app_uuid" || "$app_uuid" != "$dsym_uuid" ]]; then
+            echo "::error::The dSYM ($dsym_uuid) doesn't match the app ($app_uuid)."
+            exit 1
+          fi
+          dsym_zip="SillyMIDITools-$VERSION-macOS-arm64.dSYM.zip"
+          ditto -c -k --keepParent "$dsym" "$dsym_zip"
+          echo "DSYM_ZIP=$dsym_zip" >> "$GITHUB_ENV"
+
       - name: Write the release notes
         run: |
           notes=".github/release/notes/$VERSION.md"
@@ -139,7 +158,7 @@ jobs:
         run: |
           draft=""
           if [[ "$DRAFT" == "true" ]]; then draft="--draft"; fi
-          gh release create "v$VERSION" "$ZIP" "$ZIP.sha256" \
+          gh release create "v$VERSION" "$ZIP" "$ZIP.sha256" "$DSYM_ZIP" \
             --target "$GITHUB_SHA" \
             --title "Silly MIDI Tools $VERSION" \
             --notes-file release-notes.md \
