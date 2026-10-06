@@ -77,6 +77,41 @@ struct EngineProcessTests {
         #expect(FileManager.default.fileExists(atPath: mark.path))
     }
 
+    /// The run is cancelled while the app is still writing the engine's audio file, before the engine starts.
+    @Test func cancellingBeforeTheEngineStartsNeverStartsIt() async throws {
+        let started = FileManager.default.temporaryDirectory.appendingPathComponent("started-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: started) }
+        let engine = EngineProcess(executable: fake, environment: ["FAKE_STARTED": started.path])
+        let s = engine.transcribe(model: URL(fileURLWithPath: "/tmp/none.gguf"), samples: [Float](repeating: 0, count: 10_000_000),
+                                  device: "cpu", threads: 1, instruments: [])
+        let task = Task { for try await _ in s {} }
+        task.cancel()
+        _ = await task.result
+        try await Task.sleep(for: .seconds(2))
+        #expect(!FileManager.default.fileExists(atPath: started.path), "the engine started after the run was cancelled")
+    }
+
+    @Test func anEngineThatIgnoresStopAndTerminateIsKilled() async throws {
+        let pidFile = FileManager.default.temporaryDirectory.appendingPathComponent("pid-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: pidFile) }
+        var engine = EngineProcess(executable: fake, environment: ["FAKE_MODE": "stubborn", "FAKE_PID": pidFile.path])
+        engine.stopGrace = 0.5
+        engine.killGrace = 0.5
+        let s = stream(engine)
+        let task = Task { for try await _ in s {} }
+        var pid: pid_t?
+        for _ in 0..<50 where pid == nil {
+            pid = (try? String(contentsOf: pidFile, encoding: .utf8)).flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            if pid == nil { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        let engineID = try #require(pid)
+        task.cancel()
+        _ = await task.result
+        let deadline = Date().addingTimeInterval(5)
+        while kill(engineID, 0) == 0, Date() < deadline { try await Task.sleep(for: .milliseconds(100)) }
+        #expect(kill(engineID, 0) != 0, "the engine was still running 5 s after Cancel")
+    }
+
     @Test func temporaryAudioIsRemoved() async {
         // Only the engine's own `smt-<id>.f32` files: other suites make `smt-` folders of their own while this runs.
         func engineAudio() -> Int {

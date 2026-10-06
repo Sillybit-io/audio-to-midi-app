@@ -56,6 +56,9 @@ struct HandoffStringsTests {
         let gone = AudioOpenFailure.decoding(folder.appending(path: "gone.wav"))
         #expect(gone.title == "Could not open \u{201C}gone.wav\u{201D}")
         #expect(gone.message.hasPrefix("The file was moved or deleted."))
+        let long = AudioOpenFailure.tooLong(folder.appending(path: "Set.wav"), seconds: 3600 + 12 * 60)
+        #expect(long.title == "Could not open \u{201C}Set.wav\u{201D}")
+        #expect(long.message == "It\u{2019}s 1 h 12 min long. Silly MIDI Tools opens audio up to 1 hour long, because it keeps the whole recording in memory. Split it into shorter files first.")
     }
 
     @Test func layoutSizesComeFromTheTokens() {

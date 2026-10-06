@@ -19,6 +19,9 @@ struct EngineProcess: Sendable {
     var environment: [String: String] = [:]
     /// Records the engine's starts, exits and error output.
     var log: DebugLog = .shared
+    /// After Cancel, how long the engine gets to stop on its own before it is terminated, and then before it is killed.
+    var stopGrace: TimeInterval = 5
+    var killGrace: TimeInterval = 3
 
     private func makeProcess(_ arguments: [String]) -> Process {
         let process = Process()
@@ -87,12 +90,13 @@ struct EngineProcess: Sendable {
         return []
     }
 
-    /// Streams events for one run. Cancelling the consuming task sends the engine a stdin line,
-    /// then terminates it after five seconds. The temporary audio file is removed on every exit path.
+    /// Streams events for one run. Cancelling the consuming task sends the engine a stdin line, terminates it after
+    /// `stopGrace` and kills it after `killGrace` more. A run cancelled before the engine starts never starts it.
+    /// The temporary audio file is removed on every exit path.
     func transcribe(model: URL, samples: [Float], device: String, threads: Int, instruments: [String]) -> AsyncThrowingStream<EngineEvent, Error> {
         AsyncThrowingStream { continuation in
             let log = log
-            let run = RunHandle(log: log)
+            let run = RunHandle(log: log, stopGrace: stopGrace, killGrace: killGrace)
             let task = Task.detached {
                 let audio = FileManager.default.temporaryDirectory.appendingPathComponent("smt-\(UUID().uuidString).f32")
                 defer { try? FileManager.default.removeItem(at: audio) }
@@ -106,7 +110,11 @@ struct EngineProcess: Sendable {
                     process.standardOutput = out
                     process.standardInput = input
                     process.standardError = errorOutput()
-                    run.attach(process, input: input.fileHandleForWriting)
+                    guard run.attach(process, input: input.fileHandleForWriting) else {
+                        log.log(.engine, "The engine wasn\u{2019}t started: the run had been cancelled.")
+                        continuation.finish()
+                        return
+                    }
                     try process.run()
                     log.log(.engine, "Engine started, pid \(process.processIdentifier): \(args.joined(separator: " "))")
                     var sawError = false
@@ -138,30 +146,55 @@ struct EngineProcess: Sendable {
 private final class RunHandle: @unchecked Sendable {
     private let lock = NSLock()
     private let log: DebugLog
+    private let stopGrace: TimeInterval
+    private let killGrace: TimeInterval
     private var process: Process?
     private var input: FileHandle?
+    private var cancelled = false
 
-    init(log: DebugLog) {
+    init(log: DebugLog, stopGrace: TimeInterval, killGrace: TimeInterval) {
         self.log = log
+        self.stopGrace = stopGrace
+        self.killGrace = killGrace
     }
 
-    func attach(_ process: Process, input: FileHandle) {
-        lock.withLock { self.process = process; self.input = input }
+    /// Records the engine that is about to start. Returns false when the run was cancelled first: the engine must not
+    /// start, because nothing would stop it.
+    func attach(_ process: Process, input: FileHandle) -> Bool {
+        lock.withLock {
+            guard !cancelled else { return false }
+            self.process = process
+            self.input = input
+            return true
+        }
     }
 
+    /// A stop line on stdin first; a line written before the engine starts waits in the pipe. Then SIGTERM, which the
+    /// engine only treats as another stop request, and SIGKILL for an engine stuck where it can't check for one.
     func cancel() {
-        let (process, input) = lock.withLock { (self.process, self.input) }
+        let (process, input) = lock.withLock {
+            cancelled = true
+            return (self.process, self.input)
+        }
+        guard let process, let input else {
+            log.log(.engine, "Cancel pressed before the engine started.")
+            return
+        }
         do {
-            try input?.write(contentsOf: Data("\n".utf8))
+            try input.write(contentsOf: Data("\n".utf8))
             log.log(.engine, "Asked the engine to stop.")
         } catch {
             log.log(.engine, "Couldn\u{2019}t ask the engine to stop (it had probably exited): \(error.localizedDescription)")
         }
-        let log = log
-        DispatchQueue.global().asyncAfter(deadline: .now() + 5) {
-            if process?.isRunning == true {
-                log.log(.engine, "The engine didn\u{2019}t stop within 5 s; terminating it.")
-                process?.terminate()
+        let log = log, stopGrace = stopGrace, killGrace = killGrace
+        DispatchQueue.global().asyncAfter(deadline: .now() + stopGrace) {
+            guard process.isRunning else { return }
+            log.log(.engine, String(format: "The engine didn\u{2019}t stop within %g s; terminating it.", stopGrace))
+            process.terminate()
+            DispatchQueue.global().asyncAfter(deadline: .now() + killGrace) {
+                guard process.isRunning else { return }
+                log.log(.engine, String(format: "The engine was still running %g s after being terminated; killing it.", killGrace))
+                kill(process.processIdentifier, SIGKILL)
             }
         }
     }

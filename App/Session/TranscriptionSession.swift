@@ -28,6 +28,8 @@ final class TranscriptionSession {
 
     private(set) var state: State = .idle {
         didSet {
+            // The refinement step holds its own copy of the audio, which is only needed while the run goes.
+            if !isBusy { refine = nil }
             guard DebugLog.shared.isEnabled, oldValue.stage != state.stage else { return }
             debugLog(.transcription, "\"\(label)\": \(state.stage) (\(notes.count) notes so far, the app uses \(DebugLog.footprint()))")
         }

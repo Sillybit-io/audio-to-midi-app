@@ -53,3 +53,34 @@ jobs:
         with:
           name: SillyMIDITools-macOS
           path: SillyMIDITools.zip
+
+  # The same tests with Address Sanitizer, which stops a test at the first out-of-bounds access, use after free or
+  # double free in the app's own code.
+  address-sanitizer:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install tools
+        run: brew install xcodegen ninja
+
+      - name: Generate the Xcode project
+        run: xcodegen generate
+
+      - name: Build the engine sidecar
+        run: scripts/build-engine.sh
+
+      - name: Fetch the piano model for the end-to-end tests
+        run: scripts/fetch-piano-onnx.sh
+
+      - name: Test with Address Sanitizer
+        run: >
+          xcodebuild test
+          -project SillyMIDITools.xcodeproj
+          -scheme SillyMIDITools
+          -destination 'platform=macOS'
+          -derivedDataPath build/DerivedData-asan
+          -enableAddressSanitizer YES
+          CODE_SIGN_IDENTITY=-

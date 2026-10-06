@@ -62,18 +62,22 @@ struct DrumSeparator: Sendable {
         var stems: [[Float]] = []
         for (index, start) in starts.enumerated() {
             try Task.checkCancellation()
-            let end = min(start + Self.segment, samples.count)
-            var mono = Array(samples[start..<end])
-            mono += [Float](repeating: 0, count: Self.segment - mono.count)
-            let data = NSMutableData(bytes: mono + mono, length: 2 * Self.segment * MemoryLayout<Float>.size)
-            let input = try ORTValue(tensorData: data, elementType: .float, shape: [1, 2, NSNumber(value: Self.segment)])
-            let outputs = try session.run(withInputs: ["mix": input], outputNames: ["stems"], runOptions: nil)
-            guard let value = outputs["stems"] else { throw DrumOnnxError.unexpectedOutput }
-            let bytes = try value.tensorData()
-            // [1, 4, 2, segment]: source 0 is the drums.
-            guard bytes.length == 4 * 2 * Self.segment * MemoryLayout<Float>.size else { throw DrumOnnxError.unexpectedOutput }
-            let floats = Data(bytes).withUnsafeBytes { Array($0.bindMemory(to: Float.self)[0..<(2 * Self.segment)]) }
-            stems.append((0..<Self.segment).map { 0.5 * (floats[$0] + floats[Self.segment + $0]) })
+            // ONNX Runtime's results are autoreleased (see `PianoOnnxEngine.notes`) and each answer here is 11 MB, so the
+            // pool lets it go before the next segment instead of at the end of the run.
+            try autoreleasepool {
+                let end = min(start + Self.segment, samples.count)
+                var mono = Array(samples[start..<end])
+                mono += [Float](repeating: 0, count: Self.segment - mono.count)
+                let data = NSMutableData(bytes: mono + mono, length: 2 * Self.segment * MemoryLayout<Float>.size)
+                let input = try ORTValue(tensorData: data, elementType: .float, shape: [1, 2, NSNumber(value: Self.segment)])
+                let outputs = try session.run(withInputs: ["mix": input], outputNames: ["stems"], runOptions: nil)
+                guard let value = outputs["stems"] else { throw DrumOnnxError.unexpectedOutput }
+                let bytes = try value.tensorData()
+                // [1, 4, 2, segment]: source 0 is the drums.
+                guard bytes.length == 4 * 2 * Self.segment * MemoryLayout<Float>.size else { throw DrumOnnxError.unexpectedOutput }
+                let floats = Data(bytes).withUnsafeBytes { Array($0.bindMemory(to: Float.self)[0..<(2 * Self.segment)]) }
+                stems.append((0..<Self.segment).map { 0.5 * (floats[$0] + floats[Self.segment + $0]) })
+            }
             progress(Double(index + 1) / Double(starts.count))
         }
         return Self.combine(stems, starts: starts, count: samples.count)

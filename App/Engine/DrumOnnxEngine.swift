@@ -141,8 +141,11 @@ struct DrumOnnxEngine: Sendable {
         var answers: [[Matrix]] = Array(repeating: [], count: spec.outputNames.count)
         for (index, chunk) in plan.enumerated() {
             try Task.checkCancellation()
-            let outputs = try session.run(samples: Array(padded[chunk.input]))
-            for (slot, matrix) in outputs.enumerated() { answers[slot].append(matrix) }
+            // ONNX Runtime's results are autoreleased; see `PianoOnnxEngine.notes`.
+            try autoreleasepool {
+                let outputs = try session.run(samples: Array(padded[chunk.input]))
+                for (slot, matrix) in outputs.enumerated() { answers[slot].append(matrix) }
+            }
             progress(Double(index + 1) / Double(plan.count))
         }
         let joined = answers.map { Self.assemble($0, chunks: plan) }

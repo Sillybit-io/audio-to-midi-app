@@ -25,12 +25,18 @@ struct BasicPitchEngine: Sendable {
 
     var modelURL: URL? = Bundle(for: ModelStoreProbe.self).url(forResource: "BasicPitch", withExtension: "mlmodelc")
 
-    static func windows(for samples: [Float]) -> [[Float]] {
-        let padded = [Float](repeating: 0, count: leadingPad) + samples
-        return stride(from: 0, to: padded.count, by: hopSamples).map { start in
-            var window = Array(padded[start..<min(start + windowSamples, padded.count)])
-            if window.count < windowSamples { window += [Float](repeating: 0, count: windowSamples - window.count) }
-            return window
+    /// How many windows cover `sampleCount` samples once the leading pad is added.
+    static func windowCount(sampleCount: Int) -> Int {
+        (leadingPad + sampleCount + hopSamples - 1) / hopSamples
+    }
+
+    /// Writes window `index` into `buffer`, which holds `windowSamples`: zeros for the leading pad, then the samples,
+    /// then zeros past their end. Windows are made one at a time, so a long recording is never held twice.
+    static func fillWindow(_ index: Int, of samples: [Float], into buffer: UnsafeMutableBufferPointer<Float>) {
+        let first = index * hopSamples - leadingPad
+        for i in 0..<windowSamples {
+            let source = first + i
+            buffer[i] = source >= 0 && source < samples.count ? samples[source] : 0
         }
     }
 
@@ -47,34 +53,38 @@ struct BasicPitchEngine: Sendable {
 
     /// Runs the model over mono 22.05 kHz samples and returns the unwrapped note, onset and contour matrices.
     func infer(samples: [Float], model: MLModel, progress: (Double) -> Void = { _ in }) throws -> (note: Matrix, onset: Matrix, contour: Matrix) {
-        let windows = Self.windows(for: samples)
-        var note: [Float] = [], onset: [Float] = [], contour: [Float] = []
+        let count = Self.windowCount(sampleCount: samples.count)
         let trim = Self.overlapFrames / 2
-        for (index, window) in windows.enumerated() {
+        let keep = trim..<(Self.framesPerWindow - trim)
+        var note: [Float] = [], onset: [Float] = [], contour: [Float] = []
+        note.reserveCapacity(count * keep.count * 88)
+        onset.reserveCapacity(count * keep.count * 88)
+        contour.reserveCapacity(count * keep.count * 264)
+        let input = try MLMultiArray(shape: [1, NSNumber(value: Self.windowSamples), 1], dataType: .float32)
+        for index in 0..<count {
             try Task.checkCancellation()
-            let input = try MLMultiArray(shape: [1, NSNumber(value: Self.windowSamples), 1], dataType: .float32)
-            input.withUnsafeMutableBufferPointer(ofType: Float.self) { buffer, _ in
-                for i in 0..<Self.windowSamples { buffer[i] = window[i] }
-            }
+            input.withUnsafeMutableBufferPointer(ofType: Float.self) { buffer, _ in Self.fillWindow(index, of: samples, into: buffer) }
             let output = try model.prediction(from: MLDictionaryFeatureProvider(dictionary: ["input_2": MLFeatureValue(multiArray: input)]))
             guard let n = output.featureValue(for: "Identity_1")?.multiArrayValue,
                   let o = output.featureValue(for: "Identity_2")?.multiArrayValue,
                   let c = output.featureValue(for: "Identity")?.multiArrayValue else { throw BasicPitchError.unexpectedOutput }
-            note += try Self.rows(n, cols: 88, keep: trim..<(Self.framesPerWindow - trim))
-            onset += try Self.rows(o, cols: 88, keep: trim..<(Self.framesPerWindow - trim))
-            contour += try Self.rows(c, cols: 264, keep: trim..<(Self.framesPerWindow - trim))
-            progress(Double(index + 1) / Double(windows.count))
+            try Self.append(n, cols: 88, keep: keep, to: &note)
+            try Self.append(o, cols: 88, keep: keep, to: &onset)
+            try Self.append(c, cols: 264, keep: keep, to: &contour)
+            progress(Double(index + 1) / Double(count))
         }
-        let frames = Self.framesKept(originalLength: samples.count, windowCount: windows.count)
-        func matrix(_ data: [Float], _ cols: Int) -> Matrix { Matrix(rows: frames, cols: cols, data: Array(data[0..<(frames * cols)])) }
-        return (matrix(note, 88), matrix(onset, 88), matrix(contour, 264))
+        let frames = Self.framesKept(originalLength: samples.count, windowCount: count)
+        note.removeLast(note.count - frames * 88)
+        onset.removeLast(onset.count - frames * 88)
+        contour.removeLast(contour.count - frames * 264)
+        return (Matrix(rows: frames, cols: 88, data: note), Matrix(rows: frames, cols: 88, data: onset),
+                Matrix(rows: frames, cols: 264, data: contour))
     }
 
-    private static func rows(_ array: MLMultiArray, cols: Int, keep: Range<Int>) throws -> [Float] {
+    private static func append(_ array: MLMultiArray, cols: Int, keep: Range<Int>, to result: inout [Float]) throws {
         let shape = array.shape.map(\.intValue)
         guard shape.count == 3, shape[1] == framesPerWindow, shape[2] == cols else { throw BasicPitchError.unexpectedOutput }
         let strides = array.strides.map(\.intValue)
-        var result = [Float](); result.reserveCapacity(keep.count * cols)
         if array.dataType == .float32 {
             array.withUnsafeBufferPointer(ofType: Float.self) { buffer in
                 for t in keep { for f in 0..<cols { result.append(buffer[t * strides[1] + f * strides[2]]) } }
@@ -82,7 +92,6 @@ struct BasicPitchEngine: Sendable {
         } else {
             for t in keep { for f in 0..<cols { result.append(array[[0, NSNumber(value: t), NSNumber(value: f)]].floatValue) } }
         }
-        return result
     }
 
     func notes(samples: [Float], progress: (Double) -> Void = { _ in }) throws -> [BasicPitchNote] {
@@ -99,7 +108,7 @@ struct BasicPitchEngine: Sendable {
                     let resampled = try Resampler.resample(samples, from: sourceRate, to: Self.sampleRate)
                     let model = try load()
                     let device = EngineDevice(index: 0, name: "Core ML (CPU)", backend: "CoreML", integrated: nil, memoryTotal: nil)
-                    continuation.yield(.ready(device: device, chunks: Self.windows(for: resampled).count))
+                    continuation.yield(.ready(device: device, chunks: Self.windowCount(sampleCount: resampled.count)))
                     let out = try infer(samples: resampled, model: model) { p in
                         continuation.yield(.update(progress: p, finalizedThrough: 0, notes: []))
                     }

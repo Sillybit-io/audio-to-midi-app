@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import SillyMIDITools
 
+/// Stands in for the audio a refinement step holds.
+private final class HeldAudio: Sendable {}
+
 @MainActor
 struct TranscriptionSessionTests {
     private nonisolated static func note(_ p: Int) -> EngineNote {
@@ -42,6 +45,31 @@ struct TranscriptionSessionTests {
         await settle(session)
         #expect(session.state == .done(1))
         #expect(session.notes.first?.velocity == 99)
+    }
+
+    @Test func theAudioTheRefineStepHoldsIsReleasedWhenTheRunEnds() async {
+        let session = TranscriptionSession()
+        weak var finished: HeldAudio?
+        do {
+            let audio = HeldAudio()
+            finished = audio
+            session.start(refine: { notes in _ = audio; return notes }) {
+                AsyncThrowingStream { c in c.yield(.done(noteCount: 0)); c.finish() }
+            }
+        }
+        await settle(session)
+        #expect(session.state == .done(0))
+        #expect(finished == nil, "a finished run still holds its audio")
+
+        weak var cancelled: HeldAudio?
+        do {
+            let audio = HeldAudio()
+            cancelled = audio
+            session.start(refine: { notes in _ = audio; return notes }) { AsyncThrowingStream { _ in } }
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        session.cancel()
+        #expect(cancelled == nil, "a cancelled run still holds its audio")
     }
 
     @Test func etaFromTwoUpdates() {

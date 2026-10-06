@@ -360,6 +360,7 @@ final class AudioScreenModel {
                  + "threads \(threads), device \(deviceIndex.map(String.init) ?? "auto"), "
                  + "instruments \(chosenInstruments.isEmpty ? "automatic" : chosenInstruments.sorted().joined(separator: ", ")), "
                  + "velocity \(estimateVelocity ? "on" : "off"), model \(store.state(for: entry) == .installed ? "installed" : "to download").")
+        if let warning = entry.memoryWarning() { debugLog(.memory, "\(warning) The app uses \(DebugLog.footprint()).") }
         downloadFailure = nil
         failureDismissed = false
         startedAt = Date()

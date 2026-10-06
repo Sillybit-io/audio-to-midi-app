@@ -25,6 +25,15 @@ struct AudioOpenFailure: Equatable, Sendable {
     static func other(_ error: Error) -> AudioOpenFailure {
         AudioOpenFailure(title: "Could not open audio", message: error.localizedDescription)
     }
+
+    static func tooLong(_ url: URL, seconds: Double) -> AudioOpenFailure {
+        let minutes = Int((seconds / 60).rounded())
+        let length = minutes >= 60 ? "\(minutes / 60) h \(minutes % 60) min" : "\(minutes) min"
+        let hours = Int(AudioDocument.maximumDuration / 3600)
+        let limit = hours == 1 ? "1 hour" : "\(hours) hours"
+        return AudioOpenFailure(title: "Could not open \u{201C}\(url.lastPathComponent)\u{201D}",
+                                message: "It\u{2019}s \(length) long. Silly MIDI Tools opens audio up to \(limit) long, because it keeps the whole recording in memory. Split it into shorter files first.")
+    }
 }
 
 @MainActor @Observable
@@ -37,17 +46,19 @@ final class DocumentModel {
     private(set) var isLoading = false
     @ObservationIgnored private var loading: Task<Void, Never>?
 
-    /// Decodes `url` and shows it. A file opened while an earlier one is still decoding wins; the earlier result is dropped.
+    /// Decodes `url` and shows it. A file opened while an earlier one is still decoding wins; the earlier decode stops,
+    /// so two recordings are never decoded at once.
     func open(_ url: URL) {
         debugLog(.audio, "Decoding \"\(url.lastPathComponent)\" (\(url.path))")
         loading?.cancel()
         isLoading = true
         loading = Task {
             do {
-                let result = try await Task.detached(priority: .userInitiated) {
+                let decode = Task.detached(priority: .userInitiated) {
                     let doc = try AudioDocument.load(url: url)
                     return (doc, WaveformPeaks.compute(doc.samples, buckets: 1000))
-                }.value
+                }
+                let result = try await withTaskCancellationHandler { try await decode.value } onCancel: { decode.cancel() }
                 guard !Task.isCancelled else {
                     debugLog(.audio, "Dropped the decode of \"\(url.lastPathComponent)\": another file was opened meanwhile.")
                     return
@@ -60,7 +71,11 @@ final class DocumentModel {
             } catch {
                 guard !Task.isCancelled else { return }
                 debugLog(.audio, "Couldn\u{2019}t decode \"\(url.lastPathComponent)\": \(String(reflecting: error))")
-                failure = .decoding(url)
+                if case AudioDocumentError.tooLong(let seconds) = error {
+                    failure = .tooLong(url, seconds: seconds)
+                } else {
+                    failure = .decoding(url)
+                }
             }
             isLoading = false
         }

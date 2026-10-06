@@ -18,6 +18,7 @@
 #include <thread>
 #include <vector>
 
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace
@@ -245,12 +246,17 @@ int runTranscribe(int argc, char** argv)
         return fail("InvalidArgument", problem);
     }
 
+    // A line on stdin asks for a stop. When stdin is the app's pipe, its end means the app has gone, which stops the run
+    // too; a terminal or /dev/null on stdin never stops it.
+    struct stat stdinInfo {};
+    const bool fromHost = fstat(STDIN_FILENO, &stdinInfo) == 0 && S_ISFIFO(stdinInfo.st_mode);
     std::signal(SIGTERM, onSigterm);
-    std::thread([] {
+    std::thread([fromHost] {
         std::string line;
         while (std::getline(std::cin, line)) {
             gCancel.store(true);
         }
+        if (fromHost) gCancel.store(true);
     }).detach();
 
     msl::LoadOptions load;

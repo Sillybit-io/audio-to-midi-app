@@ -99,6 +99,8 @@ Basic Pitch is selected on a fresh install. Pick another model in the inspector 
 
 Downloads are pinned to a fixed revision and checked against a SHA-256 before use. Models are stored in the app's sandbox container under Application Support. Settings, Models shows each model's licence, lets you download or delete it, and can reveal the folder. **Manage Models…** in the model picker opens it.
 
+A model is loaded for each run and released when the run ends, so nothing stays in memory between transcriptions. When a model would need more than 40 percent of the Mac's memory while it runs (MuScriptor Large needs about 4.2 GB), the inspector says so under the picker, before anything is downloaded.
+
 MuScriptor weights are gated on Hugging Face. The first time you use one, an alert tells you its size and takes you to the licence sheet. You need a Hugging Face account, you must accept the terms on the model page, and you paste a read token (Settings, Hugging Face, or in the sheet) before the download starts. **Save and check** shows a progress line while it asks Hugging Face, says plainly if the token is rejected (and doesn't keep it) and shows the account when it is accepted. The download button then needs the three statements ticked. The piano model is not gated.
 
 ### How a model asks for access
@@ -173,6 +175,7 @@ Names already in the stack are mangled Swift; `xcrun swift-demangle` makes them 
 - Velocity estimated for MuScriptor, ADTOF and Hand percussion is relative loudness, not a measurement of how hard a note was played.
 - Key detection ranks likely keys; modes that share most of their notes (for example dorian and natural minor) can be close.
 - OGG files are not decoded.
+- Audio longer than 1 hour can't be opened, because the whole recording is kept in memory. Split a longer file first.
 - Export and the editor use a fixed 120 bpm, 4/4 grid. Tempo and time signature can't be edited. Importing a file converts its tempo changes into real time, and saving an edited file writes it back at 120 bpm.
 - Saving from the editor writes notes, velocities and track instruments only. Pitch bends, controllers such as sustain, and lyrics in a file you edit are not kept.
 - Importing type 2 and SMPTE-timed MIDI files is not supported.

@@ -7,7 +7,8 @@ engine="$root/Engine/build-$(uname -m)/sillymidi-engine"
 model="$("$root/scripts/fetch-gguf.sh" small)"
 audio="$root/Engine/muscriptor.cpp/testdata/audio/fixture_3chunks_16k.wav"
 
-last="$("$engine" transcribe --model "$model" --audio "$audio" --device cpu | tail -1)"
+# The engine stops when a pipe on its stdin closes, so it must not inherit one from the caller.
+last="$("$engine" transcribe --model "$model" --audio "$audio" --device cpu < /dev/null | tail -1)"
 count="$(print -r -- "$last" | sed -n 's/.*"type":"done","note_count":\([0-9]*\).*/\1/p')"
 if [[ -z "$count" || "$count" -le 0 ]]; then
   echo "smoke failed: $last" >&2

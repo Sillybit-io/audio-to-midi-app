@@ -52,6 +52,8 @@ struct ModelEntry: Identifiable, Hashable, Sendable {
     let licenseKind: LicenseKind
     let attribution: String
     let licenseTexts: [LicenseText]
+    /// MuScriptor's float32 KV cache, allocated next to the weights (`docs/PERFORMANCE.md` of muscriptor.cpp).
+    var kvCacheBytes: Int64 = 0
 
     var fileName: String { remotePath.map { ($0 as NSString).lastPathComponent } ?? id }
     /// The sentence embedded in exported MIDI files and shown in the export sheet.
@@ -76,8 +78,17 @@ struct ModelEntry: Identifiable, Hashable, Sendable {
     var isDrumModel: Bool { engine == .drumsAdtof || engine == .drumsOaf }
     /// True when a licence sheet comes before the download.
     var requiresAcceptance: Bool { access != .open }
-    /// Rough working set: the weights plus the float32 cache, estimated as twice the file size.
-    var memoryEstimate: Int64 { byteSize * 2 }
+    /// Rough working set while a run goes: MuScriptor's weights plus its KV cache; for the other models twice the file.
+    var memoryEstimate: Int64 { engine == .muscriptor ? byteSize + kvCacheBytes : byteSize * 2 }
+
+    /// Why this model may not fit, when its working set would take more than 40% of the Mac's memory and so leave too
+    /// little for macOS and other apps. Nil when it fits.
+    func memoryWarning(physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory) -> String? {
+        guard Double(memoryEstimate) > 0.4 * Double(physicalMemory) else { return nil }
+        let needs = String(format: "%.1f GB", Double(memoryEstimate) / 1_000_000_000)
+        return "\(displayName) needs about \(needs) of memory while it runs, and this Mac has \(physicalMemory / 1_073_741_824) GB. "
+            + "Quit other apps first, or pick a smaller model."
+    }
 
     var downloadURL: URL? {
         guard let mirrorRepo, let revision, let remotePath else { return nil }
@@ -96,7 +107,7 @@ enum ModelCatalog {
     static let mirrorRepo = "DamRsn/muscriptor-gguf"
     static let revision = "d7045f94e8b19427f4ff9542975035e66596e51c"
 
-    private static func muscriptor(_ size: String, bytes: Int64, sha: String) -> ModelEntry {
+    private static func muscriptor(_ size: String, bytes: Int64, kvCache: Int64, sha: String) -> ModelEntry {
         ModelEntry(
             id: "muscriptor-\(size)", displayName: "MuScriptor \(size.capitalized)", engine: .muscriptor,
             mirrorRepo: mirrorRepo, revision: revision, remotePath: "v1/muscriptor-\(size)-f16.gguf",
@@ -108,7 +119,8 @@ enum ModelCatalog {
             ], homepage: nil,
             licenseName: "CC BY-NC 4.0", licenseKind: .nonCommercial,
             attribution: "Mirelo and Kyutai; GGUF conversion by Damien Ronssin",
-            licenseTexts: [LicenseText(resource: "CC-BY-NC-4.0", ext: "txt"), LicenseText(resource: "MuScriptorNotice", ext: "md")])
+            licenseTexts: [LicenseText(resource: "CC-BY-NC-4.0", ext: "txt"), LicenseText(resource: "MuScriptorNotice", ext: "md")],
+            kvCacheBytes: kvCache)
     }
 
     private static let pianoOnnx = ModelEntry(
@@ -172,9 +184,9 @@ enum ModelCatalog {
         licenseTexts: [LicenseText(resource: "MIT", ext: "txt"), LicenseText(resource: "HTDemucsNotice", ext: "md")])
 
     static let entries: [ModelEntry] = [
-        muscriptor("small", bytes: 209_425_152, sha: "925f55af65a20ebc4f8b45ceaf095a12b72493d436cb112623cd0041a1af23d4"),
-        muscriptor("medium", bytes: 618_442_496, sha: "3850cc9e5b436b17a09bd25b8f2615cb3366ab96a71e7b50f73a793a917fdf03"),
-        muscriptor("large", bytes: 2_739_142_176, sha: "35a750fb1ab1e77195cdc2c0b9b4aeea2f4d59f11f729f02af9920c4854ef72e"),
+        muscriptor("small", bytes: 209_425_152, kvCache: 218_000_000, sha: "925f55af65a20ebc4f8b45ceaf095a12b72493d436cb112623cd0041a1af23d4"),
+        muscriptor("medium", bytes: 618_442_496, kvCache: 499_000_000, sha: "3850cc9e5b436b17a09bd25b8f2615cb3366ab96a71e7b50f73a793a917fdf03"),
+        muscriptor("large", bytes: 2_739_142_176, kvCache: 1_500_000_000, sha: "35a750fb1ab1e77195cdc2c0b9b4aeea2f4d59f11f729f02af9920c4854ef72e"),
         ModelEntry(
             id: "basic-pitch", displayName: "Basic Pitch", engine: .basicPitch, mirrorRepo: nil, revision: nil,
             remotePath: nil, byteSize: 0, sha256: nil, authorsRepo: nil, access: .open, statements: [], homepage: nil,

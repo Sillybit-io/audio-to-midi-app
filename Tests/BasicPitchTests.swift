@@ -23,11 +23,28 @@ private func matrix(_ name: String, rows: Int, cols: Int) throws -> Matrix {
 
 struct BasicPitchTests {
     @Test func windowingMatchesReference() {
-        let windows = BasicPitchEngine.windows(for: [Float](repeating: 0, count: 220_500))
-        #expect(windows.count == 7)
-        #expect(windows.allSatisfy { $0.count == 43844 })
+        #expect(BasicPitchEngine.windowCount(sampleCount: 220_500) == 7)
+        #expect(BasicPitchEngine.windowCount(sampleCount: 0) == 1)
         #expect(BasicPitchEngine.framesKept(originalLength: 220_500, windowCount: 7) == 865)
         #expect(BasicPitchEngine.framesKept(originalLength: 66_150, windowCount: 2) == 259)
+    }
+
+    /// A ramp shows what each window holds: the leading pad, the samples one hop apart, and zeros past the end.
+    @Test func windowsAreFilledOneAtATime() {
+        let ramp = (0..<100_000).map { Float($0 + 1) }
+        let pad = BasicPitchEngine.leadingPad, hop = BasicPitchEngine.hopSamples
+        var window = [Float](repeating: -1, count: BasicPitchEngine.windowSamples)
+        window.withUnsafeMutableBufferPointer { BasicPitchEngine.fillWindow(0, of: ramp, into: $0) }
+        #expect(window[pad - 1] == 0 && window[pad] == 1)
+        window.withUnsafeMutableBufferPointer { BasicPitchEngine.fillWindow(1, of: ramp, into: $0) }
+        #expect(window[0] == Float(hop - pad + 1))
+        let last = BasicPitchEngine.windowCount(sampleCount: ramp.count) - 1
+        #expect(last == 2)
+        window.withUnsafeMutableBufferPointer { BasicPitchEngine.fillWindow(last, of: ramp, into: $0) }
+        let start = last * hop - pad
+        #expect(window[0] == Float(start + 1))
+        #expect(window[ramp.count - start - 1] == Float(ramp.count))
+        #expect(window[(ramp.count - start)...].allSatisfy { $0 == 0 })
     }
 
     @Test func frameTimesApplyTheWindowOffset() {

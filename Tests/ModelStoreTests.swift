@@ -54,4 +54,17 @@ struct ModelStoreTests {
             }
         }
     }
+
+    @Test func aModelThatWouldCrowdTheMacOutIsFlagged() throws {
+        let large = try #require(ModelCatalog.entry(id: "muscriptor-large"))
+        let medium = try #require(ModelCatalog.entry(id: "muscriptor-medium"))
+        let basicPitch = try #require(ModelCatalog.entry(id: "basic-pitch"))
+        let gib: UInt64 = 1 << 30
+        #expect(large.memoryEstimate == 2_739_142_176 + 1_500_000_000)
+        #expect(large.memoryWarning(physicalMemory: 8 * gib)
+            == "MuScriptor Large needs about 4.2 GB of memory while it runs, and this Mac has 8 GB. Quit other apps first, or pick a smaller model.")
+        #expect(large.memoryWarning(physicalMemory: 16 * gib) == nil)
+        #expect(medium.memoryWarning(physicalMemory: 8 * gib) == nil)
+        #expect(basicPitch.memoryWarning(physicalMemory: 1 * gib) == nil)
+    }
 }

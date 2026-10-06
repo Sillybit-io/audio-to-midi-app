@@ -90,8 +90,9 @@ struct PianoOnnxTests {
 
     @Test func segmentsOverlapByHalf() {
         let samples = (0..<240_000).map { Float($0) }
-        let segments = PianoOnnxEngine.enframe(samples)
-        #expect(segments.count == 3)
+        let count = PianoOnnxEngine.segmentCount(sampleCount: samples.count)
+        #expect(count == 3)
+        let segments = (0..<count).map { PianoOnnxEngine.segment($0, of: samples) }
         for segment in segments { #expect(segment.count == 160_000) }
         let secondStart: Float = segments[1][0]
         let thirdStart: Float = segments[2][0]
@@ -101,8 +102,9 @@ struct PianoOnnxTests {
         #expect(thirdStart == 160_000)
         #expect(lastReal == 239_999)
         #expect(firstPadding == 0)
-        #expect(PianoOnnxEngine.enframe([Float](repeating: 0, count: 160_000)).count == 1)
-        #expect(PianoOnnxEngine.enframe([]).isEmpty)
+        #expect(PianoOnnxEngine.segmentCount(sampleCount: 160_000) == 1)
+        #expect(PianoOnnxEngine.segmentCount(sampleCount: 160_001) == 3)
+        #expect(PianoOnnxEngine.segmentCount(sampleCount: 0) == 0)
     }
 
     @Test func framesAreMergedFromTheMiddleOfEachSegment() {

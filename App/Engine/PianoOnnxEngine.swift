@@ -67,28 +67,41 @@ struct PianoOnnxEngine: Sendable {
     var modelURL: URL
     var threads = 0
 
-    static func enframe(_ samples: [Float]) -> [[Float]] {
-        guard !samples.isEmpty else { return [] }
-        let padded = (samples.count + segmentSamples - 1) / segmentSamples * segmentSamples
-        let audio = samples + [Float](repeating: 0, count: padded - samples.count)
-        return stride(from: 0, through: audio.count - segmentSamples, by: segmentSamples / 2).map {
-            Array(audio[$0..<($0 + segmentSamples)])
-        }
+    /// How many segments, half a segment apart, cover `sampleCount` samples once they are padded to whole segments.
+    static func segmentCount(sampleCount: Int) -> Int {
+        guard sampleCount > 0 else { return 0 }
+        let padded = (sampleCount + segmentSamples - 1) / segmentSamples * segmentSamples
+        return (padded - segmentSamples) / (segmentSamples / 2) + 1
     }
 
-    /// Joins per-segment frame matrices (each `framesPerSegment` rows) into one matrix: the last frame of every
-    /// segment is dropped, then the middle half of each segment is kept (the first keeps its start, the last its end).
-    static func deframe(_ parts: [[Float]], cols: Int) -> [Float] {
-        if parts.count == 1 { return parts[0] }
+    /// Segment `index`: `segmentSamples` samples starting `index` half segments in, zero past the end of the audio.
+    /// Segments are cut one at a time, so a long recording is never held twice.
+    static func segment(_ index: Int, of samples: [Float]) -> [Float] {
+        let start = index * (segmentSamples / 2)
+        var segment = start < samples.count ? Array(samples[start..<min(samples.count, start + segmentSamples)]) : []
+        segment += repeatElement(0, count: segmentSamples - segment.count)
+        return segment
+    }
+
+    /// The rows of segment `index` (of `count`) that go into the merged matrix: the last frame of every segment is
+    /// dropped, then the middle half is kept (the first keeps its start, the last its end). A lone segment is kept whole.
+    static func keptRows(segment index: Int, of count: Int) -> Range<Int> {
+        guard count > 1 else { return 0..<framesPerSegment }
         let kept = framesPerSegment - 1
-        let quarter = kept / 4
-        var out: [Float] = []
-        for (index, part) in parts.enumerated() {
-            let from = index == 0 ? 0 : quarter
-            let to = index == parts.count - 1 ? kept : kept * 3 / 4
-            out += part[(from * cols)..<(to * cols)]
-        }
-        return out
+        return (index == 0 ? 0 : kept / 4)..<(index == count - 1 ? kept : kept * 3 / 4)
+    }
+
+    /// Appends the kept rows of segment `index` (of `count`) to `merged`.
+    static func appendKept(_ part: [Float], segment index: Int, of count: Int, cols: Int, to merged: inout [Float]) {
+        let rows = keptRows(segment: index, of: count)
+        merged += part[(rows.lowerBound * cols)..<(rows.upperBound * cols)]
+    }
+
+    /// Joins per-segment frame matrices (each `framesPerSegment` rows) into one matrix.
+    static func deframe(_ parts: [[Float]], cols: Int) -> [Float] {
+        var merged: [Float] = []
+        for (index, part) in parts.enumerated() { appendKept(part, segment: index, of: parts.count, cols: cols, to: &merged) }
+        return merged
     }
 
     static func notes(onset: Matrix, offset: Matrix, frame: Matrix, velocity: Matrix, duration: Double) -> [EngineNote] {
@@ -103,20 +116,30 @@ struct PianoOnnxEngine: Sendable {
     }
 
     func notes(samples: [Float], progress: (Double) -> Void = { _ in }) throws -> [EngineNote] {
-        let segments = Self.enframe(samples)
-        guard !segments.isEmpty else { return [] }
+        let count = Self.segmentCount(sampleCount: samples.count)
+        guard count > 0 else { return [] }
         let session = try PianoOnnxSession(modelURL: modelURL, threads: threads)
-        var onset: [[Float]] = [], offset: [[Float]] = [], frame: [[Float]] = [], velocity: [[Float]] = []
-        for (index, segment) in segments.enumerated() {
+        let cols = PianoOnnxNotes.classes
+        let rows = (0..<count).reduce(0) { $0 + Self.keptRows(segment: $1, of: count).count }
+        var onset: [Float] = [], offset: [Float] = [], frame: [Float] = [], velocity: [Float] = []
+        onset.reserveCapacity(rows * cols)
+        offset.reserveCapacity(rows * cols)
+        frame.reserveCapacity(rows * cols)
+        velocity.reserveCapacity(rows * cols)
+        for index in 0..<count {
             try Task.checkCancellation()
-            let out = try session.run(segment: segment)
-            onset.append(out.onset); offset.append(out.offset); frame.append(out.frame); velocity.append(out.velocity)
-            progress(Double(index + 1) / Double(segments.count))
+            // ONNX Runtime hands its results back autoreleased, and this loop never suspends, so without a pool every
+            // segment's output tensors stay alive until the run ends: about 2 MB a segment, 240 MB for ten minutes.
+            try autoreleasepool {
+                let out = try session.run(segment: Self.segment(index, of: samples))
+                Self.appendKept(out.onset, segment: index, of: count, cols: cols, to: &onset)
+                Self.appendKept(out.offset, segment: index, of: count, cols: cols, to: &offset)
+                Self.appendKept(out.frame, segment: index, of: count, cols: cols, to: &frame)
+                Self.appendKept(out.velocity, segment: index, of: count, cols: cols, to: &velocity)
+            }
+            progress(Double(index + 1) / Double(count))
         }
-        func matrix(_ parts: [[Float]]) -> Matrix {
-            let data = Self.deframe(parts, cols: PianoOnnxNotes.classes)
-            return Matrix(rows: data.count / PianoOnnxNotes.classes, cols: PianoOnnxNotes.classes, data: data)
-        }
+        func matrix(_ data: [Float]) -> Matrix { Matrix(rows: data.count / cols, cols: cols, data: data) }
         return Self.notes(onset: matrix(onset), offset: matrix(offset), frame: matrix(frame), velocity: matrix(velocity),
                           duration: Double(samples.count) / Self.sampleRate)
     }
@@ -127,7 +150,7 @@ struct PianoOnnxEngine: Sendable {
             let task = Task.detached {
                 do {
                     let device = EngineDevice(index: 0, name: "ONNX Runtime (CPU)", backend: "ONNX", integrated: nil, memoryTotal: nil)
-                    continuation.yield(.ready(device: device, chunks: Self.enframe(samples).count))
+                    continuation.yield(.ready(device: device, chunks: Self.segmentCount(sampleCount: samples.count)))
                     // Segments are reported as they finish; the notes follow once the whole recording has been merged,
                     // because the post-processing looks across segment borders.
                     let notes = try self.notes(samples: samples) { p in

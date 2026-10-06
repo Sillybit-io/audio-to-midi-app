@@ -55,4 +55,39 @@ struct AudioIngestTests {
         #expect(abs(doc.duration - 2.0) < 0.01)
         #expect(abs(doc.samples[100] - 0.5) < 1e-4)
     }
+
+    /// Writes a stereo file whose left channel counts up and whose right channel holds `right`.
+    private func writeStereo(frames: Int, right: Float) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("ingest-\(UUID().uuidString).wav")
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44100, channels: 2, interleaved: false)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames))!
+        buffer.frameLength = AVAudioFrameCount(frames)
+        for i in 0..<frames {
+            buffer.floatChannelData![0][i] = Float(i) / Float(frames)
+            buffer.floatChannelData![1][i] = right
+        }
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        try file.write(from: buffer)
+        return url
+    }
+
+    @Test func channelsAreMixedAcrossDecodeChunks() throws {
+        let frames = Int(AudioDocument.readFrames) * 2 + 1234
+        let url = try writeStereo(frames: frames, right: 0.25)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let doc = try AudioDocument.load(url: url)
+        #expect(doc.samples.count == frames)
+        let chunk = Int(AudioDocument.readFrames)
+        for i in [0, chunk - 1, chunk, 2 * chunk, frames - 1] {
+            #expect(abs(doc.samples[i] - (Float(i) / Float(frames) + 0.25) / 2) < 1e-6, "sample \(i)")
+        }
+    }
+
+    @Test func audioLongerThanTheLimitIsRefusedBeforeDecoding() throws {
+        let url = try writeStereo(frames: 88200, right: 0)
+        defer { try? FileManager.default.removeItem(at: url) }
+        #expect(throws: AudioDocumentError.tooLong(seconds: 2)) { try AudioDocument.load(url: url, maximumDuration: 1.5) }
+        #expect(try AudioDocument.load(url: url, maximumDuration: 2).samples.count == 88200)
+        #expect(AudioDocument.maximumDuration == 3600)
+    }
 }

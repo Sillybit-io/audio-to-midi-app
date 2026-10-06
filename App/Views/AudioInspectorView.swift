@@ -114,6 +114,9 @@ struct AudioInspectorView: View {
                     Text("Drum kit only, eight kit pieces. Trained on isolated drums, so it works best on drum-only audio such as an e-kit recording, a drum stem or a loop. Not for darbuka or other hand drums; use Hand percussion.")
                         .font(.caption).foregroundStyle(Native.fgSecondary)
                 }
+                if let warning = entry.memoryWarning() {
+                    Label(warning, systemImage: "memorychip").font(.caption).foregroundStyle(Token.warn)
+                }
             }
             if entry?.engine == .muscriptor {
                 Picker("Device", selection: $screen.deviceIndex) {
