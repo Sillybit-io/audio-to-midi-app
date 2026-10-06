@@ -9,7 +9,8 @@ struct MIDIProvenanceTests {
     }
 
     @Test func roundTripsEveryFieldIncludingAwkwardCharacters() throws {
-        let provenance = MIDIProvenance(source: "file:///Volumes/Studio/Müsic/take;2=final%20.wav", modelID: "muscriptor-small", edited: true, partial: true)
+        let provenance = MIDIProvenance(source: "file:///Volumes/Studio/Müsic/take;2=final%20.wav", sourceName: "take;2=final% Müsic",
+                                        modelID: "muscriptor-small", version: 12, edited: true, partial: true)
         let decoded = try #require(MIDIProvenance(text: provenance.text))
         #expect(decoded == provenance)
         #expect(provenance.text.hasPrefix("smt:"))
@@ -19,9 +20,10 @@ struct MIDIProvenanceTests {
 
     @Test func absentFieldsStayAbsent() throws {
         let provenance = MIDIProvenance(modelID: "basic-pitch")
-        #expect(!provenance.text.contains("source="))
+        #expect(!provenance.text.contains("source=") && !provenance.text.contains("name=") && !provenance.text.contains("version="))
         let decoded = try #require(MIDIProvenance(text: provenance.text))
         #expect(decoded.source == nil && decoded.modelID == "basic-pitch")
+        #expect(decoded.sourceName == nil && decoded.version == nil)
         #expect(!decoded.edited && !decoded.partial)
     }
 
@@ -32,11 +34,15 @@ struct MIDIProvenanceTests {
     }
 
     @Test func unknownAndMalformedFieldsAreIgnored() throws {
-        let decoded = try #require(MIDIProvenance(text: "smt:v=2;future=1;junk;model=piano-onnx;edited=yes;partial=1;source="))
+        let decoded = try #require(MIDIProvenance(text: "smt:v=2;future=1;junk;model=piano-onnx;edited=yes;partial=1;source=;version=two"))
         #expect(decoded.modelID == "piano-onnx")
         #expect(!decoded.edited)
         #expect(decoded.partial)
         #expect(decoded.source == nil)
+        #expect(decoded.version == nil)
+        #expect(MIDIProvenance(text: "smt:version=0")?.version == nil)
+        #expect(MIDIProvenance(text: "smt:version=-3")?.version == nil)
+        #expect(MIDIProvenance(text: "smt:version=4")?.version == 4)
     }
 
     @Test func survivesSavingAndReloadingAFile() throws {

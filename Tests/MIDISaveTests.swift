@@ -117,6 +117,14 @@ struct MIDISaveTests {
         #expect(MIDIImporter.info(at: fixture.url)?.provenance == MIDIProvenance(edited: true))
     }
 
+    @Test func savingKeepsTheVersionAndTheAudioName() throws {
+        let fixture = try Fixture(provenance: MIDIProvenance(source: "file:///Audio/take.wav", sourceName: "take", modelID: "basic-pitch", version: 3))
+        fixture.edit()
+        #expect(fixture.coordinator.saveOpenFile())
+        #expect(MIDIImporter.info(at: fixture.url)?.provenance
+                == MIDIProvenance(source: "file:///Audio/take.wav", sourceName: "take", modelID: "basic-pitch", version: 3, edited: true))
+    }
+
     @Test func aSavedFileKeepsItsLicenceNotice() throws {
         let fixture = try Fixture()
         fixture.edit()

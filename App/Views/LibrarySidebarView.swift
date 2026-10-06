@@ -14,6 +14,8 @@ struct LibrarySidebarView: View {
     var transcribing: URL?
 
     @State private var failure: (title: String, message: String)?
+    /// Groups of versions the user folded away. Every group starts open.
+    @State private var collapsed: Set<String> = []
 
     var body: some View {
         List(selection: $selection) {
@@ -28,11 +30,22 @@ struct LibrarySidebarView: View {
                 header("Audio", folder: workingFolder.audioFolder)
             }
             Section {
-                if library.midi.isEmpty {
+                if library.midiGroups.isEmpty {
                     Text("Transcriptions appear here").foregroundStyle(Native.fgSecondary)
                 }
-                ForEach(library.midi) { entry in
-                    midiRow(entry).tag(LibrarySelection.midi(entry.url))
+                ForEach(library.midiGroups) { group in
+                    if group.versions.count == 1, let only = group.versions.first {
+                        midiRow(only.entry, title: only.customName ?? group.title).tag(LibrarySelection.midi(only.entry.url))
+                    } else {
+                        DisclosureGroup(isExpanded: expansion(of: group)) {
+                            ForEach(group.versions) { version in
+                                midiRow(version.entry, title: version.customName ?? "Version \(version.number)")
+                                    .tag(LibrarySelection.midi(version.entry.url))
+                            }
+                        } label: {
+                            groupLabel(group)
+                        }
+                    }
                 }
             } header: {
                 header("MIDI", folder: workingFolder.midiFolder)
@@ -55,6 +68,20 @@ struct LibrarySidebarView: View {
         } message: {
             Text(failure?.message ?? "")
         }
+        .onChange(of: selection, initial: true) { revealSelection() }
+    }
+
+    private func expansion(of group: MIDIGroup) -> Binding<Bool> {
+        Binding(get: { !collapsed.contains(group.id) }, set: { expanded in
+            if expanded { collapsed.remove(group.id) } else { collapsed.insert(group.id) }
+        })
+    }
+
+    /// Opens the group of a version selected from elsewhere, such as Edit MIDI, so its row is visible.
+    private func revealSelection() {
+        guard case .midi(let url) = selection,
+              let group = library.midiGroups.first(where: { $0.versions.contains { $0.entry.url == url } }) else { return }
+        collapsed.remove(group.id)
     }
 
     private func importMIDI(_ result: Result<URL, Error>) {
@@ -78,10 +105,11 @@ struct LibrarySidebarView: View {
         }
     }
 
-    private func midiRow(_ entry: LibraryEntry) -> some View {
+    /// The tooltip carries the real file name and where it is, since the title may be a version label.
+    private func midiRow(_ entry: LibraryEntry, title: String) -> some View {
         Label {
             VStack(alignment: .leading, spacing: Metric.sp1) {
-                Text(entry.name)
+                Text(title)
                 Text(Self.summary(entry.midiInfo)).font(.caption).foregroundStyle(Native.fgSecondary)
             }
         } icon: {
@@ -89,13 +117,33 @@ struct LibrarySidebarView: View {
         }
         .help(([entry.midiInfo?.trackNames.joined(separator: ", ")].compactMap { $0 } + [entry.url.abbreviatedPath]).joined(separator: "\n"))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(entry.name)
+        .accessibilityLabel(title)
         .accessibilityValue(Self.summary(entry.midiInfo))
     }
 
+    private func groupLabel(_ group: MIDIGroup) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: Metric.sp1) {
+                Text(group.title)
+                Text("\(group.versions.count) versions").font(.caption).foregroundStyle(Native.fgSecondary)
+            }
+        } icon: {
+            Image(systemName: "pianokeys").foregroundStyle(Native.fgSecondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(group.title)
+        .accessibilityValue("\(group.versions.count) versions")
+    }
+
+    /// `{model} · {n} notes`, then `Edited` or `Partial` when either applies. A file without a model says where it came from.
     static func summary(_ info: MIDIFileInfo?) -> String {
         guard let info else { return "Can\u{2019}t be read" }
-        return "\(info.noteCount) \(info.noteCount == 1 ? "note" : "notes") · \(info.origin.title)"
+        let notes = "\(info.noteCount) \(info.noteCount == 1 ? "note" : "notes")"
+        guard let provenance = info.provenance, let modelID = provenance.modelID else { return "\(notes) · \(info.origin.title)" }
+        var parts = [ModelCatalog.displayName(id: modelID), notes]
+        if provenance.edited { parts.append("Edited") }
+        if provenance.partial { parts.append("Partial") }
+        return parts.joined(separator: " · ")
     }
 
     private func header(_ title: String, folder: URL?) -> some View {

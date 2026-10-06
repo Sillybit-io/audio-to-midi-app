@@ -87,6 +87,97 @@ struct LibraryStoreTests {
         try Data(bytes).write(to: url)
     }
 
+    /// A one-note MIDI file with the given metadata, created at `created` seconds after 1970.
+    private func midiFile(_ name: String, in folder: URL, _ provenance: MIDIProvenance?, created: TimeInterval) throws {
+        var options = MIDIExportOptions()
+        options.provenance = provenance
+        let note = NoteEvent(onset: 0, offset: 1, pitch: 60, program: 0, isDrum: false, instrument: "piano", velocity: 90, pitchBends: nil)
+        let url = folder.appending(path: name)
+        try MIDIBuilder.build(notes: [note], options: options).write(to: url)
+        try FileManager.default.setAttributes([.creationDate: Date(timeIntervalSince1970: created)], ofItemAtPath: url.path)
+    }
+
+    private func song(_ model: String, version: Int?) -> MIDIProvenance {
+        MIDIProvenance(source: "file:///Audio/song.wav", sourceName: version == nil ? nil : "song", modelID: model, version: version)
+    }
+
+    @Test func transcriptionsOfOneAudioFileAreGroupedInCreationOrder() throws {
+        let folders = try makeFolders()
+        try midiFile("song - basic-pitch.mid", in: folders.midi, song("basic-pitch", version: 1), created: 100)
+        try midiFile("song - muscriptor-large.mid", in: folders.midi, song("muscriptor-large", version: 3), created: 50)
+        try midiFile("song - basic-pitch 2.mid", in: folders.midi, song("basic-pitch", version: 2), created: 200)
+        try midiFile("Other.mid", in: folders.midi, nil, created: 10)
+        try touch(folders.midi.appending(path: "Broken.mid"))
+        let library = library(imports())
+        library.attach(audio: folders.audio, midi: folders.midi)
+
+        #expect(library.midi.count == 5)
+        #expect(library.midiGroups.map(\.title) == ["Broken", "Other", "song"])
+        #expect(library.midiGroups.prefix(2).allSatisfy { $0.versions.count == 1 })
+        let group = try #require(library.midiGroups.last)
+        #expect(group.versions.map(\.entry.fileName) == ["song - muscriptor-large.mid", "song - basic-pitch.mid", "song - basic-pitch 2.mid"])
+        #expect(group.versions.map(\.number) == [3, 1, 2])
+        #expect(group.versions.allSatisfy { $0.customName == nil })
+    }
+
+    @Test func aSingleTranscriptionIsOneRowTitledWithItsAudio() throws {
+        let folders = try makeFolders()
+        try midiFile("take - piano-onnx.mid", in: folders.midi,
+                     MIDIProvenance(source: "file:///Audio/take.wav", sourceName: "take", modelID: "piano-onnx", version: 1), created: 100)
+        let library = library(imports())
+        library.attach(audio: folders.audio, midi: folders.midi)
+
+        let group = try #require(library.midiGroups.first)
+        #expect(library.midiGroups.count == 1 && group.title == "take")
+        #expect(group.versions.count == 1 && group.versions[0].customName == nil)
+    }
+
+    @Test func aRenamedVersionKeepsItsOwnName() throws {
+        let folders = try makeFolders()
+        try midiFile("song - basic-pitch.mid", in: folders.midi, song("basic-pitch", version: 1), created: 100)
+        try midiFile("Best take.mid", in: folders.midi, song("basic-pitch", version: 2), created: 200)
+        let library = library(imports())
+        library.attach(audio: folders.audio, midi: folders.midi)
+
+        let group = try #require(library.midiGroups.first)
+        #expect(group.versions.map(\.customName) == [nil, "Best take"])
+        #expect(group.versions.map(\.number) == [1, 2])
+    }
+
+    @Test func filesFromBeforeVersionsAreNumberedByCreationAmongThemselves() throws {
+        let folders = try makeFolders()
+        try midiFile("song.mid", in: folders.midi, song("basic-pitch", version: nil), created: 300)
+        try midiFile("song 2.mid", in: folders.midi, song("muscriptor-small", version: nil), created: 100)
+        try midiFile("song - basic-pitch.mid", in: folders.midi, song("basic-pitch", version: 3), created: 400)
+        let library = library(imports())
+        library.attach(audio: folders.audio, midi: folders.midi)
+
+        let group = try #require(library.midiGroups.first)
+        #expect(library.midiGroups.count == 1 && group.title == "song")
+        #expect(group.versions.map(\.entry.fileName) == ["song 2.mid", "song.mid", "song - basic-pitch.mid"])
+        #expect(group.versions.map(\.number) == [1, 2, 3])
+        #expect(group.versions.allSatisfy { $0.customName == nil })
+    }
+
+    @Test func aGroupIsTitledFromItsReferenceWhenTheFileDoesNotNameItsAudio() throws {
+        let folders = try makeFolders()
+        let elsewhere = FileManager.default.temporaryDirectory.appending(path: "scratch-live-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        let source = elsewhere.appending(path: "Live at home.wav")
+        try touch(source)
+        let imports = imports()
+        _ = try imports.importAudio(from: source, mode: .reference, audioFolder: folders.audio)
+        let id = try #require(imports.references.first?.id)
+        try midiFile("Live at home.mid", in: folders.midi, MIDIProvenance(source: "reference:\(id.uuidString)", modelID: "basic-pitch"), created: 100)
+        // Its reference was removed, so only the file's own name is left.
+        try midiFile("Lost take.mid", in: folders.midi, MIDIProvenance(source: "reference:\(UUID().uuidString)", modelID: "basic-pitch"), created: 100)
+        let library = library(imports)
+        library.attach(audio: folders.audio, midi: folders.midi)
+
+        #expect(library.midiGroups.map(\.title) == ["Live at home", "Lost take"])
+        #expect(library.midiGroups.allSatisfy { $0.versions.count == 1 && $0.versions[0].customName == nil })
+    }
+
     @Test func watcherEventRefreshesTheListing() throws {
         let folders = try makeFolders()
         let library = library(imports())

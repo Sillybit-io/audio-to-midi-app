@@ -34,15 +34,24 @@ private func sha(_ url: URL) throws -> String {
     SHA256.hash(data: try Data(contentsOf: url)).map { String(format: "%02x", $0) }.joined()
 }
 
-/// A MIDI file as the app would leave it after a transcription (or after the user's edits).
+private func created(_ url: URL) throws -> Date? {
+    try FileManager.default.attributesOfItem(atPath: url.path)[.creationDate] as? Date
+}
+
+/// A MIDI file as the app would leave it after a transcription (or after the user's edits). No version means one saved
+/// before versions existed.
 @discardableResult
-private func existing(_ name: String, in folder: URL, source: TranscriptionWriter.Run?, edited: Bool = false, partial: Bool = false, pitch: Int = 70) throws -> URL {
+private func existing(_ name: String, in folder: URL, source: TranscriptionWriter.Run?, version: Int? = nil, edited: Bool = false,
+                      partial: Bool = false, pitch: Int = 70) throws -> URL {
     var options = MIDIExportOptions()
-    options.provenance = source.map { MIDIProvenance(source: $0.sourceID, modelID: $0.modelID, edited: edited, partial: partial) }
+    options.provenance = source.map { MIDIProvenance(source: $0.sourceID, modelID: $0.modelID, version: version, edited: edited, partial: partial) }
     let url = folder.appending(path: name)
     try MIDIBuilder.build(notes: [note(0, 1, pitch)], options: options).write(to: url)
     return url
 }
+
+private let first = "synthetic - basic-pitch.mid"
+private let second = "synthetic - basic-pitch 2.mid"
 
 @MainActor
 private final class Counter {
@@ -53,113 +62,190 @@ private final class Counter {
 struct TranscriptionWriterTests {
     private let writer = TranscriptionWriter()
 
-    @Test func aCompletedRunIsSavedWithItsSourceModelAndLicenceNotice() throws {
+    @Test func aCompletedRunIsSavedAsVersionOneWithItsSourceModelAndLicenceNotice() throws {
         let folder = try scratchFolder()
         let run = makeRun()
         writer.finish(.done(2), notes: [note(0, 1, 60), note(1, 2, 64)], run: run, folder: folder)
 
-        let url = folder.appending(path: "synthetic.mid")
-        #expect(writer.status == .saved(url, partial: false))
+        let url = folder.appending(path: first)
+        #expect(writer.status == .saved(url, version: 1, partial: false))
         let info = try #require(MIDIImporter.info(at: url))
         #expect(info.noteCount == 2 && info.origin == .fromAudio)
-        #expect(info.provenance == MIDIProvenance(source: run.sourceID, modelID: "basic-pitch", edited: false, partial: false))
+        #expect(info.provenance == MIDIProvenance(source: run.sourceID, sourceName: "synthetic", modelID: "basic-pitch", version: 1,
+                                                  edited: false, partial: false))
 
         let file = try MusicalMIDI1File(data: Data(contentsOf: url))
         let copyrights = file.tracks[0].events.compactMap { event -> String? in
             if case .text(let text) = event.event, text.textType == .copyright { text.text } else { nil }
         }
         #expect(copyrights == [notice])
-        #expect(try listing(folder) == ["synthetic.mid"])
+        #expect(try listing(folder) == [first])
     }
 
-    @Test func rerunningReplacesTheEarlierOutputInPlace() throws {
+    @Test func rerunningTheSameModelKeepsEveryVersion() throws {
         let folder = try scratchFolder()
         let run = makeRun()
         writer.finish(.done(1), notes: [note(0, 1, 60)], run: run, folder: folder)
+        let original = folder.appending(path: first)
+        let before = try sha(original)
         writer.finish(.done(3), notes: [note(0, 1, 60), note(1, 2, 62), note(2, 3, 64)], run: run, folder: folder)
 
-        #expect(try listing(folder) == ["synthetic.mid"])
-        #expect(MIDIImporter.info(at: folder.appending(path: "synthetic.mid"))?.noteCount == 3)
+        let rerun = folder.appending(path: second)
+        #expect(writer.status == .saved(rerun, version: 2, partial: false))
+        #expect(try listing(folder) == [second, first])
+        #expect(try sha(original) == before)
+        #expect(MIDIImporter.info(at: original)?.noteCount == 1)
+        #expect(MIDIImporter.info(at: rerun)?.noteCount == 3)
+        #expect(MIDIImporter.info(at: rerun)?.provenance?.version == 2)
+    }
+
+    @Test func eachModelGetsItsOwnFileAndNoneIsReplaced() throws {
+        let folder = try scratchFolder()
+        writer.finish(.done(1), notes: [note(0, 1, 60)], run: makeRun(), folder: folder)
+        let basic = folder.appending(path: first)
+        let before = try sha(basic)
+
+        writer.finish(.done(2), notes: [note(0, 1, 60), note(1, 2, 62)], run: makeRun(model: "muscriptor-large"), folder: folder)
+        let large = folder.appending(path: "synthetic - muscriptor-large.mid")
+        #expect(writer.status == .saved(large, version: 2, partial: false))
+        let largeBefore = try sha(large)
+
+        writer.finish(.done(3), notes: [note(0, 1, 60), note(1, 2, 62), note(2, 3, 64)], run: makeRun(), folder: folder)
+        #expect(writer.status == .saved(folder.appending(path: second), version: 3, partial: false))
+        #expect(try listing(folder) == [second, first, "synthetic - muscriptor-large.mid"])
+        #expect(try sha(basic) == before)
+        #expect(try sha(large) == largeBefore)
+        #expect(MIDIImporter.info(at: large)?.provenance?.modelID == "muscriptor-large")
+    }
+
+    @Test func aFileFromBeforeVersionsIsKeptAndCountsTowardsTheNextNumber() throws {
+        let folder = try scratchFolder()
+        let run = makeRun()
+        let legacy = try existing("synthetic.mid", in: folder, source: run)
+        let before = try sha(legacy)
+
+        writer.finish(.done(1), notes: [note(0, 1, 60)], run: run, folder: folder)
+        #expect(writer.status == .saved(folder.appending(path: first), version: 2, partial: false))
+        #expect(try sha(legacy) == before)
+        #expect(try listing(folder) == [first, "synthetic.mid"])
+    }
+
+    @Test func theNextVersionFollowsTheHighestEvenAfterOneIsDeleted() throws {
+        let folder = try scratchFolder()
+        let run = makeRun()
+        for count in 1...3 { writer.finish(.done(count), notes: [note(0, 1, 60 + count)], run: run, folder: folder) }
+        try FileManager.default.removeItem(at: folder.appending(path: second))
+
+        writer.finish(.done(1), notes: [note(0, 1, 70)], run: run, folder: folder)
+        #expect(writer.status == .saved(folder.appending(path: second), version: 4, partial: false))
     }
 
     @Test func aFileWithHandEditsIsNeverReplaced() throws {
         let folder = try scratchFolder()
         let run = makeRun()
-        let edited = try existing("synthetic.mid", in: folder, source: run, edited: true)
+        let edited = try existing(first, in: folder, source: run, version: 1, edited: true)
         let before = try sha(edited)
 
         writer.finish(.done(2), notes: [note(0, 1, 60), note(1, 2, 64)], run: run, folder: folder)
-        let second = folder.appending(path: "synthetic 2.mid")
-        #expect(writer.status == .saved(second, partial: false))
+        let next = folder.appending(path: second)
+        #expect(writer.status == .saved(next, version: 2, partial: false))
         #expect(try sha(edited) == before)
-        let provenance = try #require(MIDIImporter.info(at: second)?.provenance)
+        let provenance = try #require(MIDIImporter.info(at: next)?.provenance)
         #expect(!provenance.edited && !provenance.partial && provenance.source == run.sourceID)
-
-        writer.finish(.done(3), notes: [note(0, 1, 60), note(1, 2, 62), note(2, 3, 64)], run: run, folder: folder)
-        #expect(try listing(folder) == ["synthetic 2.mid", "synthetic.mid"])
-        #expect(MIDIImporter.info(at: second)?.noteCount == 3)
-        #expect(try sha(edited) == before)
+        #expect(try listing(folder) == [second, first])
     }
 
     @Test func filesThatAreNotThisSourcesOutputKeepTheirNames() throws {
         let folder = try scratchFolder()
         let run = makeRun()
-        let imported = try existing("synthetic.mid", in: folder, source: nil)
-        let other = try existing("synthetic 2.mid", in: folder, source: makeRun("elsewhere"))
-        let unreadable = folder.appending(path: "synthetic 3.mid")
+        let imported = try existing(first, in: folder, source: nil)
+        let other = try existing(second, in: folder, source: makeRun("elsewhere"))
+        let unreadable = folder.appending(path: "synthetic - basic-pitch 3.mid")
         try Data("not midi".utf8).write(to: unreadable)
         let hashes = try [imported, other, unreadable].map(sha)
 
         writer.finish(.done(1), notes: [note(0, 1, 60)], run: run, folder: folder)
-        #expect(writer.status == .saved(folder.appending(path: "synthetic 4.mid"), partial: false))
+        #expect(writer.status == .saved(folder.appending(path: "synthetic - basic-pitch 4.mid"), version: 1, partial: false))
         #expect(try [imported, other, unreadable].map(sha) == hashes)
     }
 
-    @Test func aCancelledRunSavesItsPartialNotes() throws {
+    @Test func aCancelledRunSavesItsPartialNotesAndFinishingItKeepsItsVersionAndPlace() throws {
         let folder = try scratchFolder()
         let run = makeRun()
-        let url = folder.appending(path: "synthetic.mid")
+        let url = folder.appending(path: first)
 
         writer.finish(.cancelled, notes: [note(0, 1, 60)], run: run, folder: folder)
-        #expect(writer.status == .saved(url, partial: true))
+        #expect(writer.status == .saved(url, version: 1, partial: true))
         #expect(MIDIImporter.info(at: url)?.provenance?.partial == true)
+        let born = try created(url)
 
         writer.finish(.cancelled, notes: [note(0, 1, 60), note(1, 2, 62)], run: run, folder: folder)
+        #expect(writer.status == .saved(url, version: 1, partial: true))
         #expect(MIDIImporter.info(at: url)?.noteCount == 2)
-        #expect(try listing(folder) == ["synthetic.mid"])
+        #expect(try listing(folder) == [first])
 
         writer.finish(.done(3), notes: [note(0, 1, 60), note(1, 2, 62), note(2, 3, 64)], run: run, folder: folder)
+        #expect(writer.status == .saved(url, version: 1, partial: false))
         #expect(MIDIImporter.info(at: url)?.provenance?.partial == false)
         #expect(MIDIImporter.info(at: url)?.noteCount == 3)
-        #expect(try listing(folder) == ["synthetic.mid"])
+        #expect(try listing(folder) == [first])
+        // The library lists versions by creation date, so the finished file stays where its partial was.
+        #expect(try created(url) == born)
     }
 
     @Test func cancellingARerunNeverErasesAnEarlierCompleteResult() throws {
         let folder = try scratchFolder()
         let run = makeRun()
         writer.finish(.done(2), notes: [note(0, 1, 60), note(1, 2, 64)], run: run, folder: folder)
-        let url = folder.appending(path: "synthetic.mid")
+        let url = folder.appending(path: first)
         let before = try sha(url)
 
         writer.finish(.cancelled, notes: [note(0, 1, 72)], run: run, folder: folder)
-        #expect(writer.status == .keptPrevious(url))
+        #expect(writer.status == .keptPrevious(url, version: 1))
         #expect(try sha(url) == before)
-        #expect(try listing(folder) == ["synthetic.mid"])
+        #expect(try listing(folder) == [first])
 
         writer.finish(.cancelled, notes: [], run: run, folder: folder)
         #expect(writer.status == .empty)
         #expect(try sha(url) == before)
     }
 
+    @Test func aCancelledRunKeepsAResultFromBeforeVersionsWithoutANumber() throws {
+        let folder = try scratchFolder()
+        let run = makeRun()
+        let legacy = try existing("synthetic.mid", in: folder, source: run)
+
+        writer.finish(.cancelled, notes: [note(0, 1, 72)], run: run, folder: folder)
+        #expect(writer.status == .keptPrevious(legacy, version: nil))
+        #expect(try listing(folder) == ["synthetic.mid"])
+    }
+
+    @Test func aCancelledRunOfAnotherModelSavesItsOwnPartialBesideTheCompleteOne() throws {
+        let folder = try scratchFolder()
+        writer.finish(.done(1), notes: [note(0, 1, 60)], run: makeRun(), folder: folder)
+        let basic = folder.appending(path: first)
+        let before = try sha(basic)
+
+        let small = makeRun(model: "muscriptor-small")
+        let partial = folder.appending(path: "synthetic - muscriptor-small.mid")
+        writer.finish(.cancelled, notes: [note(0, 1, 62)], run: small, folder: folder)
+        #expect(writer.status == .saved(partial, version: 2, partial: true))
+
+        writer.finish(.done(2), notes: [note(0, 1, 62), note(1, 2, 64)], run: small, folder: folder)
+        #expect(writer.status == .saved(partial, version: 2, partial: false))
+        #expect(try listing(folder) == [first, "synthetic - muscriptor-small.mid"])
+        #expect(try sha(basic) == before)
+    }
+
     @Test func aCancelledRunBesideAnEditedFileGetsItsOwnPartialFile() throws {
         let folder = try scratchFolder()
         let run = makeRun()
-        let edited = try existing("synthetic.mid", in: folder, source: run, edited: true)
+        let edited = try existing(first, in: folder, source: run, version: 1, edited: true)
         let before = try sha(edited)
 
         writer.finish(.cancelled, notes: [note(0, 1, 60)], run: run, folder: folder)
-        let partial = folder.appending(path: "synthetic 2.mid")
-        #expect(writer.status == .saved(partial, partial: true))
+        let partial = folder.appending(path: second)
+        #expect(writer.status == .saved(partial, version: 2, partial: true))
         #expect(MIDIImporter.info(at: partial)?.provenance?.partial == true)
         #expect(try sha(edited) == before)
     }
@@ -183,7 +269,7 @@ struct TranscriptionWriterTests {
         let folder = try scratchFolder()
         let run = makeRun()
         writer.finish(.done(1), notes: [note(0, 1, 60)], run: run, folder: folder)
-        let url = folder.appending(path: "synthetic.mid")
+        let url = folder.appending(path: first)
         let before = try sha(url)
 
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
@@ -193,14 +279,16 @@ struct TranscriptionWriterTests {
             Issue.record("expected a failure, got \(writer.status)")
             return
         }
-        #expect(message.contains("synthetic.mid") && message.contains("isn\u{2019}t writable"))
+        #expect(message.contains(second) && message.contains("isn\u{2019}t writable"))
         #expect(try sha(url) == before)
-        #expect(try listing(folder) == ["synthetic.mid"])
+        #expect(try listing(folder) == [first])
 
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path)
         writer.retry(folder: folder)
-        #expect(writer.status == .saved(url, partial: false))
-        #expect(MIDIImporter.info(at: url)?.noteCount == 2)
+        let retried = folder.appending(path: second)
+        #expect(writer.status == .saved(retried, version: 2, partial: false))
+        #expect(MIDIImporter.info(at: retried)?.noteCount == 2)
+        #expect(try sha(url) == before)
     }
 
     @Test func aFailedWriteLeavesNoEmptyFileBehind() throws {
@@ -220,7 +308,7 @@ struct TranscriptionWriterTests {
 
         let folder = try scratchFolder()
         writer.retry(folder: folder)
-        #expect(writer.status == .saved(folder.appending(path: "synthetic.mid"), partial: false))
+        #expect(writer.status == .saved(folder.appending(path: first), version: 1, partial: false))
     }
 
     @Test func aReferencedAudioFileIsIdentifiedByItsBookmarkNotItsPath() {
@@ -228,6 +316,19 @@ struct TranscriptionWriterTests {
         let reference = AudioReference(name: "take.wav", lastPath: url.path, bookmark: Data())
         #expect(TranscriptionWriter.sourceIdentifier(for: url, references: [reference]) == "reference:\(reference.id.uuidString)")
         #expect(TranscriptionWriter.sourceIdentifier(for: url, references: []) == url.absoluteString)
+    }
+
+    @Test func defaultNamesAreToldApartFromNamesTheUserChose() {
+        let isDefault = { TranscriptionWriter.isDefaultName($0, title: "song", modelID: "basic-pitch") }
+        #expect(isDefault("song - basic-pitch"))
+        #expect(isDefault("song - basic-pitch 3"))
+        #expect(isDefault("song"))
+        #expect(isDefault("song 2"))
+        #expect(!isDefault("song - basic-pitch 1"))
+        #expect(!isDefault("song - basic-pitch take two"))
+        #expect(!isDefault("Best take"))
+        #expect(!isDefault("song - muscriptor-large"))
+        #expect(TranscriptionWriter.isDefaultName("song 2", title: "song", modelID: nil))
     }
 
     @Test func transcribingTheFixtureSavesALinkedFileAndTellsTheLibrary() async throws {
@@ -250,14 +351,16 @@ struct TranscriptionWriterTests {
         screen.start()
         for _ in 0..<1200 where screen.writer.status == .idle { try await Task.sleep(for: .milliseconds(50)) }
 
-        let url = folder.appending(path: "synthetic.mid")
-        #expect(screen.writer.status == .saved(url, partial: false))
+        let url = folder.appending(path: first)
+        #expect(screen.writer.status == .saved(url, version: 1, partial: false))
         #expect(session.state == .done(session.notes.count))
         let info = try #require(MIDIImporter.info(at: url))
         #expect(info.noteCount > 0 && info.origin == .fromAudio)
         #expect(info.provenance?.source == wav.standardizedFileURL.absoluteString)
+        #expect(info.provenance?.sourceName == "synthetic")
         #expect(info.provenance?.modelID == "basic-pitch")
+        #expect(info.provenance?.version == 1)
         #expect(refreshed.value == 1)
-        #expect(try listing(folder).filter { $0.hasSuffix(".mid") } == ["synthetic.mid"])
+        #expect(try listing(folder).filter { $0.hasSuffix(".mid") } == [first])
     }
 }

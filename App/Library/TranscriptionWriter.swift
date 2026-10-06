@@ -13,8 +13,9 @@ enum TranscriptionWriterError: LocalizedError, Equatable {
     }
 }
 
-/// Saves a finished or cancelled transcription as `MIDI/{audio name}.mid`.
-/// The file remembers its source and model, so a later run can find and replace it, but never one the user has edited.
+/// Saves a finished or cancelled transcription as a new version of its audio, in `MIDI/{audio name} - {model ID}.mid`.
+/// The file remembers its source, model and version. A finished result is never replaced; only a cancelled run's partial
+/// file is, by a later run of the same audio and model. A file the user has edited is never touched.
 @MainActor @Observable
 final class TranscriptionWriter {
     /// What the writer needs to know about a run, taken when the run starts.
@@ -29,16 +30,16 @@ final class TranscriptionWriter {
 
     enum Status: Equatable {
         case idle
-        case saved(URL, partial: Bool)
-        /// A cancelled run left an earlier complete result alone.
-        case keptPrevious(URL)
+        case saved(URL, version: Int, partial: Bool)
+        /// A cancelled run left an earlier complete result alone. Its version is nil when it was saved before versions existed.
+        case keptPrevious(URL, version: Int?)
         case empty
         case failed(String)
     }
 
     enum Outcome: Equatable {
-        case saved(URL)
-        case kept(URL)
+        case saved(URL, version: Int)
+        case kept(URL, version: Int?)
     }
 
     private(set) var status: Status = .idle
@@ -88,8 +89,8 @@ final class TranscriptionWriter {
         }
         do {
             switch try Self.write(notes, run: run, partial: partial, in: folder, fileManager: fileManager) {
-            case .saved(let url): status = .saved(url, partial: partial)
-            case .kept(let url): status = .keptPrevious(url)
+            case .saved(let url, let version): status = .saved(url, version: version, partial: partial)
+            case .kept(let url, let version): status = .keptPrevious(url, version: version)
             }
             pending = nil
         } catch {
@@ -109,15 +110,41 @@ final class TranscriptionWriter {
             }
     }
 
-    /// Writes the notes next to the earlier output of the same source, or under a free name.
-    /// A file with hand edits, or one that isn't recognisably this source's, is never touched.
+    /// `{audio name} - {model ID}`. The ID keeps the name plain and stable; the app shows the model's own name instead.
+    nonisolated static func baseName(title: String, modelID: String?) -> String {
+        modelID.map { "\(title) - \($0)" } ?? title
+    }
+
+    /// Whether `name` is one the writer gives, `{base}` or `{base} 2` and on, either today's or the plain
+    /// `{audio name}` used before versions. Anything else was renamed by the user.
+    nonisolated static func isDefaultName(_ name: String, title: String, modelID: String?) -> Bool {
+        let bases = Set([baseName(title: title, modelID: modelID), title])
+        return bases.contains { base in
+            if name == base { return true }
+            guard name.hasPrefix("\(base) "), let number = Int(name.dropFirst(base.count + 1)) else { return false }
+            return number >= 2
+        }
+    }
+
+    /// One more than any version of the source so far. Files from before versions count too, so the numbers the library
+    /// gives them stay free.
+    nonisolated static func nextVersion(after linked: [(url: URL, provenance: MIDIProvenance)]) -> Int {
+        max(linked.compactMap(\.provenance.version).max() ?? 0, linked.count) + 1
+    }
+
+    /// Writes the notes as a new version of the source, or over the unfinished partial file of the same model, which keeps
+    /// its version. A cancelled run leaves a finished result of the same model in place and writes nothing.
+    /// A finished result, a file with hand edits, and one that isn't recognisably this source's are never touched.
     nonisolated static func write(_ notes: [NoteEvent], run: Run, partial: Bool, in folder: URL, fileManager: FileManager = .default) throws -> Outcome {
         let linked = linkedOutputs(sourceID: run.sourceID, in: folder, fileManager: fileManager)
-        if partial, let complete = linked.first(where: { !$0.provenance.edited && !$0.provenance.partial }) {
-            return .kept(complete.url)
+        let sameModel = linked.filter { $0.provenance.modelID == run.modelID && !$0.provenance.edited }
+        if partial, let complete = sameModel.first(where: { !$0.provenance.partial }) {
+            return .kept(complete.url, version: complete.provenance.version)
         }
-        let destination = linked.first { !$0.provenance.edited }?.url
-            ?? LibraryNaming.uniqueURL(base: run.title, ext: "mid", in: folder, fileManager: fileManager)
+        let unfinished = sameModel.first { $0.provenance.partial }
+        let destination = unfinished?.url
+            ?? LibraryNaming.uniqueURL(base: baseName(title: run.title, modelID: run.modelID), ext: "mid", in: folder, fileManager: fileManager)
+        let version = unfinished?.provenance.version ?? nextVersion(after: linked)
         let name = destination.lastPathComponent
 
         var options = MIDIExportOptions()
@@ -126,7 +153,8 @@ final class TranscriptionWriter {
         options.sliceLength = run.slice.span
         options.relativeTimeline = run.slice.relativeTimeline
         options.copyright = run.notice
-        options.provenance = MIDIProvenance(source: run.sourceID, modelID: run.modelID, edited: false, partial: partial)
+        options.provenance = MIDIProvenance(source: run.sourceID, sourceName: run.title, modelID: run.modelID, version: version,
+                                            edited: false, partial: partial)
 
         let staging = folder.appending(path: ".save-\(UUID().uuidString).tmp", directoryHint: .notDirectory)
         do {
@@ -141,7 +169,7 @@ final class TranscriptionWriter {
             try? fileManager.removeItem(at: staging)
             throw TranscriptionWriterError.cannotWrite(file: name, reason: reason(for: error))
         }
-        return .saved(destination)
+        return .saved(destination, version: version)
     }
 
     nonisolated static func reason(for error: Error) -> String {

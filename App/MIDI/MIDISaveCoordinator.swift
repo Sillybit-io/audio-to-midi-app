@@ -135,7 +135,7 @@ final class MIDISaveCoordinator {
             var options = MIDIExportOptions()
             options.title = editor.name
             options.provenance = provenance
-            options.copyright = provenance.modelID.flatMap { id in ModelCatalog.entries.first { $0.id == id } }?.exportNotice
+            options.copyright = ModelCatalog.entry(id: provenance.modelID)?.exportNotice
             let data = try MIDIBuilder.build(notes: document.noteEvents, options: options)
             do {
                 try AtomicFile.replace(data, at: editor.url, fileManager: fileManager)

@@ -312,4 +312,14 @@ struct LibraryMIDIMetadataTests {
         #expect(LibrarySidebarView.summary(MIDIFileInfo(noteCount: 3, trackNames: [], duration: 1, provenance: MIDIProvenance(edited: true))) == "3 notes · Edited")
         #expect(LibrarySidebarView.summary(nil) == "Can\u{2019}t be read")
     }
+
+    @Test func sidebarSummaryNamesTheModelNeverItsID() {
+        func summary(_ count: Int, _ provenance: MIDIProvenance) -> String {
+            LibrarySidebarView.summary(MIDIFileInfo(noteCount: count, trackNames: [], duration: 1, provenance: provenance))
+        }
+        #expect(summary(12, MIDIProvenance(modelID: "muscriptor-large", version: 2)) == "MuScriptor Large · 12 notes")
+        #expect(summary(1, MIDIProvenance(modelID: "basic-pitch", partial: true)) == "Basic Pitch · 1 note · Partial")
+        #expect(summary(3, MIDIProvenance(modelID: "piano-onnx", edited: true)) == "Piano (ONNX) · 3 notes · Edited")
+        #expect(summary(2, MIDIProvenance(modelID: "retired-model")) == "Unknown model · 2 notes")
+    }
 }

@@ -544,11 +544,12 @@ struct AudioFooterView: View {
         switch screen.writer.status {
         case .idle:
             EmptyView()
-        case .saved(let url, let partial):
-            Text("\(partial ? "Partial result saved" : "Saved") to MIDI/\(url.lastPathComponent)")
-                .font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
-        case .keptPrevious(let url):
-            Text("Kept the earlier result in MIDI/\(url.lastPathComponent)").font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
+        case .saved(let url, let version, let partial):
+            Text("\(partial ? "Partial result saved" : "Saved") as Version \(version)")
+                .font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1).help("MIDI/\(url.lastPathComponent)")
+        case .keptPrevious(let url, let version):
+            Text(version.map { "Kept the earlier result, Version \($0)" } ?? "Kept the earlier result")
+                .font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1).help("MIDI/\(url.lastPathComponent)")
         case .empty:
             Text("No notes found, so nothing was saved.").font(.caption).foregroundStyle(Native.fgSecondary).lineLimit(1)
         case .failed(let message):
@@ -589,7 +590,7 @@ struct AudioFooterView: View {
     /// The file the last run was saved to (or left in place), for the Edit MIDI link.
     private var savedURL: URL? {
         switch screen.writer.status {
-        case .saved(let url, _), .keptPrevious(let url): url
+        case .saved(let url, _, _), .keptPrevious(let url, _): url
         case .idle, .empty, .failed: nil
         }
     }

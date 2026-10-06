@@ -38,7 +38,7 @@ struct MIDIEditorInspectorView: View {
     // MARK: File
 
     private var model: ModelEntry? {
-        editor.provenance?.modelID.flatMap { id in ModelCatalog.entries.first { $0.id == id } }
+        ModelCatalog.entry(id: editor.provenance?.modelID)
     }
 
     private var sourceText: String {

@@ -97,4 +97,14 @@ enum ModelCatalog {
             licenseTexts: [LicenseText(resource: "Apache-2.0", ext: "txt"), LicenseText(resource: "BasicPitchNotice", ext: "txt")]),
         pianoOnnx,
     ]
+
+    static func entry(id: String?) -> ModelEntry? {
+        guard let id else { return nil }
+        return entries.first { $0.id == id }
+    }
+
+    /// The name the interface shows for a model ID. An ID the catalogue doesn't know is never shown as it is.
+    static func displayName(id: String) -> String {
+        entry(id: id)?.displayName ?? "Unknown model"
+    }
 }

@@ -240,7 +240,7 @@ struct MIDIEditorView: View {
                 .accessibilityValue(document.isDirty ? "Unsaved changes" : "No unsaved changes")
             }
             ToolbarItem {
-                ExportView(notes: document.noteEvents, entry: editor.provenance?.modelID.flatMap { id in ModelCatalog.entries.first { $0.id == id } },
+                ExportView(notes: document.noteEvents, entry: ModelCatalog.entry(id: editor.provenance?.modelID),
                            slice: editor.exportSlice, name: editor.name, showNotice: $editor.showExport)
             }
             ToolbarItem { InspectorToggle() }
