@@ -26,23 +26,23 @@ So Sillybit built a converter where you pick a model made for what you recorded.
 
 Everything runs on your Mac. Your audio is never uploaded anywhere.
 
-## Silly MIDI Tools or Ableton?
+## How it compares with Ableton Live and FL Studio
 
-Live 12 Standard and Suite can turn audio into MIDI too, with three modes: Convert Melody, Convert Harmony and Convert Drums. Here's how the two compare.
+Both DAWs can turn audio into MIDI too. Live 12 Standard and Suite have three modes: Convert Melody, Convert Harmony and Convert Drums. FL Studio has Edison's Convert to score (Producer Edition and up) and the Newtone pitch editor (Signature Bundle and up).
 
-| | Silly MIDI Tools | Ableton Live |
-| --- | --- | --- |
-| Price | Free | Included in Live 12 Standard and Suite |
-| How it listens | Six models, one for each kind of recording | Three modes: melody, harmony and drums |
-| A full band | MuScriptor writes one track per instrument | Works best on one isolated instrument (Suite can split stems first) |
-| Drums | Five or eight kit pieces | Kick, snare and hi-hat |
-| Hand drums | A detector for darbuka and similar drums | No dedicated mode |
-| Tempo | Fixed 120 BPM, 4/4 grid | Your Live set's tempo |
-| Where it runs | A separate app for Apple silicon Macs that works with any DAW | Inside Live, on Mac and Windows |
+| | Silly MIDI Tools | Ableton Live | FL Studio |
+| --- | --- | --- | --- |
+| Price | Free | Included in Live 12 Standard and Suite | Included in Producer Edition and up |
+| How it listens | Six models, one for each kind of recording | Three modes: melody, harmony and drums | Pitch detection: Edison slices the audio and finds a pitch for each slice |
+| A full band | MuScriptor writes one track per instrument | Works best on one isolated instrument (Suite can split stems first) | Notes go to one channel's piano roll (stems can be split first) |
+| Drums | Five or eight kit pieces | Kick, snare and hi-hat | No drum mode |
+| Hand drums | A detector for darbuka and similar drums | No dedicated mode | No dedicated mode |
+| Tempo | Fixed 120 BPM, 4/4 grid | Your Live set's tempo | Your project's tempo |
+| Where it runs | A separate app for Apple silicon Macs that works with any DAW | Inside Live, on Mac and Windows | Inside FL Studio, on Mac and Windows |
 
-Live is the better pick when the MIDI has to follow your set's tempo, when you're on Windows, or when you're releasing the music and the part would need MuScriptor or ADTOF, which are non-commercial only. Silly MIDI Tools is worth trying when Live's conversion gives you extra notes, especially on a full mix, a kit with more than kick, snare and hi-hat, or a hand drum.
+Your DAW is the better pick when the MIDI has to follow your project's tempo, when you're on Windows, or when you're releasing the music and the part would need MuScriptor or ADTOF, which are non-commercial only. Silly MIDI Tools is worth trying when your DAW's conversion gives you extra notes, especially on a full mix, a drum kit, or a hand drum.
 
-<sub>Ableton details come from the [Live 12 manual](https://www.ableton.com/en/live-manual/12/converting-audio-to-midi/) and the [edition comparison](https://www.ableton.com/en/live/compare-editions/). Ableton and Live are trademarks of Ableton AG. Silly MIDI Tools isn't affiliated with Ableton.</sub>
+<sub>Ableton details come from the [Live 12 manual](https://www.ableton.com/en/live-manual/12/converting-audio-to-midi/) and the [Live edition comparison](https://www.ableton.com/en/live/compare-editions/). FL Studio details come from the [Edison](https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/plugins/Edison_3.htm) and [Newtone](https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/plugins/Newtone.htm) manual pages and the [FL Studio edition comparison](https://www.image-line.com/fl-studio/compare-editions). Ableton and Live are trademarks of Ableton AG, and FL Studio is a trademark of Image-Line. Silly MIDI Tools isn't affiliated with either.</sub>
 
 ## How it works
 
