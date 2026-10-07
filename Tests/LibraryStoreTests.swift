@@ -120,6 +120,25 @@ struct LibraryStoreTests {
         #expect(group.versions.allSatisfy { $0.customName == nil })
     }
 
+    @Test func openingTheFolderRemovesAudioPathsFromOlderFilesAndKeepsTheirOrder() throws {
+        let folders = try makeFolders()
+        let old = MIDIProvenance(source: "file:///Users/someone/Documents/Silly%20MIDI%20Tools/Audio/song.wav", modelID: "basic-pitch")
+        try midiFile("song - basic-pitch.mid", in: folders.midi, old, created: 300)
+        try midiFile("song - piano-onnx.mid", in: folders.midi, MIDIProvenance(source: "audio:song.wav", modelID: "piano-onnx"), created: 100)
+        let untouched = try Data(contentsOf: folders.midi.appending(path: "song - piano-onnx.mid"))
+        let library = library(imports())
+        library.attach(audio: folders.audio, midi: folders.midi)
+
+        let rewritten = try Data(contentsOf: folders.midi.appending(path: "song - basic-pitch.mid"))
+        #expect(rewritten.range(of: Data("someone".utf8)) == nil)
+        #expect(try Data(contentsOf: folders.midi.appending(path: "song - piano-onnx.mid")) == untouched)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folders.midi.path).sorted() == ["song - basic-pitch.mid", "song - piano-onnx.mid"])
+        let group = try #require(library.midiGroups.first)
+        #expect(library.midiGroups.count == 1 && group.title == "song")
+        #expect(group.versions.map(\.entry.fileName) == ["song - piano-onnx.mid", "song - basic-pitch.mid"])
+        #expect(MIDIImporter.info(at: folders.midi.appending(path: "song - basic-pitch.mid"))?.noteCount == 1)
+    }
+
     @Test func aSingleTranscriptionIsOneRowTitledWithItsAudio() throws {
         let folders = try makeFolders()
         try midiFile("take - piano-onnx.mid", in: folders.midi,

@@ -11,8 +11,12 @@ struct MIDIExportOptions: Sendable {
     var relativeTimeline = true
     var defaultVelocity = 100
     var copyright: String?
+    /// A plain text event on the conductor track, such as where the file came from.
+    var comment: String?
     /// Adds an `smt:` text event to the conductor track. Left nil, the file is exactly what it was before.
     var provenance: MIDIProvenance?
+    /// Pitch bends bend the whole channel and assume a ±2 semitone bend range, so a file for another app can leave them out.
+    var includesPitchBends = true
 }
 
 enum MIDIBuilder {
@@ -60,6 +64,9 @@ enum MIDIBuilder {
         if let copyright = options.copyright, !copyright.isEmpty {
             conductor.append(.text(type: .copyright, string: ascii(copyright)))
         }
+        if let comment = options.comment, !comment.isEmpty {
+            conductor.append(.text(type: .text, string: ascii(comment)))
+        }
         if let provenance = options.provenance {
             conductor.append(.text(type: .text, string: provenance.text))
         }
@@ -89,7 +96,7 @@ enum MIDIBuilder {
                 timed.append(Timed(tick: start, kind: .noteOn) { .noteOn(delta: $0, note: key, velocity: .midi1(velocity), channel: ch) })
                 timed.append(Timed(tick: stop, kind: .noteOff) { .noteOff(delta: $0, note: key, velocity: .midi1(0), channel: ch) })
 
-                if let bends = note.pitchBends, !bends.isEmpty {
+                if options.includesPitchBends, let bends = note.pitchBends, !bends.isEmpty {
                     for (i, bend) in bends.enumerated() {
                         let fraction = bends.count > 1 ? Double(i) / Double(bends.count - 1) : 0
                         let at = tick(note.onset + (end - note.onset) * fraction + offset)

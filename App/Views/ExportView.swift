@@ -1,21 +1,32 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Builds the file the toolbar's Export… button saves and the footer's chip drags out.
+/// Builds the file the toolbar's Export… button saves and the footer's chip drags out. Neither carries the `smt:` text
+/// or anything else that names the source audio's folder, and both leave out notes outside C1–B6, which the editor
+/// can't show. Left at its defaults, as the chip does, the file has no licence notice and no pitch bends.
 enum MIDIExport {
+    static let comment = "Exported from Silly MIDI Tools"
+
+    static func exportable(_ notes: [NoteEvent]) -> [NoteEvent] {
+        notes.filter { MIDIEditing.pitchRange.contains($0.pitch) }
+    }
+
     static func item(notes: [NoteEvent], entry: ModelEntry?, slice: AudioSlice, name: String,
-                     embedNotice: Bool = true, keyInName: Bool = true) -> MIDIExportItem {
+                     embedNotice: Bool = false, pitchBends: Bool = false, keyInName: Bool = true) -> MIDIExportItem {
         var options = MIDIExportOptions()
         options.sliceStart = slice.start
         options.sliceLength = slice.span
         options.relativeTimeline = slice.relativeTimeline
         options.title = name
         options.copyright = embedNotice ? (entry?.exportNotice ?? "") : nil
-        return MIDIExportItem(notes: notes, options: options, name: fileName(notes: notes, name: name, keyInName: keyInName))
+        options.comment = comment
+        options.includesPitchBends = pitchBends
+        let kept = exportable(notes)
+        return MIDIExportItem(notes: kept, options: options, name: fileName(notes: kept, name: name, keyInName: keyInName))
     }
 
     static func fileName(notes: [NoteEvent], name: String, keyInName: Bool = true) -> String {
-        keyInName ? ExportNaming.fileName(base: name, key: KeyDetector.rank(notes: notes).first) : name
+        keyInName ? ExportNaming.fileName(base: name, key: KeyDetector.rank(notes: exportable(notes)).first) : name
     }
 }
 
@@ -27,11 +38,13 @@ struct ExportView: View {
 
     @Binding var showNotice: Bool
     @State private var embedNotice = true
+    @State private var pitchBends = false
     @State private var keyInName = true
     @State private var exporting = false
     @State private var item: MIDIExportItem?
 
     private var notice: String { entry?.exportNotice ?? "" }
+    private var hasPitchBends: Bool { notes.contains { !($0.pitchBends ?? []).isEmpty } }
 
     private var fileName: String { MIDIExport.fileName(notes: notes, name: name, keyInName: keyInName) }
 
@@ -49,13 +62,16 @@ struct ExportView: View {
                 Text("Export MIDI").font(.title3.bold())
                 Text(notice.isEmpty ? "No licence notice for this model." : notice)
                 Toggle("Embed this notice in the MIDI file", isOn: $embedNotice)
+                if hasPitchBends {
+                    Toggle("Include pitch bends (for a \u{00B1}2 semitone bend range)", isOn: $pitchBends)
+                }
                 Toggle("Add the detected key to the file name (\(fileName).mid)", isOn: $keyInName)
                 HStack {
                     Spacer()
                     Button("Cancel") { showNotice = false }
                     Button("Export") {
                         item = MIDIExport.item(notes: notes, entry: entry, slice: slice, name: name,
-                                               embedNotice: embedNotice, keyInName: keyInName)
+                                               embedNotice: embedNotice, pitchBends: pitchBends, keyInName: keyInName)
                         showNotice = false
                         exporting = true
                     }.buttonStyle(.borderedProminent)
@@ -91,7 +107,7 @@ struct MIDIDragChip: View {
     private static let fileIcon = NSWorkspace.shared.icon(for: .midi)
 
     var body: some View {
-        if !notes.isEmpty {
+        if !MIDIExport.exportable(notes).isEmpty {
             let file = "\(MIDIExport.fileName(notes: notes, name: name)).mid"
             let shape = RoundedRectangle(cornerRadius: Metric.rRow)
             HStack(spacing: Metric.sp3) {

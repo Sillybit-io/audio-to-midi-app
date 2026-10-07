@@ -50,10 +50,13 @@ final class TranscriptionWriter {
         self.fileManager = fileManager
     }
 
-    /// Identifies the audio a file came from: its URL, or the id of the bookmarked reference that points at it.
+    /// Identifies the audio a file came from without its path, which would name the user's folders and account: the id of
+    /// the bookmarked reference that points at it, or else its file name in the Audio folder.
     nonisolated static func sourceIdentifier(for url: URL, references: [AudioReference]) -> String {
-        if let reference = references.first(where: { $0.lastPath == url.path }) { return "reference:\(reference.id.uuidString)" }
-        return url.standardizedFileURL.absoluteString
+        if let reference = references.first(where: { $0.lastPath == url.path }) {
+            return MIDIProvenance.referencePrefix + reference.id.uuidString
+        }
+        return MIDIProvenance.audioPrefix + url.lastPathComponent
     }
 
     /// Call once when a run reaches a terminal state. Streaming and failed runs write nothing.

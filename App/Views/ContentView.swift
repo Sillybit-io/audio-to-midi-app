@@ -250,13 +250,14 @@ struct ContentView: View {
     /// The audio an open MIDI file was transcribed from, when it can still be found.
     private func sourceAudio(of editor: MIDIEditorModel) -> URL? {
         guard let source = editor.provenance?.source else { return nil }
-        if source.hasPrefix("reference:") {
-            guard let id = UUID(uuidString: String(source.dropFirst("reference:".count))),
+        if source.hasPrefix(MIDIProvenance.referencePrefix) {
+            guard let id = UUID(uuidString: String(source.dropFirst(MIDIProvenance.referencePrefix.count))),
                   let reference = imports.references.first(where: { $0.id == id }) else { return nil }
             return imports.resolved(reference)
         }
-        guard let url = URL(string: source), url.isFileURL, FileManager.default.fileExists(atPath: url.path) else { return nil }
-        return url
+        guard source.hasPrefix(MIDIProvenance.audioPrefix), let folder = workingFolder.audioFolder else { return nil }
+        let url = folder.appending(path: String(source.dropFirst(MIDIProvenance.audioPrefix.count)), directoryHint: .notDirectory)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     private func closeMIDI() {

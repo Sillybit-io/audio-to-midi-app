@@ -9,7 +9,7 @@ struct MIDIProvenanceTests {
     }
 
     @Test func roundTripsEveryFieldIncludingAwkwardCharacters() throws {
-        let provenance = MIDIProvenance(source: "file:///Volumes/Studio/Müsic/take;2=final%20.wav", sourceName: "take;2=final% Müsic",
+        let provenance = MIDIProvenance(source: "audio:Müsic take;2=final%20.wav", sourceName: "take;2=final% Müsic",
                                         modelID: "muscriptor-small", version: 12, edited: true, partial: true)
         let decoded = try #require(MIDIProvenance(text: provenance.text))
         #expect(decoded == provenance)
@@ -55,6 +55,39 @@ struct MIDIProvenanceTests {
         #expect(decoded.provenance == provenance)
         let file = try MusicalMIDI1File(data: data)
         #expect(MIDIProvenance.read(from: file) == provenance)
+    }
+
+    @Test func aSourceSavedAsAFileURLReadsBackAsItsFileName() throws {
+        let old = MIDIProvenance(source: "file:///Users/someone/Documents/Silly%20MIDI%20Tools/Audio/My%20take.wav", modelID: "basic-pitch")
+        #expect(MIDIProvenance(text: old.text)?.source == "audio:My take.wav")
+        #expect(MIDIProvenance(text: MIDIProvenance(source: "reference:ABC").text)?.source == "reference:ABC")
+    }
+
+    @Test func removingPathsRewritesOnlyThePathAndKeepsEveryOtherByte() throws {
+        let notes = [NoteEvent(onset: 0, offset: 1, pitch: 60, program: 0, isDrum: false, instrument: "electric_piano", velocity: 90,
+                               pitchBends: [0, 3, 0]),
+                     note(0.5, 2, 64)]
+        var options = MIDIExportOptions()
+        options.copyright = "Transcribed with Basic Pitch by Spotify (Apache-2.0)."
+        options.provenance = MIDIProvenance(source: "file:///Users/someone/Music/Audio/take.wav", sourceName: "take",
+                                            modelID: "basic-pitch", version: 2)
+        let old = try MIDIBuilder.build(notes: notes, options: options)
+        options.provenance?.source = "audio:take.wav"
+        let expected = try MIDIBuilder.build(notes: notes, options: options)
+
+        let cleaned = try #require(MIDIProvenance.removingPaths(from: old))
+        #expect(cleaned == expected)
+        #expect(cleaned.range(of: Data("someone".utf8)) == nil)
+        #expect(MIDIProvenance.removingPaths(from: cleaned) == nil)
+        #expect(MIDIProvenance.removingPaths(from: Data("not a MIDI file".utf8)) == nil)
+        #expect(MIDIProvenance.removingPaths(from: old.prefix(old.count - 3)) == nil)
+    }
+
+    @Test func removingAPathKeepsFieldsThisVersionDoesNotKnow() {
+        #expect(MIDIProvenance.textWithoutPath("smt:v=2;future=x%3By;source=file%3A%2F%2F%2FUsers%2Fme%2Fa.wav;model=piano-onnx")
+                == "smt:v=2;future=x%3By;source=audio%3Aa.wav;model=piano-onnx")
+        #expect(MIDIProvenance.textWithoutPath("smt:v=1;source=audio%3Aa.wav") == nil)
+        #expect(MIDIProvenance.textWithoutPath("Transcribed with Basic Pitch") == nil)
     }
 
     @Test func aFileWithoutTheEventHasNoProvenance() throws {

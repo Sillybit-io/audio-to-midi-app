@@ -117,6 +117,7 @@ final class LibraryStore {
         watches = []
         audioFolder = audio
         midiFolder = midi
+        if let midi { removePaths(in: midi) }
         refresh()
         for folder in [audio, midi].compactMap({ $0 }) {
             if let watch = watcher.watch(folder, onChange: { [weak self] in self?.refresh() }) { watches.append(watch) }
@@ -145,6 +146,28 @@ final class LibraryStore {
         }
     }
 
+    /// MIDI files saved before sources were named by file name hold the audio's full path, which names the user's folders
+    /// and account. Rewrites each such file without it, changing nothing else; the file keeps its creation date.
+    private func removePaths(in folder: URL) {
+        let urls = (try? fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+        let marker = Data("source=file".utf8)
+        var cleaned = 0
+        for url in urls where ["mid", "midi"].contains(url.pathExtension.lowercased()) {
+            guard let data = try? Data(contentsOf: url), data.range(of: marker) != nil,
+                  let rewritten = MIDIProvenance.removingPaths(from: data) else { continue }
+            let staging = folder.appending(path: ".paths-\(UUID().uuidString).tmp", directoryHint: .notDirectory)
+            do {
+                try rewritten.write(to: staging)
+                _ = try fileManager.replaceItemAt(url, withItemAt: staging)
+                cleaned += 1
+            } catch {
+                try? fileManager.removeItem(at: staging)
+                debugLog(.library, "Couldn\u{2019}t remove the audio path from \"\(url.lastPathComponent)\": \(String(reflecting: error))")
+            }
+        }
+        if cleaned > 0 { debugLog(.library, "Removed the audio path from \(cleaned) MIDI file\(cleaned == 1 ? "" : "s").") }
+    }
+
     private func midiInfo(for url: URL) -> MIDIFileInfo? {
         let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
         let stamp = values?.contentModificationDate ?? .distantPast
@@ -159,11 +182,12 @@ final class LibraryStore {
     private func audioName(for provenance: MIDIProvenance) -> String? {
         if let name = provenance.sourceName { return name }
         guard let source = provenance.source else { return nil }
-        if source.hasPrefix("reference:") {
-            let id = UUID(uuidString: String(source.dropFirst("reference:".count)))
+        if source.hasPrefix(MIDIProvenance.referencePrefix) {
+            let id = UUID(uuidString: String(source.dropFirst(MIDIProvenance.referencePrefix.count)))
             return imports.references.first { $0.id == id }.map { ($0.name as NSString).deletingPathExtension }
         }
-        return URL(string: source).map { $0.deletingPathExtension().lastPathComponent }
+        guard source.hasPrefix(MIDIProvenance.audioPrefix) else { return nil }
+        return (String(source.dropFirst(MIDIProvenance.audioPrefix.count)) as NSString).deletingPathExtension
     }
 
     /// Puts the transcriptions of each audio file together, oldest first, and leaves every other file on its own.

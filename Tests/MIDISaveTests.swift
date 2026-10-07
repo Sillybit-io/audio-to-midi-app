@@ -104,7 +104,8 @@ struct MIDISaveTests {
         #expect(after[1] == [before[1][0], 66, before[1][2], 33])
 
         let provenance = try #require(MIDIImporter.info(at: fixture.url)?.provenance)
-        #expect(provenance == MIDIProvenance(source: "file:///Audio/take.wav", modelID: "basic-pitch", edited: true, partial: false))
+        #expect(provenance == MIDIProvenance(source: "audio:take.wav", modelID: "basic-pitch", edited: true, partial: false))
+        #expect(try Data(contentsOf: fixture.url).range(of: Data("file%3A".utf8)) == nil)
         #expect(MIDIImporter.info(at: fixture.url)?.origin == .edited)
         #expect(fixture.editor.provenance?.edited == true)
         #expect(try listing(fixture.folder) == ["take.mid"])
@@ -118,11 +119,11 @@ struct MIDISaveTests {
     }
 
     @Test func savingKeepsTheVersionAndTheAudioName() throws {
-        let fixture = try Fixture(provenance: MIDIProvenance(source: "file:///Audio/take.wav", sourceName: "take", modelID: "basic-pitch", version: 3))
+        let fixture = try Fixture(provenance: MIDIProvenance(source: "audio:take.wav", sourceName: "take", modelID: "basic-pitch", version: 3))
         fixture.edit()
         #expect(fixture.coordinator.saveOpenFile())
         #expect(MIDIImporter.info(at: fixture.url)?.provenance
-                == MIDIProvenance(source: "file:///Audio/take.wav", sourceName: "take", modelID: "basic-pitch", version: 3, edited: true))
+                == MIDIProvenance(source: "audio:take.wav", sourceName: "take", modelID: "basic-pitch", version: 3, edited: true))
     }
 
     @Test func aSavedFileKeepsItsLicenceNotice() throws {

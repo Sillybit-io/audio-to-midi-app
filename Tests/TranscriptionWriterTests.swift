@@ -311,11 +311,25 @@ struct TranscriptionWriterTests {
         #expect(writer.status == .saved(folder.appending(path: first), version: 1, partial: false))
     }
 
-    @Test func aReferencedAudioFileIsIdentifiedByItsBookmarkNotItsPath() {
-        let url = URL(fileURLWithPath: "/Elsewhere/take.wav")
+    @Test func aSourceIsIdentifiedByItsBookmarkOrItsNameNeverItsPath() {
+        let url = URL(fileURLWithPath: "/Users/someone/Music/take.wav")
         let reference = AudioReference(name: "take.wav", lastPath: url.path, bookmark: Data())
         #expect(TranscriptionWriter.sourceIdentifier(for: url, references: [reference]) == "reference:\(reference.id.uuidString)")
-        #expect(TranscriptionWriter.sourceIdentifier(for: url, references: []) == url.absoluteString)
+        #expect(TranscriptionWriter.sourceIdentifier(for: url, references: []) == "audio:take.wav")
+    }
+
+    @Test func aFileThatNamedItsSourceByPathStillCountsAsAVersion() throws {
+        let folder = try scratchFolder()
+        let run = makeRun()
+        var options = MIDIExportOptions()
+        options.provenance = MIDIProvenance(source: "file:///Users/someone/Silly%20MIDI%20Tools/Audio/synthetic.wav",
+                                            modelID: "basic-pitch", version: 1)
+        try MIDIBuilder.build(notes: [note(0, 1, 70)], options: options).write(to: folder.appending(path: first))
+
+        #expect(try TranscriptionWriter.write([note(0, 1, 60)], run: run, partial: false, in: folder)
+                == .saved(folder.appending(path: second), version: 2))
+        let data = try Data(contentsOf: folder.appending(path: second))
+        #expect(data.range(of: Data("someone".utf8)) == nil && data.range(of: Data("%2F".utf8)) == nil)
     }
 
     @Test func defaultNamesAreToldApartFromNamesTheUserChose() {
@@ -356,7 +370,7 @@ struct TranscriptionWriterTests {
         #expect(session.state == .done(session.notes.count))
         let info = try #require(MIDIImporter.info(at: url))
         #expect(info.noteCount > 0 && info.origin == .fromAudio)
-        #expect(info.provenance?.source == wav.standardizedFileURL.absoluteString)
+        #expect(info.provenance?.source == "audio:synthetic.wav")
         #expect(info.provenance?.sourceName == "synthetic")
         #expect(info.provenance?.modelID == "basic-pitch")
         #expect(info.provenance?.version == 1)

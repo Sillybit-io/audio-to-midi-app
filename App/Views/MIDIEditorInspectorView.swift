@@ -36,8 +36,9 @@ struct MIDIEditorInspectorView: View {
 
     private var sourceText: String {
         guard let source = editor.provenance?.source else { return "Imported file" }
-        if source.hasPrefix("reference:") { return "Referenced audio" }
-        return URL(string: source)?.lastPathComponent ?? "Audio file"
+        if source.hasPrefix(MIDIProvenance.referencePrefix) { return "Referenced audio" }
+        guard source.hasPrefix(MIDIProvenance.audioPrefix) else { return "Audio file" }
+        return String(source.dropFirst(MIDIProvenance.audioPrefix.count))
     }
 
     private var fileSection: some View {

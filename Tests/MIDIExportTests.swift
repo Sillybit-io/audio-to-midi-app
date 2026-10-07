@@ -82,6 +82,13 @@ struct MIDIExportTests {
         #expect(bends.count == 4)
     }
 
+    @Test func pitchBendsCanBeLeftOut() throws {
+        var options = MIDIExportOptions()
+        options.includesPitchBends = false
+        let file = try parse(try MIDIBuilder.build(notes: [note(0, 1, 60, velocity: 90, bends: [0, 3, 0])], options: options))
+        #expect(!absoluteEvents(file.tracks[1], file).contains { if case .pitchBend = $0.event { true } else { false } })
+    }
+
     @Test func zeroNotesStillWriteAValidFile() throws {
         let file = try parse(try MIDIBuilder.build(notes: []))
         #expect(file.tracks.count == 1)
@@ -115,5 +122,40 @@ extension MIDIExportTests {
             #expect(String(describing: absoluteEvents(plain.tracks[index], plain)) == String(describing: absoluteEvents(withTag.tracks[index], withTag)))
         }
         #expect(MIDIExportOptions().provenance == nil)
+    }
+}
+
+extension MIDIExportTests {
+    private func texts(_ file: MusicalMIDI1File) -> [String] {
+        file.tracks[0].events.compactMap { if case .text(let t) = $0.event { t.text } else { nil } }
+    }
+
+    private var entry: ModelEntry { ModelCatalog.entry(id: "basic-pitch")! }
+
+    @Test func aDraggedFileSaysWhereItCameFromAndCarriesNoNoticeBendsOrPath() throws {
+        let notes = [note(0, 1, 60, velocity: 90, bends: [0, 3, 0]), note(0, 1, 23), note(0, 1, 96), note(1, 2, 95), note(1, 2, 24)]
+        let item = MIDIExport.item(notes: notes, entry: entry, slice: AudioSlice(duration: 3), name: "take")
+        let data = try MIDIBuilder.build(notes: item.notes, options: item.options)
+        let file = try parse(data)
+
+        #expect(item.notes.map(\.pitch) == [60, 95, 24])
+        #expect(texts(file) == ["take", MIDIExport.comment])
+        #expect(!absoluteEvents(file.tracks[1], file).contains { if case .pitchBend = $0.event { true } else { false } })
+        #expect(data.range(of: Data(MIDIProvenance.prefix.utf8)) == nil)
+    }
+
+    @Test func theExportSheetCanAddTheNoticeAndThePitchBends() throws {
+        let item = MIDIExport.item(notes: [note(0, 1, 60, velocity: 90, bends: [0, 3, 0])], entry: entry, slice: AudioSlice(duration: 3),
+                                   name: "take", embedNotice: true, pitchBends: true)
+        let file = try parse(try MIDIBuilder.build(notes: item.notes, options: item.options))
+
+        #expect(texts(file) == ["take", try #require(entry.exportNotice), MIDIExport.comment])
+        #expect(absoluteEvents(file.tracks[1], file).contains { if case .pitchBend = $0.event { true } else { false } })
+    }
+
+    @Test func theKeyInTheFileNameIgnoresNotesThatAreLeftOut() {
+        let notes = [note(0, 1, 60), note(1, 2, 64), note(2, 3, 67)]
+        let withNoise = notes + (0..<40).map { note(Double($0) / 10, Double($0) / 10 + 0.1, 97 + $0 % 3) }
+        #expect(MIDIExport.fileName(notes: withNoise, name: "take") == MIDIExport.fileName(notes: notes, name: "take"))
     }
 }
