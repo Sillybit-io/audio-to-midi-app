@@ -8,6 +8,6 @@ xcuserdata/
 *.xcresult
 reports/
 .DS_Store
-docs/
+docs/plans/
 smt-*.jpg
 __pycache__/
