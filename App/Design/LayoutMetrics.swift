@@ -14,6 +14,10 @@ extension Metric {
     static let fieldW = sp10 + sp9
     /// The widest the MIDI file chip in the footer grows before its name is shortened.
     static let dragChipW = sp10 * 5
+    /// The file icon on that chip.
+    static let dragIcon = sp9 - sp2
+    /// macOS 26 draws every toolbar item's glass this tall; the Transcribe, Save and Export capsules match it.
+    static let toolbarItemH = sp9 + sp2
     /// The `1.00×` speed readout and the progress percentage.
     static let readoutW = sp10 - sp4
     /// The licence text box in the licence sheet.

@@ -7,7 +7,8 @@ struct TransportView: View {
     let toggle: () -> Void
 
     var body: some View {
-        HStack(spacing: Metric.sp3) {
+        // Each button already fills a 36-pt toolbar cell, so any spacing on top spreads them wider than a system group.
+        HStack(spacing: 0) {
             Button(action: toggle) {
                 Label(playback.isPlaying ? "Pause" : "Play", systemImage: playback.isPlaying ? "pause.fill" : "play.fill")
             }
@@ -21,13 +22,14 @@ struct TransportView: View {
                 .help("Loop (L)")
                 .accessibilityLabel("Loop")
                 .accessibilityValue(playback.loops ? "On" : "Off")
-            // The hidden text is the widest the readout gets for this audio: it never clips, never moves the toolbar
-            // while playing, and leaves no spare room after short audio.
-            ZStack(alignment: .leading) {
+            // The hidden text is the widest the readout gets for this audio, so the toolbar never moves while playing.
+            // Any room it leaves goes before the readout, which keeps the inset after it as wide as the one before Play.
+            ZStack(alignment: .trailing) {
                 Text(Self.readout(playback.duration)).hidden().accessibilityHidden(true)
                 Text(Self.readout(playback.position))
             }
             .font(.body.monospacedDigit()).foregroundStyle(Native.fgSecondary).lineLimit(1)
+            .padding(.leading, Metric.sp2).padding(.trailing, Metric.sp5)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Playback position")
                 .accessibilityValue("\(PlaybackEngine.timeText(seconds: playback.position)), bar \(PlaybackEngine.barBeat(seconds: playback.position).bar) beat \(PlaybackEngine.barBeat(seconds: playback.position).beat)")

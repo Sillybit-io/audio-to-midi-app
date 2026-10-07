@@ -518,7 +518,8 @@ struct AudioDetailView: View {
         .onChange(of: session.notes.count) { playback.sync(notes: session.notes) }
         .onChange(of: session.finalizedThrough) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
         .onChange(of: session.state) { playback.limit = session.isBusy ? session.finalizedThrough : nil }
-        .onChange(of: model.slice) { playback.duration = model.slice.span }
+        // From the start, not only after the first Play, so the transport is sized for this audio before it plays.
+        .onChange(of: model.slice, initial: true) { playback.duration = model.slice.span }
         .onChange(of: model.document?.url) { screen.documentChanged() }
         .onChange(of: screen.silencedGroups, initial: true) { _, groups in playback.setSilenced(groups) }
         .toolbar {
@@ -537,6 +538,8 @@ struct AudioDetailView: View {
                 ExportView(notes: session.notes, entry: screen.selectedEntry,
                            slice: model.slice, name: model.document?.name ?? "transcription", showNotice: $screen.showExport)
             }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarSpacer(.fixed)
             ToolbarItem { InspectorToggle() }
         }
     }

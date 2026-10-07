@@ -36,43 +36,49 @@ struct ExportView: View {
     private var fileName: String { MIDIExport.fileName(notes: notes, name: name, keyInName: keyInName) }
 
     var body: some View {
-        Button("Export…") { showNotice = true }
-            .accessibilityLabel("Export MIDI\u{2026}")
-            .disabled(notes.isEmpty)
-            .sheet(isPresented: $showNotice) {
-                VStack(alignment: .leading, spacing: Metric.sp5) {
-                    Text("Export MIDI").font(.title3.bold())
-                    Text(notice.isEmpty ? "No licence notice for this model." : notice)
-                    Toggle("Embed this notice in the MIDI file", isOn: $embedNotice)
-                    Toggle("Add the detected key to the file name (\(fileName).mid)", isOn: $keyInName)
-                    HStack {
-                        Spacer()
-                        Button("Cancel") { showNotice = false }
-                        Button("Export") {
-                            item = MIDIExport.item(notes: notes, entry: entry, slice: slice, name: name,
-                                                   embedNotice: embedNotice, keyInName: keyInName)
-                            showNotice = false
-                            exporting = true
-                        }.buttonStyle(.borderedProminent)
-                    }
+        // Drawn like Save and Transcribe, so the three actions share one height and inset.
+        Button { showNotice = true } label: {
+            CapsuleActionLabel(title: "Export\u{2026}", systemImage: "square.and.arrow.up", isPrimary: false, isEnabled: !notes.isEmpty)
+        }
+        .buttonStyle(.plain)
+        .help("Export MIDI (\u{2318}E)")
+        .accessibilityLabel("Export MIDI\u{2026}")
+        .disabled(notes.isEmpty)
+        .sheet(isPresented: $showNotice) {
+            VStack(alignment: .leading, spacing: Metric.sp5) {
+                Text("Export MIDI").font(.title3.bold())
+                Text(notice.isEmpty ? "No licence notice for this model." : notice)
+                Toggle("Embed this notice in the MIDI file", isOn: $embedNotice)
+                Toggle("Add the detected key to the file name (\(fileName).mid)", isOn: $keyInName)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { showNotice = false }
+                    Button("Export") {
+                        item = MIDIExport.item(notes: notes, entry: entry, slice: slice, name: name,
+                                               embedNotice: embedNotice, keyInName: keyInName)
+                        showNotice = false
+                        exporting = true
+                    }.buttonStyle(.borderedProminent)
                 }
-                .padding(Metric.sp7).frame(width: Metric.sheetW)
             }
-            .fileExporter(isPresented: $exporting, item: item, contentTypes: [.midi], defaultFilename: "\(fileName).mid") { result in
-                switch result {
-                case .success(let url): debugLog(.export, "Exported to \(url.path).")
-                case .failure(let error): debugLog(.export, "Export failed: \(String(reflecting: error))")
-                }
-                MIDIExportItem.clearTemporaryFiles()
-            } onCancellation: {
-                debugLog(.export, "Export cancelled.")
-                MIDIExportItem.clearTemporaryFiles()
+            .padding(Metric.sp7).frame(width: Metric.sheetW)
+        }
+        .fileExporter(isPresented: $exporting, item: item, contentTypes: [.midi], defaultFilename: "\(fileName).mid") { result in
+            switch result {
+            case .success(let url): debugLog(.export, "Exported to \(url.path).")
+            case .failure(let error): debugLog(.export, "Export failed: \(String(reflecting: error))")
             }
+            MIDIExportItem.clearTemporaryFiles()
+        } onCancellation: {
+            debugLog(.export, "Export cancelled.")
+            MIDIExportItem.clearTemporaryFiles()
+        }
     }
 }
 
-/// The MIDI file as an object to drag into Finder or a DAW. It sits in the footer, which stays in view whatever the
-/// inspector shows, and carries the file's name because an icon alone didn't say what it was. It is left out until
+/// The MIDI file as an object to drag into a DAW or Finder. It sits in the footer, which stays in view whatever the
+/// inspector shows. A file name on its own read as a label, so the chip looks like a file and says what to do with it:
+/// Finder's MIDI icon, "Drag into your DAW", the name, a grab pointer and a highlight on hover. It is left out until
 /// there are notes to drag.
 struct MIDIDragChip: View {
     let notes: [NoteEvent]
@@ -80,24 +86,39 @@ struct MIDIDragChip: View {
     let slice: AudioSlice
     let name: String
 
+    @State private var hovering = false
+
+    private static let fileIcon = NSWorkspace.shared.icon(for: .midi)
+
     var body: some View {
         if !notes.isEmpty {
-            let file = MIDIExport.fileName(notes: notes, name: name)
-            Label {
-                Text("\(file).mid").foregroundStyle(Native.fg)
-            } icon: {
-                Image(systemName: "music.note").foregroundStyle(Token.accent)
+            let file = "\(MIDIExport.fileName(notes: notes, name: name)).mid"
+            let shape = RoundedRectangle(cornerRadius: Metric.rRow)
+            HStack(spacing: Metric.sp3) {
+                Image(nsImage: Self.fileIcon).resizable().frame(width: Metric.dragIcon, height: Metric.dragIcon)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Drag into your DAW").font(.caption.weight(.semibold)).foregroundStyle(Native.fg)
+                    Text(file).font(.caption2).foregroundStyle(Native.fgSecondary).truncationMode(.middle)
+                }
+                .lineLimit(1)
             }
-            .font(.caption)
-            .lineLimit(1).truncationMode(.middle)
-            .padding(.horizontal, Metric.sp5).padding(.vertical, Metric.sp2)
-            .frame(maxWidth: Metric.dragChipW)
+            .padding(.leading, Metric.sp2).padding(.trailing, Metric.sp5).padding(.vertical, Metric.sp1)
+            .frame(maxWidth: Metric.dragChipW, alignment: .leading)
             .fixedSize(horizontal: true, vertical: false)
-            .background(Token.surfaceSunken, in: Capsule())
-            .overlay(Capsule().strokeBorder(Token.border))
-            .draggable(MIDIExport.item(notes: notes, entry: entry, slice: slice, name: name))
-            .help("Drag this MIDI file into Finder or a DAW")
-            .accessibilityLabel("MIDI file \(file), drag into Finder or a DAW")
+            .background(hovering ? Token.accentSoft : Token.surfaceSunken, in: shape)
+            .overlay(shape.strokeBorder(hovering ? Token.accent : Token.borderStrong))
+            .contentShape(shape)
+            .onHover { hovering = $0 }
+            .pointerStyle(.grabIdle)
+            .draggable(MIDIExport.item(notes: notes, entry: entry, slice: slice, name: name)) {
+                Label {
+                    Text(file)
+                } icon: {
+                    Image(nsImage: Self.fileIcon).resizable().frame(width: Metric.dragIcon, height: Metric.dragIcon)
+                }
+            }
+            .help("Drag this MIDI file onto a track in your DAW, or into a Finder window")
+            .accessibilityLabel("MIDI file \(file), drag into a DAW or Finder")
         }
     }
 }

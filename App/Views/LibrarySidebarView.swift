@@ -154,6 +154,8 @@ struct LibrarySidebarView: View {
                 Text("\(name)/\(title)").font(.caption2).lineLimit(1).truncationMode(.head).help(folder?.abbreviatedPath ?? "")
             }
         }
+        // The header runs past the rows' highlight; this ends the path as far inside it as the title starts.
+        .padding(.trailing, Metric.sp5)
     }
 
     @ViewBuilder private func audioRow(_ entry: LibraryEntry) -> some View {

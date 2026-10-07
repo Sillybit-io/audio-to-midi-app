@@ -36,7 +36,7 @@ struct AudioInspectorView: View {
                     Toggle(isOn: $screen.separateDrums) {
                         VStack(alignment: .leading, spacing: Metric.sp1) {
                             Text("Separate drums first")
-                            Text("Isolates the drums from the mix before listening. Downloads a \(screen.separatorEntry?.sizeText ?? "large") helper model once, and is very slow: on an Intel Mac, many times the length of the audio. Best for short slices. Helps most with Onsets and Frames on full songs.")
+                            Text(Self.separatorNote(screen.separatorEntry, installed: separatorInstalled))
                                 .font(.caption).foregroundStyle(Native.fgSecondary)
                         }
                     }
@@ -134,6 +134,18 @@ struct AudioInspectorView: View {
                 Text(entry.attribution).font(.caption).foregroundStyle(Native.fgSecondary)
             }
         }
+    }
+
+    private var separatorInstalled: Bool {
+        screen.separatorEntry.map { screen.store.state(for: $0) == .installed } ?? false
+    }
+
+    /// Says whether the helper is already on this Mac, so the toggle doesn't promise a download that already happened.
+    static func separatorNote(_ separator: ModelEntry?, installed: Bool) -> String {
+        let source = installed
+            ? "Uses the \(separator?.displayName ?? "drum separator") you downloaded."
+            : "The first run downloads the \(separator?.displayName ?? "drum separator") helper (\(separator?.sizeText ?? "a large file")) once."
+        return "Isolates the drums from the mix before listening. \(source) Very slow: on an Intel Mac, many times the length of the audio. Best for short slices. Helps most with Onsets and Frames on full songs."
     }
 
     private static func velocitylessName(_ entry: ModelEntry) -> String {

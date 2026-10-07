@@ -262,6 +262,8 @@ struct MIDIEditorView: View {
                 ExportView(notes: document.noteEvents, entry: ModelCatalog.entry(id: editor.provenance?.modelID),
                            slice: editor.exportSlice, name: editor.name, showNotice: $editor.showExport)
             }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarSpacer(.fixed)
             ToolbarItem { InspectorToggle() }
         }
     }

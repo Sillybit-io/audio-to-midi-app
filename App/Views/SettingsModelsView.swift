@@ -8,11 +8,18 @@ struct SettingsModelsView: View {
     var body: some View {
         Form {
             Section {
-                ForEach(ModelCatalog.entries) { entry in row(entry) }
+                ForEach(ModelCatalog.entries.filter(\.transcribes)) { entry in row(entry) }
             } header: {
                 Text("Models")
             } footer: {
                 if let error = store.deleteError { Text(error).foregroundStyle(Native.danger) }
+            }
+            Section {
+                ForEach(ModelCatalog.entries.filter { !$0.transcribes }) { entry in row(entry) }
+            } header: {
+                Text("Helpers")
+            } footer: {
+                Text(Self.helperUsage)
             }
             Section("Storage") {
                 LabeledContent("Models are stored in the app\u{2019}s sandbox container") {
@@ -30,6 +37,14 @@ struct SettingsModelsView: View {
         } message: { entry in
             Text("Frees \(entry.sizeText). You can download it again later.")
         }
+    }
+
+    /// A helper is never picked as the model, so this says where it is switched on.
+    static var helperUsage: String {
+        let drumModels = ModelCatalog.entries.filter(\.isDrumModel).map(\.displayName).joined(separator: " or ")
+        return "Helpers aren\u{2019}t picked as the model. To use the drum separator, open an audio file, choose \(drumModels) "
+            + "as the model, then turn on Separate drums first in the inspector\u{2019}s Drums section. "
+            + "If the separator isn\u{2019}t downloaded yet, the next run downloads it first."
     }
 
     private func row(_ entry: ModelEntry) -> some View {

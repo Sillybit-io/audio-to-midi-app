@@ -66,6 +66,22 @@ struct HandoffStringsTests {
         #expect(Metric.aboutH == 460 && Metric.settingsMinH == 520)
         #expect(Metric.licenceSheetW == 560 && Metric.licenceTextH == 200)
         #expect(Metric.sliderW == 80 && Metric.readoutW == 40)
+        #expect(Metric.toolbarItemH == 36 && Metric.dragIcon == 28)
+    }
+
+    @Test func theSeparatorToggleOnlyPromisesADownloadWhenOneIsNeeded() {
+        let separator = entry(ModelCatalog.separatorID)
+        let missing = AudioInspectorView.separatorNote(separator, installed: false)
+        #expect(missing.contains("The first run downloads the Drum separator (HT-Demucs) helper (316 MB) once."))
+        let installed = AudioInspectorView.separatorNote(separator, installed: true)
+        #expect(installed.contains("Uses the Drum separator (HT-Demucs) you downloaded."))
+        #expect(!installed.contains("downloads") && !installed.contains("316 MB"))
+        #expect(installed.hasPrefix("Isolates the drums from the mix before listening."))
+    }
+
+    @Test func settingsSaysWhereTheDrumSeparatorIsSwitchedOn() {
+        #expect(SettingsModelsView.helperUsage.contains("choose Drums (ADTOF) or Drums (OaF, Magenta) as the model"))
+        #expect(SettingsModelsView.helperUsage.contains("turn on Separate drums first in the inspector\u{2019}s Drums section"))
     }
 }
 
