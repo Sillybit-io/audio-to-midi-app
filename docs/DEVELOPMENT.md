@@ -7,8 +7,8 @@ How to build Silly MIDI Tools, run its tests, add a model, and cut a release.
 Requirements: macOS 26 or later, Xcode 26 or later, `xcodegen`, `cmake` and `ninja`.
 
 ```sh
-git clone --recurse-submodules https://github.com/Sillybit-io/audio-to-midi-app.git
-cd audio-to-midi-app
+git clone --recurse-submodules https://github.com/Sillybit-io/silly-midi-tools.git
+cd silly-midi-tools
 scripts/build-engine.sh
 xcodegen generate
 xcodebuild -project SillyMIDITools.xcodeproj -scheme SillyMIDITools -destination 'platform=macOS' build CODE_SIGN_IDENTITY=-

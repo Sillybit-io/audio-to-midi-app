@@ -7,7 +7,8 @@ extension NSImage {
 }
 
 struct AboutView: View {
-    private static let repository = URL(string: "https://github.com/Sillybit-io/audio-to-midi-app")!
+    private static let repository = URL(string: "https://github.com/Sillybit-io/silly-midi-tools")!
+    private static let maker = URL(string: "https://github.com/Sillybit-io")!
 
     @AppStorage("aboutTab") private var tab = "about"
 
@@ -32,9 +33,13 @@ struct AboutView: View {
                 .accessibilityHidden(true)
             Text("Silly MIDI Tools").font(.title.bold())
             Text("Version \(version)").foregroundStyle(Native.fgSecondary)
+            HStack(spacing: Metric.sp2) {
+                Text("Made by").foregroundStyle(Native.fgSecondary)
+                Link("Sillybit", destination: Self.maker)
+            }
             Text("macOS 26 or later · Apple silicon").font(.caption).foregroundStyle(Native.fgSecondary)
             Text("Licensed under the Apache License 2.0.")
-            Text("MuScriptor models are licensed CC BY-NC 4.0: non-commercial use only, including the MIDI they produce. The piano model is CC BY 4.0 and needs credit. Basic Pitch is Apache-2.0. Check each model\u{2019}s licence before using its output commercially.")
+            Text("MuScriptor (CC BY-NC 4.0) and Drums (ADTOF) (CC BY-NC-SA 4.0) are for non-commercial use only, including the MIDI they produce. The piano model is CC BY 4.0 and needs credit. Basic Pitch, Drums (OaF) and Hand percussion are Apache-2.0. Check each model\u{2019}s licence before using its output commercially.")
                 .font(.caption).foregroundStyle(Native.fgSecondary).multilineTextAlignment(.center)
                 .frame(maxWidth: Metric.sheetW + Metric.sp10)
             HStack(spacing: Metric.sp6) {

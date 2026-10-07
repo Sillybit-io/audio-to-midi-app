@@ -9,7 +9,7 @@ struct AppCommands: Commands {
     @AppStorage("settingsTab") private var settingsTab = "general"
     @AppStorage("aboutTab") private var aboutTab = "about"
 
-    private static let repository = URL(string: "https://github.com/Sillybit-io/audio-to-midi-app")!
+    private static let repository = URL(string: "https://github.com/Sillybit-io/silly-midi-tools")!
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {

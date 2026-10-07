@@ -24,5 +24,7 @@
 	<string>public.app-category.music</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Sillybit</string>
 </dict>
 </plist>

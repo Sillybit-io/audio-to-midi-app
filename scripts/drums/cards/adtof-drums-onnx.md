@@ -12,4 +12,4 @@ crowdsourced, non-synthetic music. **Non-commercial use only (CC BY-NC-SA 4.0).*
   (madmom `NotePeakPickingProcessor`, `pre_avg=0.1, post_avg=0.01, pre_max=0.02, post_max=0.01, combine=0.02`).
 - Matches the authors' Keras model fed with madmom features to within 2e-6.
 
-Converted by the [Silly MIDI Tools](https://github.com/Sillybit-io/audio-to-midi-app) scripts in `scripts/drums/`.
+Converted by the [Silly MIDI Tools](https://github.com/Sillybit-io/silly-midi-tools) scripts in `scripts/drums/`.

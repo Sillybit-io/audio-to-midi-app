@@ -13,4 +13,4 @@ to ONNX of the E-GMD checkpoint of Magenta's
 - Only the onset and velocity branches are kept. Matches the original TensorFlow graph restored from the same checkpoint to
   within 1e-3 (measured 4e-5).
 
-Converted by the [Silly MIDI Tools](https://github.com/Sillybit-io/audio-to-midi-app) scripts in `scripts/drums/`.
+Converted by the [Silly MIDI Tools](https://github.com/Sillybit-io/silly-midi-tools) scripts in `scripts/drums/`.

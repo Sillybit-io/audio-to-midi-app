@@ -56,6 +56,7 @@ targets:
         CFBundleVersion: "9"
         LSMinimumSystemVersion: "26.0"
         LSApplicationCategoryType: public.app-category.music
+        NSHumanReadableCopyright: "© 2026 Sillybit"
     entitlements:
       path: Config/App.entitlements
       properties:

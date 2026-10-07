@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Sillybit-io/audio-to-midi-app/releases/latest"><strong>Download for Mac</strong></a><br>
+  <a href="https://github.com/Sillybit-io/silly-midi-tools/releases/latest"><strong>Download for Mac</strong></a><br>
   <sub>Free and open source · macOS 26 or later · Apple silicon</sub>
 </p>
 
@@ -67,7 +67,7 @@ Models download the first time you use them. MuScriptor also needs a free Huggin
 
 ## Install
 
-1. Download the `.zip` from the [latest release](https://github.com/Sillybit-io/audio-to-midi-app/releases/latest) and double-click it to unzip. Don't use the `unzip` command in Terminal, because it strips data the app needs.
+1. Download the `.zip` from the [latest release](https://github.com/Sillybit-io/silly-midi-tools/releases/latest) and double-click it to unzip. Don't use the `unzip` command in Terminal, because it strips data the app needs.
 2. Drag **SillyMIDITools.app** into your Applications folder.
 3. The app isn't notarized by Apple yet, so macOS blocks the first launch. Run this once in Terminal:
 
