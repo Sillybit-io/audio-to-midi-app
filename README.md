@@ -26,6 +26,24 @@ So Sillybit built a converter where you pick a model made for what you recorded.
 
 Everything runs on your Mac. Your audio is never uploaded anywhere.
 
+## Silly MIDI Tools or Ableton?
+
+Live 12 Standard and Suite can turn audio into MIDI too, with three modes: Convert Melody, Convert Harmony and Convert Drums. Here's how the two compare.
+
+| | Silly MIDI Tools | Ableton Live |
+| --- | --- | --- |
+| Price | Free | Included in Live 12 Standard and Suite |
+| How it listens | Six models, one for each kind of recording | Three modes: melody, harmony and drums |
+| A full band | MuScriptor writes one track per instrument | Works best on one isolated instrument (Suite can split stems first) |
+| Drums | Five or eight kit pieces | Kick, snare and hi-hat |
+| Hand drums | A detector for darbuka and similar drums | No dedicated mode |
+| Tempo | Fixed 120 BPM, 4/4 grid | Your Live set's tempo |
+| Where it runs | A separate app for Apple silicon Macs that works with any DAW | Inside Live, on Mac and Windows |
+
+Live is the better pick when the MIDI has to follow your set's tempo, when you're on Windows, or when you're releasing the music and the part would need MuScriptor or ADTOF, which are non-commercial only. Silly MIDI Tools is worth trying when Live's conversion gives you extra notes, especially on a full mix, a kit with more than kick, snare and hi-hat, or a hand drum.
+
+<sub>Ableton details come from the [Live 12 manual](https://www.ableton.com/en/live-manual/12/converting-audio-to-midi/) and the [edition comparison](https://www.ableton.com/en/live/compare-editions/). Ableton and Live are trademarks of Ableton AG. Silly MIDI Tools isn't affiliated with Ableton.</sub>
+
 ## How it works
 
 1. Drop in a recording: WAV, MP3, FLAC, M4A or AIFF. Drag the handles if you only need part of it.
